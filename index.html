@@ -4,8 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>NEAR Saboteur</title>
+  <style>
+    /* Reset so the game's own position:fixed + height:100vh container
+       reliably fills the real screen on mobile browsers (without this,
+       html/body default to height:auto, which can make 100vh measure
+       against an unexpected ancestor height on some mobile browsers,
+       pushing fixed-position content like the Lobby's Start button far
+       below the visible viewport). */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+    }
+    #root {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
 </head>
-<body style="margin:0; padding:0; overflow:hidden;">
+<body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
