@@ -17,6 +17,11 @@ export default defineConfig({
     target: 'esnext',
     chunkSizeWarningLimit: 5000,
     rollupOptions: {
+      // [BUG FIX - cont'd] Rollup's own error above: preserveModules
+      // requires preserveEntrySignatures to NOT be false, but Vite sets
+      // it to false internally by default - this explicit override is
+      // exactly what that error message asked for.
+      preserveEntrySignatures: 'strict',
       output: {
         // [BUG FIX - "JsonRpcProvider is not a constructor"] This is a
         // known, previously-documented bug between Rollup and
