@@ -12,6 +12,8 @@
     "react-dom": "^18.3.1",
     "socket.io-client": "^4.7.5",
     "near-api-js": "latest",
+    "near-seed-phrase": "latest",
+    "buffer": "latest",
     "@near-wallet-selector/core": "latest",
     "@near-wallet-selector/modal-ui": "latest",
     "@near-wallet-selector/hot-wallet": "latest",
