@@ -4,10 +4,6 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
   plugins: [
-    // Polyfills Node-only globals (Buffer, process, global, etc.) that
-    // near-api-js / near-seed-phrase / @near-wallet-selector internally
-    // expect - without this, the app crashes immediately on load with
-    // something like "Buffer is not defined" or "global is not defined".
     nodePolyfills({
       globals: {
         Buffer: true,
@@ -17,21 +13,28 @@ export default defineConfig({
     }),
     react(),
   ],
-  // [BUG FIX - "JsonRpcProvider is not a constructor"] near-api-js v7's
-  // own dependency tree mixes real ESM and real CommonJS (e.g. its
-  // `mustache` dependency is genuine CJS) - a blanket
-  // commonjsOptions.include: [] (an earlier attempt at this fix) skips
-  // Rollup's CJS-interop entirely and breaks that legitimate case
-  // instead. The actual fix: leave Rollup's default CJS handling alone,
-  // and instead stop it from downleveling modern class syntax at all -
-  // 'esnext' keeps every class exactly as near-api-js's author wrote
-  // it, native JS class-hoisting semantics intact, which is what avoids
-  // the reordering bug in the first place.
   build: {
     target: 'esnext',
-    // Game file has a lot of embedded base64 images - raise the warning
-    // limit so Vite doesn't spam warnings about chunk size (it's still a
-    // single optimized bundle, just naturally larger than a typical app).
     chunkSizeWarningLimit: 5000,
+    rollupOptions: {
+      output: {
+        // [BUG FIX - "JsonRpcProvider is not a constructor"] This is a
+        // known, previously-documented bug between Rollup and
+        // near-api-js specifically: some of its internal files import
+        // each other circularly (A needs something from B, B needs
+        // something from A). Rollup's default behavior CONCATENATES
+        // every module into a small number of combined chunks, which
+        // can reorder a class's declaration to come AFTER the line that
+        // tries to use it - something that works fine as separate ES
+        // modules (where the JS engine resolves circular references
+        // lazily) but breaks once everything is concatenated into one
+        // physical block of code top-to-bottom. preserveModules stops
+        // Rollup from concatenating at all - every source file becomes
+        // its own real output file, exactly as near-api-js's author
+        // wrote and ordered it, so nothing gets reordered and the
+        // circular reference resolves the same way it does in dev mode.
+        preserveModules: true,
+      },
+    },
   },
 });
