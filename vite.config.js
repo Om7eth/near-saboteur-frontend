@@ -29,7 +29,16 @@ export default defineConfig({
   },
   build: {
     commonjsOptions: {
-      transformMixedEsModules: true,
+      // [BUG FIX - "JsonRpcProvider is not a constructor", cont'd] The
+      // previous attempt (transformMixedEsModules) pushed near-api-js
+      // THROUGH Vite's CommonJS-interop plugin - but near-api-js v7 is
+      // pure ESM with no CommonJS in it at all, so that transform was
+      // itself introducing the reordering bug, not avoiding it. This is
+      // the confirmed fix other projects have used for this exact error
+      // with near-api-js: skip the CommonJS plugin for every dependency
+      // entirely, so a pure-ESM package like this one is left exactly
+      // as its author wrote it.
+      include: [],
     },
     rollupOptions: {
       output: {
