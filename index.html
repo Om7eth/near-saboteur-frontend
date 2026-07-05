@@ -22,10 +22,39 @@
       height: 100%;
       width: 100%;
     }
+    /* [DEBUG - TEMPORARY] Shows the real error on-screen instead of a
+       silent blank white page - lets a mobile-only, no-dev-tools setup
+       actually see what's crashing. Remove once things are stable. */
+    #boot-error {
+      display: none;
+      position: fixed; inset: 0; z-index: 999999;
+      background: #1a0505; color: #ff9a9a; font-family: monospace;
+      font-size: 13px; line-height: 1.5; padding: 16px;
+      overflow: auto; white-space: pre-wrap; word-break: break-word;
+    }
   </style>
 </head>
 <body>
   <div id="root"></div>
+  <div id="boot-error"></div>
+  <script>
+    // [DEBUG - TEMPORARY] Catches anything that crashes before/during
+    // the app's own render - both synchronous errors (window.onerror)
+    // and rejected Promises (unhandledrejection), since a broken
+    // dynamic import or async init can fail as either one.
+    function showBootError(title, detail) {
+      var box = document.getElementById('boot-error');
+      box.style.display = 'block';
+      box.textContent = title + '\n\n' + detail;
+    }
+    window.addEventListener('error', function (e) {
+      showBootError('Error: ' + (e.message || 'unknown'), (e.error && e.error.stack) || (e.filename + ':' + e.lineno));
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var reason = e.reason;
+      showBootError('Unhandled Promise rejection:', (reason && (reason.stack || reason.message)) || String(reason));
+    });
+  </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
