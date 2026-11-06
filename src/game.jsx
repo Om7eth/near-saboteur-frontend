@@ -8072,7 +8072,7 @@ function LobbyScreen({
                       }}
                     >{full ? `ROOM FULL (${MAX_PLAYERS}/${MAX_PLAYERS})` : '+ ADD BOT'}</button>
                     <p style={{ fontSize: 10, color: '#5a655f', lineHeight: 1.45, margin: '7px 0 0' }}>
-                      Bots play as crew for now. Free Play only, and they never earn points.
+                      Bots do missions, report bodies, and can be the Saboteur too. Free Play only, and they never earn points.
                     </p>
                   </>
                 );
