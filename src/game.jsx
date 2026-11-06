@@ -8749,6 +8749,169 @@ function LobbyScreen({
   );
 }
 
+
+// ── Kill cutscene (killer + victim screens) ────────────────────────────────
+// [UPDATE - NEW KILL ANIMATIONS] Three styles, approved from the mockup:
+// "Signal Lost" (glitch), "Neon Slash" and "Lockdown". The style is picked
+// from the killer+victim ids, so BOTH screens always play the same one,
+// weighted 45% / 37% / 18% (Om7eth's preferred mix). Pure CSS keyframes on
+// a 2.5s timeline (KILL_CUTSCENE_MS). The victim's screen never names the
+// killer - they still have to use ghost chat and memory.
+function pickKillVariant(killerId, targetId) {
+  let h = 2166136261;
+  const key = `${killerId}|${targetId}`;
+  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const r = h % 100;
+  return r < 45 ? 'signal' : r < 82 ? 'neon' : 'lockdown';
+}
+const KILL_CUTSCENE_CSS = `
+.kc-stage{position:relative;width:min(92vw,62vh);aspect-ratio:9/14;overflow:hidden;border-radius:14px;container-type:inline-size}
+.kc-av{position:absolute;width:30%;aspect-ratio:1;background-size:contain;background-repeat:no-repeat;background-position:center bottom}
+.kc-cap{position:absolute;left:0;right:0;text-align:center;font-family:'IBM Plex Mono',ui-monospace,monospace;font-weight:800;letter-spacing:4px;opacity:0;padding:0 12px}
+.kc-cap small{display:block;font-family:system-ui,sans-serif;letter-spacing:.5px;font-weight:600;font-size:12px;color:#c9ced6;margin-top:8px}
+@keyframes kcGone{to{opacity:0}}
+@keyframes kcShake{0%,100%{transform:translate(0)}25%{transform:translate(-5px,3px)}50%{transform:translate(4px,-3px)}75%{transform:translate(-3px,-2px)}}
+@keyframes kcCapA{0%{opacity:0;letter-spacing:12px;filter:blur(4px)}20%{opacity:1;letter-spacing:4px;filter:blur(0)}85%{opacity:1}100%{opacity:0}}
+.kc-signal{background:radial-gradient(circle at 60% 55%,#1a0508 0%,#000 70%);animation:kcShake .25s .35s}
+.kc-signal .kc-scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 2px,transparent 2px 4px);pointer-events:none}
+.kc-signal .kc-killer{left:-35%;bottom:30%;animation:kcAIn .35s cubic-bezier(.2,.9,.3,1) forwards,kcAHold 2.15s .35s forwards}
+@keyframes kcAIn{from{left:-35%;filter:blur(6px)}to{left:22%;filter:blur(0)}}
+@keyframes kcAHold{0%{left:22%}10%{left:26%}100%{left:24%}}
+.kc-signal .kc-victim{left:52%;bottom:30%;animation:kcGone .01s .42s forwards}
+.kc-signal .kc-slice{position:absolute;left:52%;bottom:30%;width:30%;aspect-ratio:1;background-size:contain;background-repeat:no-repeat;background-position:center bottom;opacity:0;animation:kcSlice 1.3s .42s forwards}
+@keyframes kcSlice{0%{opacity:1;transform:translateX(0)}25%{opacity:1;transform:translateX(var(--dx));filter:drop-shadow(-3px 0 #00e5ff) drop-shadow(3px 0 #ff2b5e)}70%{opacity:.6;transform:translateX(calc(var(--dx)*1.6))}100%{opacity:0;transform:translateX(calc(var(--dx)*2.2)) translateY(-10px)}}
+.kc-signal .kc-flash{position:absolute;inset:0;background:#fff;opacity:0;animation:kcFlash .3s .35s}
+@keyframes kcFlash{0%{opacity:.9}40%{opacity:.5;background:#ff3b4a}100%{opacity:0}}
+.kc-signal .kc-hex{position:absolute;width:7px;height:8px;background:#ff3b4a;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);opacity:0;animation:kcHex 1.4s forwards}
+@keyframes kcHex{0%{opacity:0;transform:translate(0,0) scale(.6)}15%{opacity:1}100%{opacity:0;transform:translate(var(--hx),var(--hy)) scale(1.3) rotate(120deg)}}
+.kc-signal .kc-cap{top:16%;color:#ff3b4a;font-size:clamp(18px,3.6vh,28px);font-size:clamp(14px,7.5cqw,28px);animation:kcCapA 1.6s .9s forwards}
+.kc-neon{background:linear-gradient(180deg,#05070d,#0b0410)}
+.kc-neon .kc-killer{left:-35%;bottom:28%;animation:kcBDash .45s cubic-bezier(.6,0,.3,1) forwards,kcBAfter 2s .45s forwards}
+@keyframes kcBDash{0%{left:-35%}100%{left:70%;filter:blur(2px)}}
+@keyframes kcBAfter{0%{left:70%;filter:blur(0)}100%{left:72%}}
+.kc-neon .kc-victim{left:50%;bottom:28%;animation:kcGone .01s 1.05s forwards}
+.kc-neon .kc-trail{position:absolute;bottom:38%;left:0;height:6px;width:0;background:linear-gradient(90deg,transparent,#ff2b5e,#fff);border-radius:6px;filter:blur(1px);opacity:0;animation:kcBTrail .5s forwards}
+@keyframes kcBTrail{0%{opacity:0;width:0}30%{opacity:1}100%{opacity:0;width:95%}}
+.kc-neon svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.kc-neon svg line{stroke:#fff;stroke-width:3;filter:drop-shadow(0 0 6px #ff2b5e) drop-shadow(0 0 14px #ff2b5e);stroke-dasharray:420;stroke-dashoffset:420;animation:kcBSlash .25s .4s forwards,kcBSlashOut .6s 1.3s forwards}
+@keyframes kcBSlash{to{stroke-dashoffset:0}}
+@keyframes kcBSlashOut{to{opacity:0}}
+.kc-neon .kc-mono{position:absolute;inset:0;background:#000;mix-blend-mode:saturation;opacity:0;animation:kcBMono 1s .5s}
+@keyframes kcBMono{0%,70%{opacity:1}100%{opacity:0}}
+.kc-neon .kc-half{position:absolute;left:50%;bottom:28%;width:30%;aspect-ratio:1;background-size:contain;background-repeat:no-repeat;background-position:center bottom;opacity:0}
+.kc-neon .kc-h1{clip-path:polygon(0 0,100% 0,100% 30%,0 75%);animation:kcBH1 1.3s 1.05s forwards}
+.kc-neon .kc-h2{clip-path:polygon(0 75%,100% 30%,100% 100%,0 100%);animation:kcBH2 1.3s 1.05s forwards}
+@keyframes kcBH1{0%{opacity:1}100%{opacity:0;transform:translate(-14px,-24px) rotate(-14deg)}}
+@keyframes kcBH2{0%{opacity:1}100%{opacity:0;transform:translate(10px,14px) rotate(10deg)}}
+.kc-neon .kc-cap{bottom:12%;color:#fff;font-size:clamp(18px,3.8vh,30px);font-size:clamp(14px,8cqw,30px);text-shadow:0 0 12px #ff2b5e;animation:kcBCap 1.3s 1.1s forwards}
+@keyframes kcBCap{0%{opacity:0;letter-spacing:0}25%{opacity:1;letter-spacing:6px}85%{opacity:1}100%{opacity:0}}
+.kc-lockdown{background:#0a0303}
+.kc-lockdown .kc-alarm{position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(255,40,40,.55),transparent 60%);opacity:0;animation:kcCAlarm .5s 4 alternate}
+@keyframes kcCAlarm{from{opacity:0}to{opacity:1}}
+.kc-lockdown .kc-bar{position:absolute;left:0;right:0;height:16%;background:repeating-linear-gradient(45deg,#ffcc00 0 14px,#111 14px 28px);transform:scaleY(0);animation:kcCBar .3s forwards}
+.kc-lockdown .kc-bar.t{top:0;transform-origin:top}.kc-lockdown .kc-bar.b{bottom:0;transform-origin:bottom}
+@keyframes kcCBar{to{transform:scaleY(1)}}
+.kc-lockdown .kc-killer{left:8%;bottom:30%;filter:brightness(.15) drop-shadow(0 0 10px rgba(255,0,0,.6))}
+.kc-lockdown .kc-victim{left:44%;bottom:30%;width:36%;animation:kcCVic 1.2s .3s forwards}
+@keyframes kcCVic{0%{filter:none}60%{filter:grayscale(1) brightness(1.4) contrast(1.4) drop-shadow(0 0 6px #ff3b4a)}100%{filter:grayscale(1) brightness(.6);transform:scaleY(.15) translateY(40%);opacity:.6}}
+.kc-lockdown .kc-beam{position:absolute;left:38%;width:48%;height:4px;background:#ff3b4a;box-shadow:0 0 16px #ff3b4a,0 0 30px #ff3b4a;top:30%;opacity:0;animation:kcCBeam .8s .3s forwards}
+@keyframes kcCBeam{0%{opacity:1;top:28%}100%{opacity:1;top:68%}}
+.kc-lockdown .kc-stamp{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%) rotate(-12deg) scale(2.4);border:4px solid #ff3b4a;color:#ff3b4a;padding:6px 14px;font-family:ui-monospace,monospace;font-weight:900;letter-spacing:4px;font-size:clamp(18px,3.4vh,26px);font-size:clamp(14px,7.5cqw,26px);opacity:0;border-radius:6px;background:rgba(0,0,0,.35);animation:kcCStamp .35s 1.25s forwards}
+@keyframes kcCStamp{to{opacity:1;transform:translate(-50%,-50%) rotate(-12deg) scale(1)}}
+.kc-lockdown .kc-cap{bottom:12%;color:#ffcc00;font-size:13px;letter-spacing:3px;animation:kcCapA 1.2s 1.3s forwards}
+@media (prefers-reduced-motion: reduce){.kc-stage *{animation-duration:.01s!important;animation-delay:0s!important}}
+`;
+const KILL_SLICES = [0, 1, 2, 3, 4, 5].map((i) => ({ clip: `inset(${i * 16.6}% 0 ${100 - (i + 1) * 16.6}% 0)`, dx: `${(i % 2 ? 1 : -1) * (6 + i * 3)}px` }));
+const KILL_HEXES = Array.from({ length: 22 }, (_, i) => ({
+  left: `${58 + ((i * 37) % 16)}%`, top: `${45 + ((i * 53) % 20)}%`,
+  hx: `${((i * 71) % 120) - 40}px`, hy: `${-40 - ((i * 29) % 90)}px`, delay: `${0.7 + ((i * 13) % 50) / 100}s`,
+}));
+function KillCutscene({ variant, killerImg, victimImg, isVictim, victimName, roomName }) {
+  const bg = (img) => ({ backgroundImage: `url(${img})` });
+  const sub = isVictim ? 'Your ghost can still finish missions' : `${victimName}${roomName ? ` · ${roomName}` : ''}`;
+  let inner;
+  if (variant === 'neon') {
+    inner = (
+      <>
+        <div className="kc-trail" /><div className="kc-mono" />
+        <div className="kc-av kc-killer" style={{ ...bg(killerImg), transform: 'scaleX(-1)' }} />
+        <div className="kc-av kc-victim" style={bg(victimImg)} />
+        <div className="kc-half kc-h1" style={bg(victimImg)} /><div className="kc-half kc-h2" style={bg(victimImg)} />
+        <svg viewBox="0 0 100 155" preserveAspectRatio="none"><line x1="40" y1="118" x2="92" y2="84" /></svg>
+        <div className="kc-cap">{isVictim ? 'YOU WERE ELIMINATED' : 'ELIMINATED'}<small>{sub}</small></div>
+      </>
+    );
+  } else if (variant === 'lockdown') {
+    inner = (
+      <>
+        <div className="kc-alarm" /><div className="kc-bar t" /><div className="kc-bar b" />
+        <div className="kc-av kc-killer" style={{ ...bg(killerImg), transform: 'scaleX(-1)' }} />
+        <div className="kc-av kc-victim" style={bg(victimImg)} />
+        <div className="kc-beam" /><div className="kc-stamp">TERMINATED</div>
+        <div className="kc-cap">{isVictim ? 'YOU WERE TERMINATED' : 'STATION ALERT · CREW LOST'}<small>{sub}</small></div>
+      </>
+    );
+  } else {
+    inner = (
+      <>
+        <div className="kc-scan" /><div className="kc-flash" />
+        <div className="kc-av kc-killer" style={{ ...bg(killerImg), transform: 'scaleX(-1)' }} />
+        <div className="kc-av kc-victim" style={bg(victimImg)} />
+        {KILL_SLICES.map((sl, i) => (
+          <div key={i} className="kc-slice" style={{ ...bg(victimImg), clipPath: sl.clip, '--dx': sl.dx }} />
+        ))}
+        {KILL_HEXES.map((hx, i) => (
+          <div key={`h${i}`} className="kc-hex" style={{ left: hx.left, top: hx.top, '--hx': hx.hx, '--hy': hx.hy, animationDelay: hx.delay }} />
+        ))}
+        <div className="kc-cap">{isVictim ? 'SIGNAL LOST' : 'TARGET ELIMINATED'}<small>{sub}</small></div>
+      </>
+    );
+  }
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      <style>{KILL_CUTSCENE_CSS}</style>
+      <div className={`kc-stage kc-${variant}`}>{inner}</div>
+    </div>
+  );
+}
+
+// ── Kill spot (everyone else nearby) ────────────────────────────────────────
+// [UPDATE - KILL SPOT EFFECT] Players who can see the spot (it is drawn in
+// the world layer, under the fog of war) get a short red shockwave, a
+// flicker of static and a blood splat where the body dropped. Deliberately
+// does NOT mark the killer - the event carries no killer id, so nothing
+// here can leak who did it.
+const KILL_SPOT_MS = 2500;
+const KILL_SPOT_CSS = `
+@keyframes ksRing{0%{opacity:1;transform:translate(-50%,-50%) scale(0)}100%{opacity:0;transform:translate(-50%,-50%) scale(9)}}
+@keyframes ksSplat{from{transform:translate(-50%,-50%) scale(0)}to{transform:translate(-50%,-50%) scale(1)}}
+@keyframes ksStatic{0%,100%{opacity:0}25%,75%{opacity:1}50%{opacity:.3}}
+@keyframes ksFade{0%,80%{opacity:1}100%{opacity:0}}
+`;
+function KillSpotEffect({ left, top, size }) {
+  const ring = (delay) => ({
+    position: 'absolute', left: 0, top: 0, width: size * 0.5, height: size * 0.5, borderRadius: '50%',
+    border: '2px solid #ff3b4a', transform: 'translate(-50%,-50%) scale(0)', opacity: 0,
+    animation: `ksRing .9s ${delay}s forwards`,
+  });
+  return (
+    <div style={{ position: 'absolute', left, top, zIndex: 5, pointerEvents: 'none', animation: `ksFade ${KILL_SPOT_MS}ms forwards` }}>
+      <style>{KILL_SPOT_CSS}</style>
+      <div style={{
+        position: 'absolute', left: 0, top: size * 0.15, width: size * 1.6, height: size * 1.1, transform: 'translate(-50%,-50%) scale(0)',
+        background: 'radial-gradient(ellipse at 50% 50%,#9c1818 0 35%,#6e0d0d 36% 55%,transparent 56%)', opacity: 0.9,
+        animation: 'ksSplat .35s .1s forwards',
+      }} />
+      <div style={ring(0)} /><div style={ring(0.3)} />
+      <div style={{
+        position: 'absolute', left: 0, top: 0, width: size * 1.3, height: size * 1.3, transform: 'translate(-50%,-50%)',
+        background: 'repeating-linear-gradient(0deg,rgba(255,60,80,.35) 0 2px,transparent 2px 5px)', mixBlendMode: 'screen',
+        opacity: 0, animation: 'ksStatic 1s forwards',
+      }} />
+    </div>
+  );
+}
+
 function MovementDemo() {
   const cafe = ROOMS.find(r => r.id === 'cafeteria');
   // Spawn beside the central table (not on it — the table is now solid and would trap the player).
@@ -12295,6 +12458,7 @@ function MovementDemo() {
         id: Date.now(),
         stage: 'lunge',
         type: Math.random() < 0.5 ? 'knife' : 'twist',
+        variant: pickKillVariant(data.killerId, data.targetId), // same style on killer + victim screens
         dummyWorldX: victimPos.x,
         dummyWorldY: victimPos.y,
         targetId: data.targetId,
@@ -12356,6 +12520,12 @@ function MovementDemo() {
     // alone — canReportBody's existing proximity check is what decides
     // whether THIS player currently sees a Report button.
     socket.on('bodyDropped', (data) => {
+      // [UPDATE - KILL SPOT EFFECT] The victim sees the full cutscene instead.
+      if (data.bodyOwnerId !== socket.id && typeof data.x === 'number') {
+        const spot = { id: `${data.bodyOwnerId}-${Date.now()}`, x: data.x, y: data.y };
+        setKillSpots((prev) => [...prev, spot]);
+        setTimeout(() => setKillSpots((prev) => prev.filter((k) => k.id !== spot.id)), KILL_SPOT_MS + 100);
+      }
       setDeadBodies((prev) => ({
         ...prev,
         [data.bodyOwnerId]: { x: data.x, y: data.y, avatarId: data.avatarId, avatarVariantId: data.avatarVariantId || null },
@@ -14150,6 +14320,8 @@ function MovementDemo() {
   // null while no cutscene is active; otherwise { id, stage, ... } where
   // stage walks through 'lunge' -> 'strike' -> 'fall' as time progresses.
   const [killCutscene, setKillCutscene] = useState(null);
+  // [UPDATE - KILL SPOT EFFECT] { id, x, y } for kills nearby players can see.
+  const [killSpots, setKillSpots] = useState([]);
   // Keyed on killCutscene?.id (a stable value set once when the cutscene
   // starts), not the whole object — the object changes on every stage
   // transition, and since those transitions happen INSIDE this same
@@ -21985,6 +22157,9 @@ function MovementDemo() {
           highlight + scattered droplets — not a clean oval).
           [MULTIPLAYER] Multiple bodies can exist at once now — replaces
           the old single dummyBody with a map keyed by player id. */}
+      {killSpots.map((k) => (
+        <KillSpotEffect key={k.id} left={worldToScreenX(k.x)} top={worldToScreenY(k.y)} size={avatarPx} />
+      ))}
       {Object.entries(deadBodies).map(([id, b]) => (
         <div key={id} style={{
           position: 'absolute',
@@ -22030,151 +22205,26 @@ function MovementDemo() {
           made them render in the wrong place (or get clipped/invisible)
           depending on the parent's actual layout box. Fixed coordinates
           inside a single known-size stage avoids that entirely. */}
-      {killCutscene && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 60, background: '#000',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-        }}>
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'radial-gradient(circle at 50% 50%, transparent 30%, rgba(0,0,0,0.7) 100%)',
-          }} />
-          {killCutscene.stage === 'strike' && (
-            <div style={{
-              position: 'absolute', inset: 0, background: 'rgba(180,0,0,0.25)',
-              animation: 'cutsceneFlash 0.18s ease-out',
-            }} />
-          )}
-
-          {/* The stage: a fixed 280x220 box, everything inside positioned
-              with absolute pixel coordinates relative to it. */}
-          <div style={{ position: 'relative', width: 280, height: 220 }}>
-            {/* Killer — starts left, lunges toward center on strike.
-                [MULTIPLAYER] Looks up the killer's avatar by id: if I'm
-                the killer, use my own displayedAvatarId (disguise-aware);
-                otherwise look up the killer's avatar from otherPlayers
-                since any nearby player should see the cutscene with the
-                correct killer shown, not always "me". */}
-            <div style={{
-              position: 'absolute', top: 60, zIndex: 2,
-              left: killCutscene.stage === 'lunge' ? 40 : 78,
-              transition: 'left 0.5s cubic-bezier(0.3, 0, 0.4, 1)',
-            }}>
-              <img src={resolveAvatarImg(
-                killCutscene.killerId === socketRef.current?.id
-                  ? displayedAvatarId
-                  : (otherPlayers[killCutscene.killerId]?.avatarId || playerAvatarId),
-                true,
-                killCutscene.killerId === socketRef.current?.id
-                  ? displayedAvatarVariantId
-                  : (otherPlayers[killCutscene.killerId]?.avatarVariantId || null)
-              )} alt="" style={{
-                width: 84, height: 'auto', display: 'block', transform: 'scaleX(-1)',
-                filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))',
-              }} />
-            </div>
-
-            {/* Victim — starts right, recoils/falls in place.
-                [MULTIPLAYER] Same id-based lookup as the killer above,
-                from the victim's side. */}
-            <div style={{
-              position: 'absolute', top: 60, left: 156, zIndex: 1,
-              transform:
-                killCutscene.stage === 'fall' ? 'rotate(80deg) translateY(24px) translateX(-6px)' :
-                killCutscene.stage === 'strike' && killCutscene.type === 'knife' ? 'translateX(6px) rotate(6deg)' :
-                killCutscene.stage === 'strike' && killCutscene.type === 'twist' ? 'rotate(95deg)' :
-                'translateX(0) rotate(0deg)',
-              opacity: killCutscene.stage === 'fall' ? 0.85 : 1,
-              // Normal-speed transitions throughout — no slow-motion easing.
-              transition: killCutscene.stage === 'fall' ? 'transform 0.3s ease-in, opacity 0.3s' : 'transform 0.2s ease-out',
-            }}>
-              <img src={resolveAvatarImg(
-                killCutscene.targetId === socketRef.current?.id
-                  ? displayedAvatarId
-                  : (otherPlayers[killCutscene.targetId]?.avatarId || playerAvatarId),
-                true,
-                killCutscene.targetId === socketRef.current?.id
-                  ? displayedAvatarVariantId
-                  : (otherPlayers[killCutscene.targetId]?.avatarVariantId || null)
-              )} alt="" style={{
-                width: 84, height: 'auto', display: 'block',
-                filter: 'drop-shadow(0 6px 16px rgba(0,0,0,0.6))',
-              }} />
-            </div>
-
-            {/* Knife — only for the 'knife' kill type. A proper knife
-                shape (dark wooden handle, metal guard, wide blade with an
-                edge highlight) instead of a thin line — verified visible
-                and recognizable at this size. Sits at the gap between
-                killer and victim, thrusts further right on strike. Drawn
-                on top of both (zIndex 4) so it's never hidden. */}
-            {killCutscene.type === 'knife' && killCutscene.stage !== 'fall' && (
-              <svg width="56" height="56" viewBox="0 0 60 60" fill="none" style={{
-                position: 'absolute', top: 76, zIndex: 4,
-                left: killCutscene.stage === 'lunge' ? 100 : 124,
-                transform: `rotate(${killCutscene.stage === 'lunge' ? -15 : 12}deg)`,
-                transition: 'left 0.2s ease-out, transform 0.2s ease-out',
-              }}>
-                <rect x="4" y="38" width="20" height="9" rx="2.5" fill="#3a2a1a" stroke="#1a0f08" strokeWidth="0.8" transform="rotate(-35 4 38)" />
-                <rect x="22" y="32" width="6" height="14" rx="1.5" fill="#9a9a9a" transform="rotate(-35 22 32)" />
-                <path d="M27 33 L52 8 L57 11 L58 16 L33 41 Z" fill="#e0e0e0" stroke="#888" strokeWidth="1.2" strokeLinejoin="round" />
-                <path d="M29 33 L51 11" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" opacity="0.8" />
-              </svg>
-            )}
-
-            {/* Killer's grabbing hand — only for the 'twist' kill type. A
-                proper hand shape (sleeve, palm, four curled fingers,
-                thumb) gripping the victim's head, instead of a plain
-                blob. Drawn on top of both sprites so it's always visible. */}
-            {killCutscene.type === 'twist' && killCutscene.stage !== 'fall' && (
-              <svg width="50" height="50" viewBox="0 0 60 60" fill="none" style={{
-                position: 'absolute', top: 56, zIndex: 4,
-                left: killCutscene.stage === 'lunge' ? 118 : 134,
-                transform: `rotate(${killCutscene.stage === 'strike' ? 95 : 0}deg)`,
-                transformOrigin: '32px 28px',
-                transition: 'left 0.2s ease-out, transform 0.2s ease-out',
-              }}>
-                <rect x="2" y="24" width="22" height="13" rx="5" fill="#2a2a2a" transform="rotate(-10 2 24)" />
-                <ellipse cx="32" cy="28" rx="11" ry="9" fill="#d8a878" />
-                <path d="M38 20 Q44 18 45 24 Q45 28 40 28 Q37 27 38 20Z" fill="#d8a878" />
-                <path d="M40 16 Q46 15 46 21 Q45 25 41 24 Q39 22 40 16Z" fill="#d8a878" />
-                <path d="M41 13 Q47 13 46 19 Q45 22 42 21 Q40 19 41 13Z" fill="#d8a878" />
-                <path d="M40 10 Q45 11 44 16 Q42 19 40 17 Q39 14 40 10Z" fill="#d8a878" />
-                <path d="M24 32 Q22 38 28 39 Q32 38 30 33 Q27 30 24 32Z" fill="#c89868" />
-              </svg>
-            )}
-
-            {/* Blood burst at the moment of the strike */}
-            {(killCutscene.stage === 'strike' || killCutscene.stage === 'fall') && (
-              <div style={{ position: 'absolute', top: 96, left: 150, zIndex: 3, pointerEvents: 'none' }}>
-                {[...Array(10)].map((_, i) => (
-                  <div key={i} style={{
-                    position: 'absolute', left: 0, top: 0, width: 5, height: 5, borderRadius: '50%',
-                    background: '#c81414',
-                    transform: `rotate(${i * 36}deg) translateY(-2px)`,
-                    animation: 'cutsceneBloodSpray 0.55s ease-out forwards',
-                    animationDelay: `${i * 0.015}s`,
-                  }} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <p style={{
-            position: 'absolute', bottom: 70, left: 0, right: 0, textAlign: 'center',
-            fontSize: 13, fontWeight: 800, color: '#ff5c5c', letterSpacing: 1, textTransform: 'uppercase',
-            opacity: killCutscene.stage === 'fall' ? 1 : 0, transition: 'opacity 0.3s',
-          }}>Eliminated</p>
-
-          <style>{`
-            @keyframes cutsceneFlash { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
-            @keyframes cutsceneBloodSpray {
-              0% { opacity: 1; transform: rotate(var(--ang, 0deg)) translateY(-2px) scale(1); }
-              100% { opacity: 0; transform: rotate(var(--ang, 0deg)) translateY(-34px) scale(0.4); }
-            }
-          `}</style>
-        </div>
-      )}
+      {killCutscene && (() => {
+        // [UPDATE - NEW KILL ANIMATIONS] see KillCutscene above.
+        const meId = socketRef.current?.id;
+        const avatarOf = (id) => resolveAvatarImg(
+          id === meId ? displayedAvatarId : (otherPlayers[id]?.avatarId || playerAvatarId),
+          true,
+          id === meId ? displayedAvatarVariantId : (otherPlayers[id]?.avatarVariantId || null),
+        );
+        const victimRoom = typeof killCutscene.dummyWorldX === 'number' ? roomAtPixel(killCutscene.dummyWorldX, killCutscene.dummyWorldY) : null;
+        return (
+          <KillCutscene
+            variant={killCutscene.variant || 'signal'}
+            killerImg={avatarOf(killCutscene.killerId)}
+            victimImg={avatarOf(killCutscene.targetId)}
+            isVictim={killCutscene.targetId === meId}
+            victimName={killCutscene.targetId === meId ? displayPlayerName(playerName, playerAvatarId) : displayPlayerName(otherPlayers[killCutscene.targetId]?.name, otherPlayers[killCutscene.targetId]?.avatarId)}
+            roomName={victimRoom ? (ROOM_NAME_OVERRIDE[victimRoom.id] || victimRoom.name) : ''}
+          />
+        );
+      })()}
 
       {/* Directional arrow to the Electrical room — only shown while the
           power is sabotaged, so the player (or whoever's fixing it) always
