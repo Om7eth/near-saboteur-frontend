@@ -6194,7 +6194,7 @@ function LobbyScreen({
   socket, connStatus, roomInfo, myRole, joinError, onConnect, onCreateRoom, onJoinRoom,
   speedLevel, setSpeedLevel, onRejoin, onLeaveToHome, prefillJoinCode,
   lobbyChatMessages, lobbyChatDraft, setLobbyChatDraft, showLobbyChat, setShowLobbyChat,
-  lobbyChatUnread, sendLobbyChatMessage, lobbyReplyingTo, setLobbyReplyingTo, lobbyChatScrollRef,
+  lobbyChatUnread, lobbyTagged, sendLobbyChatMessage, sendLobbyText, lobbyReplyingTo, setLobbyReplyingTo, lobbyChatScrollRef,
   sendLobbyGifMessage, showLobbyGifPicker, setShowLobbyGifPicker, lobbyChatNewBelow, setLobbyChatNewBelow,
   poolFinalResult, onClosePoolFinalResult, poolError, onClearPoolError,
   onConfirmFinalResult, onSetPoolBackupHost, poolActionBusy, poolLockBusy, onPayEntryFee, myPing, actionBusyPoolId,
@@ -6380,6 +6380,7 @@ function LobbyScreen({
   }, []);
   const lobbyHudK = Math.max(1, Math.min(1.9, Math.min(lobbyVp.w, lobbyVp.h) / 520));
   const lobbyDesktop = useDesktopInput(); // [UPDATE - DESKTOP + MOBILE CONTROLS]
+  const lobbyWide = useWideLayout(); // [CHAT REDESIGN] side-drawer chat on big screens
 
   // [MULTIPLAYER] Other real players' positions while still in the Lobby
   // — kept entirely separate from the in-game otherPlayers state (see the
@@ -7461,8 +7462,9 @@ function LobbyScreen({
                 {/* [AI BOTS] Lobby avatars carry no name labels, so bots
                     get just the BOT chip floating above them. */}
                 {(info?.isBot || isBotPlayerId(id)) && (
-                  <div style={{ position: 'absolute', left: '50%', bottom: '100%', transform: 'translate(-50%, -2px)' }}>
-                    <BotTag size={Math.round(8 * Math.max(1, (roomSize?.w || 480) / 480))} />
+                  <div style={{ position: 'absolute', left: '50%', bottom: '100%', transform: 'translate(-50%, -1px)', opacity: 0.9, marginLeft: -2, lineHeight: 0 }}>
+                    {/* [CHAT REDESIGN] smaller chip (was 8px and grew with the screen) */}
+                    <BotTag size={Math.round(6 * Math.min(1.4, Math.max(1, (roomSize?.w || 480) / 480)))} />
                   </div>
                 )}
               </div>
@@ -8243,6 +8245,13 @@ function LobbyScreen({
           }}
         >
           💬
+          {lobbyTagged && (
+            <span title="Someone tagged you" style={{
+              position: 'absolute', bottom: -5, right: -6, minWidth: 18, height: 18, borderRadius: 999,
+              background: '#ffd75e', color: '#241a00', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1.5px solid #05070a',
+            }}>@</span>
+          )}
           {lobbyChatUnread > 0 && (
             <span style={{
               position: 'absolute', top: -4, right: -4, minWidth: 17, height: 17, borderRadius: 999,
@@ -8283,217 +8292,66 @@ function LobbyScreen({
           support and auto-scroll (both on new messages and while
           typing - see the effects that own lobbyChatScrollRef). Talks
           to whoever is currently in this same Lobby room, nobody else. */}
-      {showLobbyChat && (
-        <div style={{
-          // [BUG FIX - CHAT PANEL SHOWED GAME/LOBBY THROUGH IT WHEN THE
-          // KEYBOARD OPENED] Same root cause as the GifPickerSheet fix
-          // elsewhere in this file: position:'absolute' is relative to
-          // whatever ancestor the browser happens to scroll when the
-          // message input's focus triggers its native "scroll into view"
-          // behavior - dragging this whole panel along with it, even
-          // though its height (viewportHeight, the real visual-viewport
-          // height) was already correct. position:'fixed' anchors it to
-          // the actual screen instead, so that scroll can't move it.
-          position: 'fixed', top: viewportTop, left: 0, right: 0, height: viewportHeight, background: 'rgba(0,0,0,0.82)', zIndex: 40,
-          display: 'flex', alignItems: 'flex-end', padding: 0,
-        }} onClick={() => setShowLobbyChat(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{
-            width: '100%', height: Math.min(viewportHeight * 0.72, 560), background: 'linear-gradient(180deg, #0d1a14, #081210)',
-            borderTopLeftRadius: 16, borderTopRightRadius: 16, border: '1px solid rgba(110,255,192,0.25)',
-            borderBottom: 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative',
+      {/* [CHAT REDESIGN] Lobby chat on the shared chat parts. Phones: a
+          bottom sheet. Big screens: a side drawer so you can still see
+          the Lobby (and who's walking in) while chatting. */}
+      {showLobbyChat && (() => {
+        const myId = socket?.id;
+        const others = (roomInfo?.players || []).filter((p) => p.id !== myId);
+        const meP = (roomInfo?.players || []).find((p) => p.id === myId);
+        const myName = displayPlayerName(meP?.name || playerName, meP?.avatarId || playerAvatarId);
+        const mentionables = others.map((p) => ({
+          id: p.id, name: displayPlayerName(p.name, p.avatarId), avatarId: p.avatarId, avatarVariantId: p.avatarVariantId || null,
+          isBot: !!p.isBot || isBotPlayerId(p.id), hasPlayPass: !!p.hasPlayPass,
+        }));
+        const mentionRe = buildMentionRegex([myName, ...mentionables.map((p) => p.name)]);
+        const hasBots = mentionables.some((p) => p.isBot);
+        const botMode = roomInfo?.botChatMode || 'auto';
+        const t = CHAT_THEMES.lobby;
+        return (
+          <div onClick={() => setShowLobbyChat(false)} style={{
+            position: 'fixed', top: viewportTop, left: 0, right: 0, height: viewportHeight, zIndex: 40,
+            background: lobbyWide ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.7)', display: 'flex',
+            alignItems: lobbyWide ? 'stretch' : 'flex-end', justifyContent: lobbyWide ? 'flex-end' : 'stretch',
           }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0,
+            <div onClick={(e) => e.stopPropagation()} style={{
+              width: lobbyWide ? 420 : '100%', height: lobbyWide ? '100%' : Math.min(viewportHeight * 0.78, 600),
+              background: `linear-gradient(180deg, #0d1a14, ${t.bg})`, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative',
+              border: '1px solid rgba(110,255,192,0.22)', borderBottom: lobbyWide ? undefined : 'none',
+              borderTopLeftRadius: lobbyWide ? 0 : 16, borderTopRightRadius: lobbyWide ? 0 : 16,
+              boxShadow: lobbyWide ? '-12px 0 40px rgba(0,0,0,0.5)' : '0 -8px 30px rgba(0,0,0,0.4)',
+              animation: lobbyWide ? 'lobbyDrawerIn .22s ease-out' : 'lobbySheetIn .22s ease-out',
             }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#6effc0' }}>💬 Lobby Chat</span>
-              <button onClick={() => setShowLobbyChat(false)} style={{
-                width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.08)',
-                border: 'none', color: '#e8e8f0', fontSize: 12,
-              }}>✕</button>
-            </div>
-
-            <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-            <div ref={lobbyChatScrollRef} style={{ height: '100%', overflowY: 'auto', padding: '10px 14px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {lobbyChatMessages.length === 0 ? (
-                <p style={{ fontSize: 11.5, color: '#5a655f', textAlign: 'center', marginTop: 20 }}>No messages yet - say hi!</p>
-              ) : lobbyChatMessages.map((m) => {
-                // [NEW FEATURE - PLAY PASS] Caps-lock highlight is a Play
-                // Pass perk - only shows for messages sent by a player who
-                // has it, gated on the server-provided authorHasPlayPass
-                // flag (never trust a client-side-only check here).
-                const shouting = m.authorHasPlayPass && isAllCapsMessage(m.text);
-                return (
-                <div key={m.id} style={{
-                  display: 'flex', gap: 8, alignItems: 'flex-end',
-                  flexDirection: m.isSelf ? 'row-reverse' : 'row',
-                }}>
-                  <img src={resolveAvatarImg(m.authorAvatarId, true, m.authorAvatarVariant)} alt="" style={{ width: 24, height: 24, objectFit: 'contain', flexShrink: 0 }} />
-                  <div style={{ maxWidth: '72%' }}>
-                    {/* [BUG FIX - COULDN'T TELL WHICH MESSAGES WERE MINE]
-                        Now always shows name+avatar for every message
-                        (including your own), matching the Discussion
-                        chat's convention, instead of hiding them only for
-                        !isSelf - the actual left/right alignment comes
-                        from flexDirection above, same pattern too. */}
-                    <p style={{
-                      fontSize: 9.5, color: '#5fc8ff', fontWeight: 700, margin: '0 0 2px 2px',
-                      display: 'flex', alignItems: 'center', gap: 3,
-                      justifyContent: m.isSelf ? 'flex-end' : 'flex-start',
-                    }}>
-                      <PlayerNameTag name={m.authorName} premium={m.authorHasPlayPass} isBot={isBotPlayerId(m._sender)} />
-                      {m.authorHasLegionBadge && <LegionBadge size={9} />}
-                    </p>
-                    <SwipeToReply onReply={() => setLobbyReplyingTo({ senderName: m.authorName, text: m.text })}>
-                    {m.gifUrl ? (
-                      <div>
-                        {m.replyTo && (
-                          <div style={{ borderLeft: '2px solid rgba(110,255,192,0.5)', paddingLeft: 6, marginBottom: 3, opacity: 0.75 }}>
-                            <p style={{ fontSize: 9, fontWeight: 700, color: '#6effc0', margin: 0 }}>{m.replyTo.senderName}</p>
-                            <p style={{ fontSize: 9.5, color: '#c8c8c8', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.replyTo.text}</p>
-                          </div>
-                        )}
-                        <img src={m.gifUrl} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 12, display: 'block' }} />
-                      </div>
-                    ) : (
-                    <div style={{
-                      background: shouting ? 'linear-gradient(135deg,#ffd75e,#e8a831)' : (m.isSelf ? 'rgba(110,255,192,0.16)' : 'rgba(255,255,255,0.07)'),
-                      border: shouting ? '1px solid rgba(255,255,255,0.4)' : `1px solid ${m.isSelf ? 'rgba(110,255,192,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                      boxShadow: shouting ? '0 0 10px rgba(255,215,94,0.5)' : 'none',
-                      borderRadius: 12, padding: '7px 10px',
-                    }}>
-                      {m.replyTo && (
-                        <div style={{
-                          borderLeft: '2px solid rgba(110,255,192,0.5)', paddingLeft: 6, marginBottom: 4,
-                          opacity: 0.75,
-                        }}>
-                          <p style={{ fontSize: 9, fontWeight: 700, color: '#6effc0', margin: 0 }}>{m.replyTo.senderName}</p>
-                          <p style={{ fontSize: 9.5, color: '#c8c8c8', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.replyTo.text}</p>
-                        </div>
-                      )}
-                      <p style={{ fontSize: 12, color: shouting ? '#241a00' : '#e8e8f0', fontWeight: shouting ? 800 : 400, margin: 0, wordBreak: 'break-word' }}>{m.text}</p>
-                    </div>
-                    )}
-                    </SwipeToReply>
-                  </div>
+              <style>{'@keyframes lobbyDrawerIn { from { transform: translateX(30px); opacity: 0 } to { transform: none; opacity: 1 } } @keyframes lobbySheetIn { from { transform: translateY(30px); opacity: 0 } to { transform: none; opacity: 1 } }'}</style>
+              {!lobbyWide && <div style={{ width: 38, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)', margin: '7px auto 0', flexShrink: 0 }} />}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${t.line}`, flexShrink: 0 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: '#6effc0' }}>💬 Lobby Chat</div>
+                  <div style={{ fontSize: 10.5, color: t.muted }}>{(roomInfo?.players || []).length} in the room · type @ to tag</div>
                 </div>
-                );
-              })}
-              {/* [BUG FIX - MESSAGES STILL GOT CROPPED BEHIND THE INPUT]
-                  The z-index/opaque-background trick made sure the input
-                  bar was never HIDDEN, but content scrolled near the
-                  bottom could still get visually cropped behind it - the
-                  real fix needed the input to live INSIDE the scrollable
-                  area as `position: sticky; bottom: 0` instead of as a
-                  separate flex sibling below it. A sticky element sticks
-                  to the bottom of ITS OWN SCROLLING ANCESTOR - so
-                  regardless of whether the panel's own computed height
-                  is ever slightly off (keyboard-viewport quirks, browser
-                  differences, etc.), the input bar is mathematically
-                  guaranteed to sit exactly at the visible bottom of
-                  whatever scrollable space actually exists, and every
-                  message - including the very last one - scrolls fully
-                  clear of it, never behind it. Wrapping reply-preview +
-                  input row together in one sticky block keeps them
-                  moving as a single unit. */}
-              <div style={{ position: 'sticky', bottom: 0, marginTop: 'auto', background: '#0d1a14' }}>
-                {lobbyReplyingTo && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '6px 14px', background: 'rgba(110,255,192,0.08)', borderTop: '1px solid rgba(255,255,255,0.08)',
-                  }}>
-                    <div style={{ overflow: 'hidden' }}>
-                      <p style={{ fontSize: 9.5, fontWeight: 700, color: '#6effc0', margin: 0 }}>Replying to {lobbyReplyingTo.senderName}</p>
-                      <p style={{ fontSize: 10, color: '#9aa0ad', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lobbyReplyingTo.text}</p>
-                    </div>
-                    <button onClick={() => setLobbyReplyingTo(null)} style={{ background: 'none', border: 'none', color: '#9aa0ad', fontSize: 14, flexShrink: 0, marginLeft: 8 }}>✕</button>
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', alignItems: 'flex-end', position: 'relative' }}>
-                  {/* [NEW FEATURE - PLAY PASS] GIFs in chat are a Play Pass
-                      perk. Non-Play-Pass players still see the button (so
-                      they know it exists) but it's visibly locked and
-                      opens the Play Pass upsell instead of the picker. */}
-                  <button
-                    onClick={() => { if (hasPlayPass) setShowLobbyGifPicker(true); else { setShowGifLockedHint(true); setTimeout(() => setShowGifLockedHint(false), 2200); } }}
-                    style={{
-                      width: 38, height: 38, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0,
-                      background: 'rgba(255,255,255,0.06)', color: hasPlayPass ? '#cfd2da' : '#5a655f', fontSize: 10, fontWeight: 800,
-                      position: 'relative',
-                    }}
-                  >GIF
-                    {!hasPlayPass && (
-                      <span style={{
-                        position: 'absolute', top: -3, right: -3, width: 14, height: 14, borderRadius: '50%',
-                        background: '#1a1f1c', border: '1px solid rgba(255,255,255,0.25)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <svg width="7" height="8" viewBox="0 0 7 8" fill="none">
-                          <rect x="1" y="3.5" width="5" height="4" rx="0.7" fill="#9aa0ad" />
-                          <path d="M2 3.5V2.2a1.5 1.5 0 0 1 3 0V3.5" stroke="#9aa0ad" strokeWidth="0.9" fill="none" />
-                        </svg>
-                      </span>
-                    )}
-                  </button>
-                  {showGifLockedHint && (
-                    <div style={{
-                      position: 'absolute', bottom: 54, left: 14, zIndex: 6,
-                      background: '#1a1f1c', border: '1px solid rgba(255,215,110,0.35)', borderRadius: 8,
-                      padding: '6px 10px', fontSize: 10.5, color: '#ffd76e', fontWeight: 700,
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-                    }}>Play Pass required to send GIFs</div>
-                  )}
-                  <AutoGrowTextarea
-                    value={lobbyChatDraft}
-                    onChange={setLobbyChatDraft}
-                    onSend={sendLobbyChatMessage}
-                    placeholder="Message the Lobby…"
-                    maxLength={200}
-                    style={{
-                      flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
-                      borderRadius: 20, padding: '9px 14px', color: '#e8e8f0', fontSize: 13,
-                    }}
-                  />
-                  <button onClick={sendLobbyChatMessage} disabled={!lobbyChatDraft.trim()} style={{
-                    width: 38, height: 38, borderRadius: '50%', border: 'none', flexShrink: 0,
-                    background: lobbyChatDraft.trim() ? '#6effc0' : 'rgba(255,255,255,0.08)',
-                    color: lobbyChatDraft.trim() ? '#06140d' : '#5a655f', fontSize: 15,
-                  }}>➤</button>
-                </div>
+                {hasBots && <BotModeToggle mode={botMode} onChange={(mode) => socket?.emit('setBotChatMode', { mode })} />}
+                <button onClick={() => setShowLobbyChat(false)} title="Close" style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#e8e8f0', fontSize: 13, cursor: 'pointer', flexShrink: 0 }}>✕</button>
               </div>
+              <ChatFeed items={lobbyChatMessages} theme="lobby" myName={myName} mentionRe={mentionRe}
+                onReply={setLobbyReplyingTo} emptyText="No messages yet - say hi!" fontSize={lobbyWide ? 14 : 13} />
+              {showGifLockedHint && (
+                <div style={{ position: 'absolute', bottom: 64, left: 14, zIndex: 6, background: '#1a1f1c', border: '1px solid rgba(255,215,110,0.35)', borderRadius: 8, padding: '6px 10px', fontSize: 10.5, color: '#ffd76e', fontWeight: 700, boxShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>
+                  Play Pass required to send GIFs
+                </div>
+              )}
+              <ChatComposer theme="lobby" desktop={lobbyDesktop} autoFocus placeholder={lobbyWide ? 'Message the Lobby… (@ to tag)' : 'Message… (@ to tag)'}
+                mentionables={mentionables} onSend={sendLobbyText}
+                gifLocked={!hasPlayPass}
+                onGif={() => { if (hasPlayPass) setShowLobbyGifPicker(true); else { setShowGifLockedHint(true); setTimeout(() => setShowGifLockedHint(false), 2200); } }}
+                replyTo={lobbyReplyingTo} onCancelReply={() => setLobbyReplyingTo(null)} />
+              {showLobbyGifPicker && (
+                <GifPickerSheet customerId={playerName || 'guest'} viewportHeight={viewportHeight} viewportTop={viewportTop}
+                  onSelect={sendLobbyGifMessage} onClose={() => setShowLobbyGifPicker(false)} />
+              )}
             </div>
-            {/* [NEW FEATURE - "NEW MESSAGES" INDICATOR] Only shows while
-                scrolled up with unseen messages below - tapping jumps to
-                the bottom and clears the count. */}
-            {lobbyChatNewBelow > 0 && (
-              <button
-                onClick={() => {
-                  const el = lobbyChatScrollRef.current;
-                  if (el) el.scrollTop = el.scrollHeight;
-                  setLobbyChatNewBelow(0);
-                }}
-                style={{
-                  position: 'absolute', bottom: 70, right: 14, zIndex: 5,
-                  display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 20,
-                  background: '#6effc0', color: '#06140d', border: 'none', fontSize: 11, fontWeight: 800,
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-                }}
-              >↓ {lobbyChatNewBelow > 9 ? '9+' : lobbyChatNewBelow}</button>
-            )}
-            </div>
-            {showLobbyGifPicker && (
-              <GifPickerSheet
-                customerId={playerName || 'guest'}
-                viewportHeight={viewportHeight}
-                viewportTop={viewportTop}
-                onSelect={sendLobbyGifMessage}
-                onClose={() => setShowLobbyGifPicker(false)}
-              />
-            )}
           </div>
-        </div>
-      )}
-
+        );
+      })()}
 
       {/* [NEW FEATURE] Create-room confirmation - avoids accidentally
           creating a new room when the user actually wanted to join a
@@ -8819,6 +8677,30 @@ const KILL_CUTSCENE_CSS = `
 .kc-lockdown .kc-stamp{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%) rotate(-12deg) scale(2.4);border:4px solid #ff3b4a;color:#ff3b4a;padding:6px 14px;font-family:ui-monospace,monospace;font-weight:900;letter-spacing:4px;font-size:clamp(18px,3.4vh,26px);font-size:clamp(14px,7.5cqw,26px);opacity:0;border-radius:6px;background:rgba(0,0,0,.35);animation:kcCStamp .35s 1.25s forwards}
 @keyframes kcCStamp{to{opacity:1;transform:translate(-50%,-50%) rotate(-12deg) scale(1)}}
 .kc-lockdown .kc-cap{bottom:12%;color:#ffcc00;font-size:13px;letter-spacing:3px;animation:kcCapA 1.2s 1.3s forwards}
+/* [CHAT REDESIGN PASS - DESKTOP KILL CUTSCENE] Laptops/desktops get a wide
+   cinematic 16:9 stage instead of a small phone-shaped box in the middle
+   of a black screen. Same three styles, re-spaced for the wider frame. */
+@media (min-width:820px) and (min-aspect-ratio:5/4){
+.kc-stage{width:min(90vw,150vh,1280px);aspect-ratio:16/9;border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 30px 80px rgba(0,0,0,.6)}
+.kc-av,.kc-signal .kc-slice,.kc-neon .kc-half{width:17%}
+.kc-signal .kc-killer{animation:kcAInW .35s cubic-bezier(.2,.9,.3,1) forwards,kcAHoldW 2.15s .35s forwards}
+@keyframes kcAInW{from{left:-20%;filter:blur(6px)}to{left:31%;filter:blur(0)}}
+@keyframes kcAHoldW{0%{left:31%}10%{left:34%}100%{left:33%}}
+.kc-signal .kc-victim,.kc-signal .kc-slice{left:50%}
+.kc-signal .kc-hex{margin-left:-4%}
+.kc-neon .kc-killer{animation:kcBDashW .45s cubic-bezier(.6,0,.3,1) forwards,kcBAfterW 2s .45s forwards}
+@keyframes kcBDashW{0%{left:-20%}100%{left:72%;filter:blur(2px)}}
+@keyframes kcBAfterW{0%{left:72%;filter:blur(0)}100%{left:74%}}
+.kc-neon .kc-victim,.kc-neon .kc-half{left:46%}
+.kc-lockdown .kc-killer{left:26%}
+.kc-lockdown .kc-victim{left:48%;width:20%}
+.kc-lockdown .kc-beam{left:45%;width:26%}
+.kc-cap small{font-size:15px}
+.kc-signal .kc-cap{top:12%;font-size:clamp(22px,4.2cqw,46px)}
+.kc-neon .kc-cap{bottom:9%;font-size:clamp(22px,4.4cqw,48px)}
+.kc-lockdown .kc-stamp{font-size:clamp(22px,3.6cqw,40px)}
+.kc-lockdown .kc-cap{font-size:17px}
+}
 @media (prefers-reduced-motion: reduce){.kc-stage *{animation-duration:.01s!important;animation-delay:0s!important}}
 `;
 const KILL_SLICES = [0, 1, 2, 3, 4, 5].map((i) => ({ clip: `inset(${i * 16.6}% 0 ${100 - (i + 1) * 16.6}% 0)`, dx: `${(i % 2 ? 1 : -1) * (6 + i * 3)}px` }));
@@ -8908,6 +8790,654 @@ function KillSpotEffect({ left, top, size }) {
         background: 'repeating-linear-gradient(0deg,rgba(255,60,80,.35) 0 2px,transparent 2px 5px)', mixBlendMode: 'screen',
         opacity: 0, animation: 'ksStatic 1s forwards',
       }} />
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// [CHAT REDESIGN] Shared chat building blocks - used by the meeting chat,
+// ghost chat and Lobby chat so all three look and behave the same.
+//  - ChatComposer keeps its draft in its OWN state. The old drafts lived
+//    in MovementDemo (the whole game), so every keystroke re-rendered the
+//    entire game - that was the typing lag. Now typing only re-renders
+//    this small box.
+//  - @mentions: type "@" (or tap the @ button) for suggestions; bots show
+//    their BOT tag. Arrow keys + Enter/Tab on desktop, tap on mobile.
+//  - ChatFeed keeps itself pinned to the newest message unless you
+//    scrolled up to read (then a "↓ new" pill appears instead).
+// ═══════════════════════════════════════════════════════════════════════
+const CHAT_THEMES = {
+  meeting: {
+    bg: '#0b0d12', bar: '#0e1118', accent: '#6effc0', muted: '#7d8a92', line: 'rgba(255,255,255,0.08)',
+    self: 'linear-gradient(135deg,#2bb88a,#1f8a68)', selfText: '#04130c', other: 'rgba(255,255,255,0.075)', otherText: '#e8eaf0',
+    input: 'rgba(255,255,255,0.06)', inputBorder: 'rgba(255,255,255,0.14)', send: 'linear-gradient(135deg,#6effc0,#2bb88a)', sendText: '#06140d',
+  },
+  lobby: {
+    bg: '#0a1612', bar: '#0c1a15', accent: '#6effc0', muted: '#6f857c', line: 'rgba(110,255,192,0.12)',
+    self: 'rgba(110,255,192,0.18)', selfText: '#e8fff4', other: 'rgba(255,255,255,0.07)', otherText: '#e8e8f0',
+    input: 'rgba(255,255,255,0.06)', inputBorder: 'rgba(110,255,192,0.22)', send: '#6effc0', sendText: '#06140d',
+  },
+  ghost: {
+    bg: '#0d0d12', bar: '#111118', accent: '#c9c9dc', muted: '#8a8a99', line: 'rgba(180,180,200,0.14)',
+    self: 'rgba(160,160,185,0.28)', selfText: '#ececf4', other: 'rgba(255,255,255,0.06)', otherText: 'rgba(225,225,232,0.92)',
+    input: 'rgba(255,255,255,0.05)', inputBorder: 'rgba(180,180,200,0.22)', send: 'rgba(200,200,220,0.4)', sendText: '#fff',
+  },
+};
+
+// Server chat payload -> the one message shape every chat renders.
+function chatMsgFromServer(d, myId) {
+  return {
+    kind: 'msg',
+    id: d.id || `${d.timestamp}|${d.senderId}|${Math.random().toString(36).slice(2, 7)}`,
+    _ts: d.timestamp,
+    _sender: d.senderId,
+    authorName: displayPlayerName(d.senderName, d.senderAvatar),
+    authorAvatarId: d.senderAvatar,
+    authorAvatarVariant: d.senderAvatarVariant || null,
+    authorHasPlayPass: !!d.senderHasPlayPass,
+    authorHasLegionBadge: !!d.senderHasLegionBadge,
+    gifUrl: d.gifUrl || null,
+    text: d.text || '',
+    isSelf: d.senderId === myId,
+    replyTo: d.replyTo || null,
+  };
+}
+// One entry of the match-long meeting history (room.matchChat on the
+// server): a meeting divider, a system line ("Nova voted") or a message.
+function matchChatItemFromServer(h, myId) {
+  if (h.kind === 'sep') {
+    return { kind: 'sep', id: `sep-${h.meetingNo}`, meetingNo: h.meetingNo, reason: h.reason, callerName: h.callerName, bodyName: h.bodyName };
+  }
+  if (h.kind === 'sys') {
+    return { kind: 'sys', id: `sys-${h.timestamp}-${h.voterId || ''}-${Math.random().toString(36).slice(2, 6)}`, text: h.text, voterId: h.voterId || null };
+  }
+  return chatMsgFromServer(h, myId);
+}
+
+function escapeRegExp(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+// "@Name" for any known player name (longest first, so "@Om Gupta" wins
+// over "@Om"). Same rule the server's bots use to know they were tagged.
+function buildMentionRegex(names) {
+  const list = [...new Set((names || []).filter(Boolean))].sort((a, b) => b.length - a.length).map(escapeRegExp);
+  if (!list.length) return null;
+  return new RegExp(`@(${list.join('|')})(?![\\w])`, 'gi');
+}
+function textMentions(text, name) {
+  if (!text || !name) return false;
+  return new RegExp(`@${escapeRegExp(name)}(?![\\w])`, 'i').test(text);
+}
+
+// A short buzz on phones when someone @tags you.
+function buzzIfTagged(text, myName, senderId, myId) {
+  if (senderId === myId || !textMentions(text, myName)) return false;
+  try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (e) { /* not supported */ }
+  return true;
+}
+function MentionText({ text, mentionRe, myName, accent }) {
+  if (!mentionRe || !text || text.indexOf('@') === -1) return <>{text}</>;
+  const out = [];
+  let last = 0;
+  mentionRe.lastIndex = 0;
+  let m;
+  while ((m = mentionRe.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const isMe = myName && m[1].toLowerCase() === myName.toLowerCase();
+    out.push(
+      <span key={m.index} style={{
+        fontWeight: 800, color: isMe ? '#ffd75e' : (accent || '#6effc0'),
+        background: isMe ? 'rgba(255,215,94,0.16)' : 'rgba(110,255,192,0.1)', borderRadius: 4, padding: '0 3px',
+      }}>{m[0]}</span>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  mentionRe.lastIndex = 0;
+  return <>{out}</>;
+}
+
+function ReplyQuote({ replyTo, onSelf }) {
+  return (
+    <div style={{
+      borderLeft: `2px solid ${onSelf ? 'rgba(6,20,13,0.45)' : 'rgba(110,255,192,0.55)'}`,
+      paddingLeft: 7, marginBottom: 5, opacity: 0.82,
+    }}>
+      <div style={{ fontSize: '0.78em', fontWeight: 800 }}>{replyTo.senderName}</div>
+      <div style={{ fontSize: '0.84em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>
+        {replyTo.text || 'GIF'}
+      </div>
+    </div>
+  );
+}
+
+// One message. Memoised: a new message only renders itself, never the
+// whole list again.
+const ChatRow = React.memo(function ChatRow({ m, theme, mentionRe, myName, onReply, showHead, avatarForId, ghostLook }) {
+  const t = CHAT_THEMES[theme] || CHAT_THEMES.meeting;
+  if (m.kind === 'sep') {
+    const label = m.reason === 'report'
+      ? `Body reported${m.bodyName ? ` · ${m.bodyName}` : ''}${m.callerName ? ` by ${m.callerName}` : ''}`
+      : `Emergency meeting${m.callerName ? ` by ${m.callerName}` : ''}`;
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0 4px', color: t.muted }}>
+        <div style={{ flex: 1, height: 1, background: t.line }} />
+        <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: 0.6, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          Meeting {m.meetingNo} · {label}
+        </span>
+        <div style={{ flex: 1, height: 1, background: t.line }} />
+      </div>
+    );
+  }
+  if (m.kind === 'sys') {
+    const av = m.voterId && avatarForId ? avatarForId(m.voterId) : null;
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', margin: '1px 0' }}>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, color: t.muted,
+          background: 'rgba(255,255,255,0.04)', border: `1px solid ${t.line}`, borderRadius: 999, padding: '2px 9px 2px 5px',
+        }}>
+          {av ? <img src={av} alt="" style={{ width: 14, height: 14, objectFit: 'contain' }} /> : <span style={{ width: 4 }} />}
+          {m.text}
+        </span>
+      </div>
+    );
+  }
+  const shouting = m.authorHasPlayPass && isAllCapsMessage(m.text);
+  const tagsMe = !m.isSelf && textMentions(m.text, myName);
+  const bubble = m.gifUrl ? (
+    <div>
+      {m.replyTo && <ReplyQuote replyTo={m.replyTo} />}
+      <img src={m.gifUrl} alt="GIF" loading="lazy" style={{ maxWidth: 170, maxHeight: 170, borderRadius: 12, display: 'block' }} />
+    </div>
+  ) : (
+    <div style={{
+      padding: '7px 11px', borderRadius: 14, fontSize: '1em', lineHeight: 1.38, wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+      background: shouting ? 'linear-gradient(135deg,#ffd75e,#e8a831)' : (m.isSelf ? t.self : t.other),
+      color: shouting ? '#241a00' : (m.isSelf ? t.selfText : t.otherText),
+      fontWeight: shouting ? 800 : 500,
+      border: shouting ? '1px solid rgba(255,255,255,0.4)' : (tagsMe ? '1px solid rgba(255,215,94,0.55)' : '1px solid transparent'),
+      boxShadow: shouting ? '0 0 10px rgba(255,215,94,0.45)' : 'none',
+      ...(tagsMe && !shouting ? { background: 'rgba(255,215,94,0.09)' } : {}),
+      borderBottomRightRadius: m.isSelf ? 4 : 14,
+      borderBottomLeftRadius: m.isSelf ? 14 : 4,
+    }}>
+      {m.replyTo && <ReplyQuote replyTo={m.replyTo} onSelf={m.isSelf && theme === 'meeting' && !shouting} />}
+      <MentionText text={m.text} mentionRe={mentionRe} myName={myName} accent={m.isSelf && theme === 'meeting' ? '#04130c' : t.accent} />
+    </div>
+  );
+  return (
+    <div style={{
+      display: 'flex', gap: 7, alignItems: 'flex-end', flexDirection: m.isSelf ? 'row-reverse' : 'row',
+      marginTop: showHead ? 6 : 0, opacity: ghostLook ? 0.92 : 1,
+    }}>
+      <div style={{ width: 26, flexShrink: 0 }}>
+        {showHead && (
+          <img src={resolveAvatarImg(m.authorAvatarId, true, m.authorAvatarVariant)} alt="" style={{
+            width: 26, height: 26, objectFit: 'contain', display: 'block', opacity: ghostLook ? 0.7 : 1,
+          }} />
+        )}
+      </div>
+      <div style={{ maxWidth: 'min(76%, 440px)', minWidth: 0 }}>
+        {showHead && (
+          <div style={{
+            fontSize: '0.78em', color: t.muted, fontWeight: 700, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3,
+            justifyContent: m.isSelf ? 'flex-end' : 'flex-start',
+          }}>
+            <PlayerNameTag name={m.authorName} premium={m.authorHasPlayPass} isBot={isBotPlayerId(m._sender)} />
+            {m.authorHasLegionBadge && <LegionBadge size={9} />}
+            {tagsMe && <TaggedYouChip />}
+          </div>
+        )}
+        {!showHead && tagsMe && <div style={{ marginBottom: 2 }}><TaggedYouChip /></div>}
+        {onReply ? (
+          <SwipeToReply onReply={() => onReply({ senderName: m.authorName, text: m.text || (m.gifUrl ? 'GIF' : '') })}>
+            {bubble}
+          </SwipeToReply>
+        ) : bubble}
+      </div>
+    </div>
+  );
+});
+
+// Shown on any message that @tags YOU, so it's obvious you were called out.
+function TaggedYouChip() {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', marginLeft: 4, padding: '0 5px', borderRadius: 4,
+      border: '1px solid rgba(255,215,94,0.45)', color: '#ffd75e', fontSize: 9, fontWeight: 800, lineHeight: 1.5,
+    }}>@ you</span>
+  );
+}
+const CHAT_FEED_CSS = `
+@keyframes tagPulse { 0% { box-shadow: 0 0 0 0 rgba(255,215,94,0.75) } 70% { box-shadow: 0 0 0 9px rgba(255,215,94,0) } 100% { box-shadow: 0 0 14px rgba(255,215,94,0.35) } }
+@keyframes chatDot { 0%,80%,100% { opacity: .25; transform: translateY(0) } 40% { opacity: 1; transform: translateY(-2px) } }
+@keyframes chatPillIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+.nsChatFeed::-webkit-scrollbar { width: 6px } .nsChatFeed::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px }
+`;
+
+function TypingLine({ names, theme }) {
+  const t = CHAT_THEMES[theme] || CHAT_THEMES.meeting;
+  if (!names || !names.length) return null;
+  const who = names.length === 1 ? `${names[0]} is typing` : names.length === 2 ? `${names[0]} and ${names[1]} are typing` : `${names.length} people are typing`;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: t.muted, fontStyle: 'italic', padding: '3px 2px 0 34px' }}>
+      <span style={{ display: 'inline-flex', gap: 2 }}>
+        {[0, 1, 2].map((i) => (
+          <span key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: t.muted, animation: `chatDot 1.1s ${i * 0.15}s infinite` }} />
+        ))}
+      </span>
+      {who}
+    </div>
+  );
+}
+
+function ChatFeed({ items, theme = 'meeting', myName, mentionRe, onReply, emptyText, typingNames, avatarForId, ghostLook, fontSize = 13 }) {
+  const t = CHAT_THEMES[theme] || CHAT_THEMES.meeting;
+  const scrollRef = useRef(null);
+  const innerRef = useRef(null);
+  const atBottomRef = useRef(true);
+  const prevLenRef = useRef(items.length);
+  const [newBelow, setNewBelow] = useState(0);
+  const [taggedBelow, setTaggedBelow] = useState(false);
+
+  const toBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    atBottomRef.current = true;
+    setNewBelow(0);
+    setTaggedBelow(false);
+  }, []);
+
+  // Open at the newest message.
+  React.useLayoutEffect(() => { toBottom(); }, [toBottom]);
+
+  // New items: follow them if we were at the bottom (or it's our own
+  // message), otherwise count them on the "↓ new" pill.
+  React.useLayoutEffect(() => {
+    const added = items.length - prevLenRef.current;
+    prevLenRef.current = items.length;
+    if (added <= 0) return;
+    const last = items[items.length - 1];
+    if (atBottomRef.current || (last && last.isSelf)) toBottom();
+    else {
+      setNewBelow((n) => n + added);
+      if (items.slice(-added).some((it) => (!it.kind || it.kind === 'msg') && !it.isSelf && textMentions(it.text, myName))) setTaggedBelow(true);
+    }
+  }, [items.length, toBottom]);
+
+  React.useLayoutEffect(() => {
+    if (atBottomRef.current) { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }
+  }, [typingNames && typingNames.join('|')]);
+
+  // Keyboard opening, GIFs loading, panel resizing: stay pinned.
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => {
+      if (atBottomRef.current) { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }
+    });
+    if (scrollRef.current) ro.observe(scrollRef.current);
+    if (innerRef.current) ro.observe(innerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    atBottomRef.current = atBottom;
+    if (atBottom && newBelow) { setNewBelow(0); setTaggedBelow(false); }
+  };
+
+  return (
+    <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <style>{CHAT_FEED_CSS}</style>
+      <div ref={scrollRef} onScroll={onScroll} className="nsChatFeed" style={{
+        flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch',
+        padding: '8px 12px 6px', fontSize,
+      }}>
+        <div ref={innerRef} style={{ display: 'flex', flexDirection: 'column', gap: 4, minHeight: '100%', justifyContent: 'flex-end' }}>
+          {items.length === 0 && (
+            <p style={{ fontSize: 11.5, color: t.muted, textAlign: 'center', margin: '24px 0' }}>{emptyText || 'No messages yet.'}</p>
+          )}
+          {items.map((m, i) => {
+            // Lobby/ghost messages carry no `kind` - they are plain messages.
+            const isMsg = (x) => !!x && (!x.kind || x.kind === 'msg');
+            const prev = items[i - 1];
+            const showHead = !isMsg(m) || !isMsg(prev) || prev._sender !== m._sender || !!m.replyTo;
+            return (
+              <ChatRow key={m.id} m={m} theme={theme} mentionRe={mentionRe} myName={myName}
+                onReply={isMsg(m) ? onReply : null} showHead={showHead} avatarForId={avatarForId} ghostLook={ghostLook} />
+            );
+          })}
+          <TypingLine names={typingNames} theme={theme} />
+        </div>
+      </div>
+      {newBelow > 0 && (
+        <button onClick={toBottom} style={{
+          position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 5,
+          display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 20, cursor: 'pointer',
+          background: taggedBelow ? '#ffd75e' : t.accent, color: taggedBelow ? '#241a00' : '#06140d', border: 'none', fontSize: 11, fontWeight: 800,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.45)', animation: 'chatPillIn .2s ease-out',
+        }}>↓ {taggedBelow ? 'You were tagged' : `${newBelow > 9 ? '9+' : newBelow} new`}</button>
+      )}
+    </div>
+  );
+}
+
+function GifButton({ locked, onClick, theme }) {
+  const t = CHAT_THEMES[theme] || CHAT_THEMES.meeting;
+  return (
+    <button type="button" onClick={onClick} title={locked ? 'GIFs - Play Pass only' : 'Send a GIF'} style={{
+      position: 'relative', height: 38, padding: '0 10px', borderRadius: 19, flexShrink: 0, cursor: 'pointer',
+      border: `1px solid ${locked ? t.inputBorder : 'rgba(255,215,94,0.5)'}`,
+      background: locked ? 'rgba(255,255,255,0.04)' : 'rgba(255,215,94,0.09)',
+      color: locked ? t.muted : '#ffd75e', fontSize: 11, fontWeight: 900, letterSpacing: 0.4,
+    }}>
+      GIF
+      <span style={{
+        position: 'absolute', top: -6, right: -6, fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 3px',
+        background: locked ? '#3a3f48' : '#ffd75e', color: locked ? '#cfd2da' : '#241a00',
+      }}>{locked ? '🔒' : 'PASS'}</span>
+    </button>
+  );
+}
+
+// mentionables: [{ id, name, avatarId, avatarVariantId, isBot, hasPlayPass }]
+function ChatComposer({
+  theme = 'meeting', placeholder, mentionables, onSend, gifLocked, onGif, replyTo, onCancelReply,
+  disabled, disabledText, desktop, maxLength = 200, autoFocus,
+}) {
+  const t = CHAT_THEMES[theme] || CHAT_THEMES.meeting;
+  const [text, setText] = useState('');
+  const [sugg, setSugg] = useState(null); // { start, query }
+  const [sel, setSel] = useState(0);
+  const taRef = useRef(null);
+
+  // auto-grow
+  React.useLayoutEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    // scrollHeight is 0 while the panel is still hidden (e.g. reconnect
+    // loading screen) - leave it at its natural size then.
+    if (el.scrollHeight) el.style.height = Math.min(el.scrollHeight + 2, 104) + 'px';
+  }, [text]);
+
+  useEffect(() => { if (autoFocus && desktop && taRef.current) taRef.current.focus(); }, [autoFocus, desktop]);
+  // Picking "reply" focuses the box so you can type straight away.
+  useEffect(() => { if (replyTo && taRef.current) taRef.current.focus(); }, [replyTo]);
+
+  const readMention = (value, caret) => {
+    let i = caret - 1;
+    while (i >= 0 && value[i] !== '@' && !/\s/.test(value[i])) i--;
+    if (i >= 0 && value[i] === '@' && (i === 0 || /\s/.test(value[i - 1]))) {
+      const q = value.slice(i + 1, caret);
+      if (q.length <= 16) { setSugg({ start: i, query: q.toLowerCase() }); setSel(0); return; }
+    }
+    setSugg(null);
+  };
+
+  const list = useMemo(() => {
+    if (!sugg) return [];
+    const q = sugg.query;
+    return (mentionables || [])
+      .filter((p) => p && p.name && p.name.toLowerCase().includes(q))
+      .sort((a, b) => (b.name.toLowerCase().startsWith(q) ? 1 : 0) - (a.name.toLowerCase().startsWith(q) ? 1 : 0))
+      .slice(0, 6);
+  }, [sugg, mentionables]);
+
+  const pick = (p) => {
+    const el = taRef.current;
+    const caret = el ? el.selectionStart : text.length;
+    const start = sugg ? sugg.start : caret;
+    const insert = `@${p.name} `;
+    const next = (text.slice(0, start) + insert + text.slice(caret)).slice(0, maxLength);
+    setText(next);
+    setSugg(null);
+    requestAnimationFrame(() => {
+      if (!taRef.current) return;
+      taRef.current.focus();
+      const pos = Math.min(start + insert.length, next.length);
+      taRef.current.setSelectionRange(pos, pos);
+    });
+  };
+
+  const send = () => {
+    const v = text.trim();
+    if (!v || disabled) return;
+    onSend(v);
+    setText('');
+    setSugg(null);
+  };
+
+  const openAt = () => {
+    const el = taRef.current;
+    const caret = el ? el.selectionStart : text.length;
+    const needSpace = caret > 0 && !/\s/.test(text[caret - 1]);
+    const ins = (needSpace ? ' ' : '') + '@';
+    const next = (text.slice(0, caret) + ins + text.slice(caret)).slice(0, maxLength);
+    setText(next);
+    const pos = caret + ins.length;
+    setSugg({ start: pos - 1, query: '' });
+    setSel(0);
+    requestAnimationFrame(() => { if (taRef.current) { taRef.current.focus(); taRef.current.setSelectionRange(pos, pos); } });
+  };
+
+  if (disabled) {
+    return (
+      <div style={{ padding: '10px 14px', borderTop: `1px solid ${t.line}`, background: t.bar, fontSize: 11.5, color: t.muted, textAlign: 'center', flexShrink: 0 }}>
+        {disabledText}
+      </div>
+    );
+  }
+
+  const keepFocus = (e) => e.preventDefault(); // tap a button without closing the phone keyboard
+  const canSend = !!text.trim();
+  return (
+    <div style={{ position: 'relative', borderTop: `1px solid ${t.line}`, background: t.bar, flexShrink: 0 }}>
+      {sugg && list.length > 0 && (
+        <div style={{
+          position: 'absolute', left: 10, right: 10, bottom: '100%', marginBottom: 6, zIndex: 20,
+          background: '#141821', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12, overflow: 'hidden',
+          boxShadow: '0 8px 28px rgba(0,0,0,0.55)', maxWidth: 360,
+        }}>
+          <div style={{ fontSize: 9.5, fontWeight: 900, letterSpacing: 0.6, color: '#7d8a92', padding: '6px 10px 3px', display: 'flex' }}>
+            MENTION
+            {desktop && <span style={{ marginLeft: 'auto', fontWeight: 700, letterSpacing: 0 }}>↑↓ · Enter</span>}
+          </div>
+          {list.map((p, i) => (
+            <div key={p.id || p.name}
+              onPointerDown={keepFocus}
+              onClick={() => pick(p)}
+              onMouseEnter={() => setSel(i)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: desktop ? '6px 10px' : '9px 10px', cursor: 'pointer',
+                background: i === sel ? 'rgba(110,255,192,0.12)' : 'transparent', color: '#e8eaf0', fontSize: 13, fontWeight: 700,
+              }}>
+              <img src={resolveAvatarImg(p.avatarId, true, p.avatarVariantId)} alt="" style={{ width: 22, height: 22, objectFit: 'contain' }} />
+              <PlayerNameTag name={p.name} premium={p.hasPlayPass} isBot={!!p.isBot} />
+              {p.isDead && <span style={{ fontSize: 10, color: '#ff8a8a', fontWeight: 700 }}>dead</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {replyTo && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', background: 'rgba(110,255,192,0.06)', borderBottom: `1px solid ${t.line}` }}>
+          <div style={{ width: 2, alignSelf: 'stretch', background: t.accent, borderRadius: 2 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, color: t.accent, fontWeight: 800 }}>Replying to {replyTo.senderName}</div>
+            <div style={{ fontSize: 11, color: '#9aa0ad', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{replyTo.text}</div>
+          </div>
+          <button onPointerDown={keepFocus} onClick={onCancelReply} style={{ background: 'none', border: 'none', color: '#9aa0ad', fontSize: 15, cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 7, padding: '8px 10px', alignItems: 'flex-end' }}>
+        {onGif && <GifButton theme={theme} locked={gifLocked} onClick={onGif} />}
+        <button type="button" onPointerDown={keepFocus} onClick={openAt} title="Mention someone" style={{
+          width: 38, height: 38, borderRadius: '50%', flexShrink: 0, cursor: 'pointer',
+          border: `1px solid ${t.inputBorder}`, background: t.input, color: t.accent, fontSize: 16, fontWeight: 900,
+        }}>@</button>
+        <textarea
+          ref={taRef}
+          rows={1}
+          value={text}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          enterKeyHint="send"
+          onChange={(e) => { const v = e.target.value.slice(0, maxLength); setText(v); readMention(v, e.target.selectionStart); }}
+          onClick={(e) => readMention(e.target.value, e.target.selectionStart)}
+          onBlur={() => setTimeout(() => setSugg(null), 120)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
+            if (sugg && list.length) {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => (s + 1) % list.length); return; }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => (s - 1 + list.length) % list.length); return; }
+              if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pick(list[Math.min(sel, list.length - 1)]); return; }
+              if (e.key === 'Escape') { e.preventDefault(); setSugg(null); return; }
+            }
+            if (e.key === 'Escape' && replyTo && onCancelReply) { onCancelReply(); return; }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+          }}
+          style={{
+            flex: 1, minWidth: 0, resize: 'none', overflowY: 'auto', lineHeight: 1.35, fontFamily: 'inherit', maxHeight: 104, minHeight: 38,
+            padding: '9px 14px', borderRadius: 20, border: `1px solid ${t.inputBorder}`, background: t.input,
+            color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box',
+          }}
+        />
+        <button type="button" onPointerDown={keepFocus} onClick={send} disabled={!canSend} title="Send (Enter)" style={{
+          width: 38, height: 38, borderRadius: '50%', border: 'none', flexShrink: 0, cursor: canSend ? 'pointer' : 'default',
+          background: canSend ? t.send : 'rgba(255,255,255,0.08)', color: canSend ? t.sendText : '#5a5a5a',
+          fontSize: 16, fontWeight: 900, transition: 'transform .1s', transform: canSend ? 'scale(1)' : 'scale(0.94)',
+        }}>↑</button>
+      </div>
+    </div>
+  );
+}
+
+// "Bots: Auto | @ only" - anyone can flip it, everyone sees it. In @ only
+// mode bots stay quiet unless someone tags them with @Name.
+function BotModeToggle({ mode, onChange }) {
+  const seg = (val, label) => (
+    <button type="button" onClick={() => mode !== val && onChange(val)} style={{
+      padding: '3px 8px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 10.5, fontWeight: 900,
+      background: mode === val ? '#8fe3ff' : 'transparent', color: mode === val ? '#04141a' : '#9fb3bd',
+    }}>{label}</button>
+  );
+  return (
+    <div title="Auto: bots join the talk. @ only: bots reply only when you tag them (@Name). Anyone can change this." style={{
+      display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2, borderRadius: 999, flexShrink: 0,
+      background: 'rgba(143,227,255,0.08)', border: '1px solid rgba(143,227,255,0.3)',
+    }}>
+      <span style={{ fontSize: 9.5, fontWeight: 900, color: '#8fe3ff', padding: '0 4px 0 6px', letterSpacing: 0.4 }}>BOTS</span>
+      {seg('auto', 'Auto')}
+      {seg('mention', '@ only')}
+    </div>
+  );
+}
+
+// Big screens (laptop/desktop/tablet landscape) get the two-column
+// meeting and a side drawer for Lobby chat; phones keep full-screen.
+function useWideLayout(minW = 900, minH = 520) {
+  const get = () => (typeof window !== 'undefined' ? window.innerWidth >= minW && window.innerHeight >= minH : false);
+  const [wide, setWide] = useState(get);
+  useEffect(() => {
+    const on = () => setWide(get());
+    window.addEventListener('resize', on);
+    window.addEventListener('orientationchange', on);
+    return () => { window.removeEventListener('resize', on); window.removeEventListener('orientationchange', on); };
+  }, []);
+  return wide;
+}
+
+// Live vote board. Every player sees the voter's small avatar under
+// whoever they voted for, the moment the vote lands. One vote, no
+// changes: tap -> confirm (✓) -> locked.
+// layout 'tray' = phone strip above the composer; 'column' = desktop list.
+function VoteBoard({ layout, cards, liveVotes, myVote, canVote, votingOpen, pending, setPending, onVote, calledById, avatarForId, totalVotes, totalAlive }) {
+  const votersFor = (target) => Object.entries(liveVotes || {}).filter(([, c]) => c === target).map(([v]) => v);
+  const tray = layout === 'tray';
+  const options = [...cards.filter((c) => tray ? !c.isDead : true), { id: 'skip', isSkip: true, name: 'Skip' }];
+  const voterDots = (ids, size) => ids.length ? (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: tray ? 'center' : 'flex-start', minHeight: size }}>
+      {ids.map((vid) => { const src = avatarForId(vid); return src ? <img key={vid} src={src} alt="" title="voted" style={{ width: size, height: size, objectFit: 'contain', animation: 'votePop .25s ease-out' }} /> : null; })}
+    </div>
+  ) : <div style={{ minHeight: tray ? size : 0 }} />;
+  const confirm = (c) => (
+    <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(8,10,16,0.94)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, zIndex: 2 }}>
+      <button type="button" onClick={(e) => { e.stopPropagation(); onVote(c.id); setPending(null); }} title="Confirm vote" style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#3ddc84', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24"><path d="M4 12l6 6L20 6" stroke="#06140d" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <button type="button" onClick={(e) => { e.stopPropagation(); setPending(null); }} title="Cancel" style={{ width: 30, height: 30, borderRadius: '50%', border: 'none', background: '#ff5c5c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" /></svg>
+      </button>
+    </div>
+  );
+  const status = !votingOpen ? 'Voting opens in the last 30s' : (myVote ? 'Vote locked' : (canVote ? 'Tap to vote, then ✓' : 'Watching the vote'));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, ...(tray ? {} : { flex: 1 }) }}>
+      <style>{'@keyframes votePop { from { transform: scale(0.3); opacity: 0 } to { transform: none; opacity: 1 } }'}</style>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 10.5, fontWeight: 900, letterSpacing: 0.5, color: votingOpen ? '#ff9b9b' : '#7d8a92', padding: tray ? '0 2px 6px' : '0 2px 8px' }}>
+        <span>{votingOpen ? '🗳 VOTE NOW' : 'PLAYERS'}</span>
+        <span style={{ fontWeight: 700, letterSpacing: 0, color: '#7d8a92' }}>{status}</span>
+        {votingOpen && totalAlive ? <span style={{ marginLeft: 'auto', color: '#cfd2da' }}>{totalVotes || 0}/{totalAlive} voted</span> : null}
+      </div>
+      <div style={tray
+        ? { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }
+        : { display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1, minHeight: 0, paddingRight: 2 }}>
+        {options.map((c) => {
+          const voters = votersFor(c.id);
+          const mine = myVote === c.id;
+          const hasVoted = !c.isSkip && Object.prototype.hasOwnProperty.call(liveVotes || {}, c.id);
+          const clickable = votingOpen && canVote && !myVote && !c.isDead;
+          const onClick = () => { if (clickable) setPending(c.id); };
+          const border = mine ? '#ff5c5c' : (pending === c.id ? '#ffc14c' : 'rgba(255,255,255,0.1)');
+          if (tray) {
+            return (
+              <div key={c.id} onClick={onClick} style={{
+                position: 'relative', flexShrink: 0, width: 62, padding: '6px 3px 4px', borderRadius: 10, cursor: clickable ? 'pointer' : 'default',
+                border: `1px solid ${border}`, background: mine ? 'rgba(255,92,92,0.16)' : 'rgba(255,255,255,0.04)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, opacity: votingOpen ? 1 : 0.6,
+              }}>
+                {c.isSkip
+                  ? <div style={{ height: 26, display: 'flex', alignItems: 'center', fontSize: 15 }}>⏭</div>
+                  : <img src={resolveAvatarImg(c.avatarId, true, c.avatarVariantId)} alt="" style={{ width: 26, height: 26, objectFit: 'contain' }} />}
+                <div style={{ fontSize: 9.5, fontWeight: 800, color: '#e8eaf0', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.isSkip ? 'Skip' : (c.isMe ? 'You' : c.name)}
+                </div>
+                {voterDots(voters, 13)}
+                {hasVoted && <div title="Has voted" style={{ position: 'absolute', top: -4, right: -4, width: 13, height: 13, borderRadius: '50%', background: '#6effc0', fontSize: 8, fontWeight: 900, color: '#06140d', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</div>}
+                {pending === c.id && confirm(c)}
+              </div>
+            );
+          }
+          return (
+            <div key={c.id} onClick={onClick} style={{
+              position: 'relative', padding: '8px 10px', borderRadius: 10, cursor: clickable ? 'pointer' : 'default',
+              border: `1px solid ${border}`, background: mine ? 'rgba(255,92,92,0.14)' : (c.isSkip ? 'transparent' : '#161b25'),
+              opacity: c.isDead ? 0.45 : (c.isDisconnected ? 0.7 : 1), transition: 'background .15s',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <div style={{ position: 'relative', width: 32, height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {c.isSkip ? <span style={{ fontSize: 17 }}>⏭</span> : <img src={resolveAvatarImg(c.avatarId, true, c.avatarVariantId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
+                  {c.isDead && (
+                    <svg viewBox="0 0 24 24" style={{ position: 'absolute', inset: 0 }}>
+                      <line x1="3" y1="3" x2="21" y2="21" stroke="#ff5c5c" strokeWidth="2.5" /><line x1="21" y1="3" x2="3" y2="21" stroke="#ff5c5c" strokeWidth="2.5" />
+                    </svg>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  {c.isSkip ? 'Skip vote' : <><PlayerNameTag name={c.name} premium={c.hasPlayPass} isBot={!!c.isBot} />{c.isMe ? <span style={{ color: '#7d8a92', fontWeight: 700 }}> (you)</span> : null}{c.hasLegionBadge && <LegionBadge size={11} />}</>}
+                </div>
+                {c.isDisconnected && !c.isDead && <span style={{ fontSize: 9, fontWeight: 800, color: '#ffc14c' }}>Reconnecting…</span>}
+                {c.id === calledById && <div title="Called this meeting" style={{ width: 15, height: 11, flexShrink: 0, background: '#ffc14c', clipPath: 'polygon(0% 30%, 40% 30%, 100% 0%, 100% 100%, 40% 70%, 0% 70%)' }} />}
+                {hasVoted && <span title="Has voted" style={{ fontSize: 9.5, fontWeight: 900, color: '#06140d', background: '#6effc0', borderRadius: 999, padding: '1px 6px' }}>VOTED</span>}
+                {mine && <span style={{ fontSize: 9.5, fontWeight: 900, color: '#fff', background: '#ff5c5c', borderRadius: 999, padding: '1px 6px' }}>YOUR VOTE</span>}
+              </div>
+              {voters.length > 0 && <div style={{ marginTop: 5, paddingLeft: 41 }}>{voterDots(voters, 16)}</div>}
+              {pending === c.id && confirm(c)}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -11710,7 +12240,7 @@ function MovementDemo() {
     });
 
     socket.on('roomCreated', (data) => {
-      setRoomInfo({ code: data.code, players: data.players, isPublic: !!data.isPublic, devMode: !!data.devMode, pool: data.pool || null, gameMode: data.gameMode || 'free', matchLimit: data.matchLimit ?? null, matchesPlayed: data.matchesPlayed || 0, roomLeaderboard: data.roomLeaderboard || [] });
+      setRoomInfo({ code: data.code, players: data.players, isPublic: !!data.isPublic, devMode: !!data.devMode, pool: data.pool || null, gameMode: data.gameMode || 'free', matchLimit: data.matchLimit ?? null, matchesPlayed: data.matchesPlayed || 0, roomLeaderboard: data.roomLeaderboard || [], botChatMode: data.botChatMode || 'auto' });
       syncOtherPlayersFromList(data.players);
       setJoinError('');
       // [BUG FIX - STALE POOL ERROR] A pool-action failure banner (e.g.
@@ -11772,7 +12302,7 @@ function MovementDemo() {
         setShowLiveRoomsWindow(false);
         setScreen('lobby');
       }
-      setRoomInfo({ code: data.code, players: data.players, isPublic: !!data.isPublic, devMode: !!data.devMode, pool: data.pool || null, gameMode: data.gameMode || 'free', matchLimit: data.matchLimit ?? null, matchesPlayed: data.matchesPlayed || 0, roomLeaderboard: data.roomLeaderboard || [] });
+      setRoomInfo({ code: data.code, players: data.players, isPublic: !!data.isPublic, devMode: !!data.devMode, pool: data.pool || null, gameMode: data.gameMode || 'free', matchLimit: data.matchLimit ?? null, matchesPlayed: data.matchesPlayed || 0, roomLeaderboard: data.roomLeaderboard || [], botChatMode: data.botChatMode || 'auto' });
       syncOtherPlayersFromList(data.players);
       setJoinError('');
       // [BUG FIX - STALE POOL ERROR] Same reasoning as roomCreated above.
@@ -11994,7 +12524,7 @@ function MovementDemo() {
     // that just always going through it again is simpler and harmless).
     socket.on('reconnected', (data) => {
       setRejoinPending(false);
-      setRoomInfo({ code: data.code, players: data.players, isPublic: !!data.isPublic, devMode: !!data.devMode, pool: data.pool || null, gameMode: data.gameMode || 'free', matchLimit: data.matchLimit ?? null, matchesPlayed: data.matchesPlayed || 0, roomLeaderboard: data.roomLeaderboard || [] });
+      setRoomInfo({ code: data.code, players: data.players, isPublic: !!data.isPublic, devMode: !!data.devMode, pool: data.pool || null, gameMode: data.gameMode || 'free', matchLimit: data.matchLimit ?? null, matchesPlayed: data.matchesPlayed || 0, roomLeaderboard: data.roomLeaderboard || [], botChatMode: data.botChatMode || 'auto' });
       // [BUG FIX - SPEED WENT SLOW ON RECONNECT] The backend's own
       // buildFullRestorePayload comment says this exact field was added
       // there specifically so a reconnecting player picks up the room's
@@ -12160,8 +12690,11 @@ function MovementDemo() {
       // chat-rendering code doesn't need to care how a message arrived.
       if (data.activeMeeting) {
         preMeetingPosRef.current = preMeetingPosRef.current || { ...posRef.current };
+        setMatchChat((data.activeMeeting.history || []).map((h) => matchChatItemFromServer(h, socket.id)));
+        if (data.activeMeeting.botChatMode) setRoomInfo((prev) => prev ? { ...prev, botChatMode: data.activeMeeting.botChatMode } : prev);
         setMeeting({
           stage: data.activeMeeting.stage,
+          meetingNo: data.activeMeeting.meetingNo || 1,
           calledByReason: data.activeMeeting.reason,
           calledByPlayerId: data.activeMeeting.calledBy,
           startedAt: data.activeMeeting.startedAt,
@@ -12686,8 +13219,13 @@ function MovementDemo() {
       // message about a conversation that isn't even visible anymore.
       setReplyingTo(null);
       setChatDraft('');
+      setMatchChat((data.history || []).map((h) => matchChatItemFromServer(h, socket.id)));
+      setBotTyping({});
+      setMeetingTab('meeting');
+      if (data.botChatMode) setRoomInfo((prev) => prev ? { ...prev, botChatMode: data.botChatMode } : prev);
       setMeeting({
         stage: 'alarm',
+        meetingNo: data.meetingNo || 1,
         // [BUG FIX] Renamed from calledBy to calledByReason for clarity -
         // this was always the "self"/"report" REASON string
         // (room.meeting.reason server-side), never an actual player id,
@@ -12870,6 +13408,9 @@ function MovementDemo() {
     // comparing senderId to our own socket id rather than trusting
     // anything the client claims.
     socket.on('chatMessageReceived', (data) => {
+      buzzIfTagged(data.text, myChatNameRef.current, data.senderId, socket.id);
+      setMatchChat((prev) => [...prev, chatMsgFromServer(data, socket.id)]);
+      setBotTyping((prev) => { if (!prev[data.senderId]) return prev; const n = { ...prev }; delete n[data.senderId]; return n; });
       setMeeting((m) => m && {
         ...m,
         messages: [...m.messages, {
@@ -12906,6 +13447,8 @@ function MovementDemo() {
         isSelf: data.senderId === socket.id,
         replyTo: data.replyTo || null,
       }]);
+      const ghostTag = buzzIfTagged(data.text, displayPlayerName(myChatNameRef.current), data.senderId, socket.id);
+      if (ghostTag && !showGhostChatRef.current) setGhostTagged(true);
       if (!showGhostChatRef.current && data.senderId !== socket.id) {
         setGhostChatUnread((n) => n + 1);
       }
@@ -12931,6 +13474,7 @@ function MovementDemo() {
         isSelf: data.senderId === socket.id,
         replyTo: data.replyTo || null,
       }]);
+      if (buzzIfTagged(data.text, myChatNameRef.current, data.senderId, socket.id) && !showLobbyChatRef.current) setLobbyTagged(true);
       if (!showLobbyChatRef.current && data.senderId !== socket.id) {
         setLobbyChatUnread((n) => n + 1);
       }
@@ -12989,6 +13533,7 @@ function MovementDemo() {
     // picked, in real time, matching Among Us's own live voting screen.
     // totalVotes/totalAlive are also stored for the "X/Y voted" counter.
     socket.on('voteUpdate', (data) => {
+      if (data.voterName) setMatchChat((prev) => [...prev, { kind: 'sys', id: `vote-${data.voterId}-${Date.now()}`, text: `${data.voterName} voted`, voterId: data.voterId }]);
       setMeeting((m) => m && {
         ...m,
         liveVotes: { ...m.liveVotes, [data.voterId]: data.choice },
@@ -13001,6 +13546,16 @@ function MovementDemo() {
     // because enough players voted to skip — same stage value the
     // alarm->chat and chat->voting client timers already use, so the
     // existing stage-based rendering picks this up automatically.
+    // [CHAT REDESIGN] Bots: Auto / @ only - anyone can flip it.
+    socket.on('botChatModeChanged', (data) => {
+      setRoomInfo((prev) => prev ? { ...prev, botChatMode: data.mode } : prev);
+      if (meetingRef.current) setMatchChat((prev) => [...prev, { kind: 'sys', id: `mode-${Date.now()}`, text: data.text }]);
+    });
+    // "Nova is typing…" while a bot's reply is on its way.
+    socket.on('botTyping', (data) => {
+      if (!data || !data.id) return;
+      setBotTyping((prev) => ({ ...prev, [data.id]: { name: data.name, until: Date.now() + Math.min(Math.max(data.ms || 2000, 800), 12000) } }));
+    });
     socket.on('meetingStageChanged', (data) => {
       setMeeting((m) => m && { ...m, stage: data.stage, startedAt: Date.now() });
     });
@@ -13503,8 +14058,10 @@ function MovementDemo() {
       setScreen('loading');
       if (res.activeMeeting) {
         preMeetingPosRef.current = preMeetingPosRef.current || { ...posRef.current };
+        setMatchChat((res.activeMeeting.history || []).map((h) => matchChatItemFromServer(h, socketRef.current?.id)));
         setMeeting({
           stage: res.activeMeeting.stage,
+          meetingNo: res.activeMeeting.meetingNo || 1,
           calledByReason: res.activeMeeting.reason,
           calledByPlayerId: res.activeMeeting.calledBy,
           startedAt: res.activeMeeting.startedAt,
@@ -14023,6 +14580,7 @@ function MovementDemo() {
   // directly there would see a permanently stale value from whenever
   // that effect first ran, not its current open/closed state.
   const [ghostChatUnread, setGhostChatUnread] = useState(0);
+  const [ghostTagged, setGhostTagged] = useState(false); // [CHAT REDESIGN] someone @tagged me while the panel was closed
   const showGhostChatRef = useRef(false);
   useEffect(() => { showGhostChatRef.current = showGhostChat; if (showGhostChat) setGhostChatUnread(0); }, [showGhostChat]);
   // [NEW FEATURE] Lobby chat - separate message list/draft/panel-open
@@ -14036,6 +14594,8 @@ function MovementDemo() {
   const [lobbyChatDraft, setLobbyChatDraft] = useState('');
   const [showLobbyChat, setShowLobbyChat] = useState(false);
   const [lobbyChatUnread, setLobbyChatUnread] = useState(0);
+  const [lobbyTagged, setLobbyTagged] = useState(false);
+  const myChatNameRef = useRef('');
   // [NEW FEATURE - GIF PICKER] Bottom sheet open/closed, this chat only.
   const [showLobbyGifPicker, setShowLobbyGifPicker] = useState(false);
   // [NEW FEATURE - "NEW MESSAGES" INDICATOR] Separate from
@@ -14102,6 +14662,14 @@ function MovementDemo() {
   // confirmation overlay on that specific target's card before the vote
   // actually gets cast. null when nothing's pending.
   const [pendingVoteTarget, setPendingVoteTarget] = useState(null);
+  // [CHAT REDESIGN] Whole-match meeting chat (dividers + messages + "X
+  // voted" lines). Replaced by the server's copy at every meeting start /
+  // reconnect, live lines appended in between.
+  const [matchChat, setMatchChat] = useState([]);
+  const [botTyping, setBotTyping] = useState({}); // botId -> { name, until }
+  const [meetingTab, setMeetingTab] = useState('meeting'); // ghosts: 'meeting' | 'ghost'
+  const [ghostSeenCount, setGhostSeenCount] = useState(0);
+  const wideLayout = useWideLayout();
   // Clear any pending (unconfirmed) vote-tap whenever the meeting's
   // stage itself changes - e.g. if voting somehow ends while a
   // confirmation popup is still open, it shouldn't linger into whatever
@@ -14271,6 +14839,68 @@ function MovementDemo() {
   const displayedHasPlayPass = disguiseActive
     ? !!disguiseActive.hasPlayPass
     : !!loggedInPlayer?.hasPlayPass;
+
+  // [CHAT REDESIGN] Everyone in the meeting, exactly as shown on screen
+  // (disguise-aware, same rules as the old badge/vote cards). Shared by
+  // the chat (names, @mentions, voter avatars) and the vote board.
+  const meetingCards = useMemo(() => {
+    if (!meeting) return null;
+    const myId = socketRef.current?.id;
+    return [
+      { id: myId, name: displayPlayerName(playerName, playerAvatarId), avatarId: disguiseActive ? disguiseActive.avatarId : playerAvatarId, avatarVariantId: disguiseActive ? (disguiseActive.avatarVariantId || null) : (loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null), isDead: !myAlive, isMe: true, hasLegionBadge: !!loggedInPlayer?.hasLegionBadge, hasPlayPass: !!displayedHasPlayPass },
+      ...Object.entries(otherPlayers).map(([id, p]) => ({
+        id,
+        name: p.disguiseAvatarId
+          ? (roomInfo?.players?.find((rp) => rp.avatarId === p.disguiseAvatarId)?.name || getAvatar(p.disguiseAvatarId).name)
+          : displayPlayerName(p.name, p.avatarId),
+        avatarId: p.disguiseAvatarId || p.avatarId,
+        avatarVariantId: p.disguiseAvatarId ? (p.disguiseAvatarVariantId || null) : (p.avatarVariantId || null),
+        isDead: p.alive === false, isMe: false,
+        isDisconnected: !!p.disconnected,
+        hasLegionBadge: !!p.hasLegionBadge,
+        isBot: displayedIsBot(p, roomInfo?.players),
+        hasPlayPass: p.disguiseAvatarId ? !!p.disguiseHasPlayPass : !!p.hasPlayPass,
+      })),
+    ];
+  }, [!!meeting, otherPlayers, roomInfo?.players, playerName, playerAvatarId, loggedInPlayer, myAlive, disguiseActive, displayedHasPlayPass]);
+  const meetingChatKit = useMemo(() => {
+    if (!meetingCards) return null;
+    const byId = Object.fromEntries(meetingCards.map((c) => [c.id, c]));
+    return {
+      byId,
+      myName: meetingCards[0].name,
+      avatarForId: (id) => { const c = byId[id]; return c ? resolveAvatarImg(c.avatarId, true, c.avatarVariantId) : null; },
+      mentionRe: buildMentionRegex(meetingCards.map((c) => c.name)),
+      mentionables: meetingCards.filter((c) => !c.isMe && !c.isDead),
+    };
+  }, [meetingCards]);
+  // Ghost chat: the other dead players (real names - ghosts see the truth).
+  const ghostChatKit = useMemo(() => {
+    if (myAlive) return null;
+    const ghosts = Object.entries(otherPlayers).filter(([, p]) => p.alive === false).map(([id, p]) => ({
+      id, name: displayPlayerName(p.name, p.avatarId), avatarId: p.avatarId, avatarVariantId: p.avatarVariantId || null,
+      isBot: !!p.isBot || isBotPlayerId(id), hasPlayPass: !!p.hasPlayPass,
+    }));
+    const me = displayPlayerName(playerName, playerAvatarId);
+    return { myName: me, mentionables: ghosts, mentionRe: buildMentionRegex([me, ...ghosts.map((g) => g.name)]) };
+  }, [myAlive, otherPlayers, playerName, playerAvatarId]);
+  myChatNameRef.current = meetingChatKit?.myName || displayPlayerName(playerName, playerAvatarId);
+  useEffect(() => { if (showLobbyChat) setLobbyTagged(false); }, [showLobbyChat]);
+  useEffect(() => { if (showGhostChat || (meeting && meetingTab === 'ghost')) setGhostTagged(false); }, [showGhostChat, meeting && meetingTab]);
+  // Drop "X is typing…" once its time is up.
+  useEffect(() => {
+    const ids = Object.keys(botTyping);
+    if (!ids.length) return undefined;
+    const next = Math.min(...ids.map((k) => botTyping[k].until));
+    const t = setTimeout(() => {
+      setBotTyping((prev) => { const n = {}; for (const [k, v] of Object.entries(prev)) if (v.until > Date.now()) n[k] = v; return n; });
+    }, Math.max(50, next - Date.now() + 20));
+    return () => clearTimeout(t);
+  }, [botTyping]);
+  // Ghost messages read while the ghost tab (meeting) or ghost panel is open.
+  useEffect(() => {
+    if ((meeting && meetingTab === 'ghost') || showGhostChat) setGhostSeenCount(ghostChatMessages.length);
+  }, [meeting && meetingTab, showGhostChat, ghostChatMessages.length]);
 
   // ── Kill mechanic ────────────────────────────────────────────────────
   // Separate from the sabotage-action cooldown — killing has its own 15s
@@ -15023,10 +15653,44 @@ function MovementDemo() {
     setReplyingTo(null);
   }, [chatDraft, meeting, myAlive, replyingTo]);
 
+  // [CHAT REDESIGN] Text comes from ChatComposer (it owns the draft).
+  // Chat stays open through the 30s voting window too.
+  const sendMeetingText = useCallback((text) => {
+    const m = meetingRef.current;
+    if (!text || !m || (m.stage !== 'chat' && m.stage !== 'voting') || !myAlive || !socketRef.current) return;
+    socketRef.current.emit('sendChatMessage', {
+      text,
+      replyTo: replyingTo ? { senderName: replyingTo.senderName, text: replyingTo.text } : null,
+    });
+    setReplyingTo(null);
+  }, [myAlive, replyingTo]);
+  const sendGhostText = useCallback((text) => {
+    if (!text || myAlive || !socketRef.current) return;
+    socketRef.current.emit('sendGhostChatMessage', {
+      text,
+      replyTo: ghostReplyingTo ? { senderName: ghostReplyingTo.senderName, text: ghostReplyingTo.text } : null,
+    });
+    setGhostReplyingTo(null);
+  }, [myAlive, ghostReplyingTo]);
+  const sendLobbyText = useCallback((text) => {
+    if (!text || !socketRef.current) return;
+    socketRef.current.emit('sendLobbyChatMessage', {
+      text,
+      replyTo: lobbyReplyingTo ? { senderName: lobbyReplyingTo.senderName, text: lobbyReplyingTo.text } : null,
+    });
+    setLobbyReplyingTo(null);
+  }, [lobbyReplyingTo]);
+  const setBotChatMode = useCallback((mode) => {
+    socketRef.current?.emit('setBotChatMode', { mode });
+  }, []);
+  const openPlayPassUpsell = () => {
+    setShowPlayPassModal(true); setPlayPassTab('skins'); setPlayPassError(''); loadPlayPassConfig(); loadPlayPassStatus();
+  };
+
   // [NEW FEATURE - GIF PICKER] Same idea as the Lobby chat's GIF sender -
   // no draft text required, sends immediately on selection.
   const sendMeetingGifMessage = useCallback((gifUrl) => {
-    if (!gifUrl || !meeting || meeting.stage !== 'chat' || !myAlive || !socketRef.current) return;
+    if (!gifUrl || !meeting || (meeting.stage !== 'chat' && meeting.stage !== 'voting') || !myAlive || !socketRef.current) return;
     socketRef.current.emit('sendChatMessage', {
       gifUrl,
       replyTo: replyingTo ? { senderName: replyingTo.senderName, text: replyingTo.text } : null,
@@ -21204,7 +21868,9 @@ function MovementDemo() {
           showLobbyChat={showLobbyChat}
           setShowLobbyChat={setShowLobbyChat}
           lobbyChatUnread={lobbyChatUnread}
+          lobbyTagged={lobbyTagged}
           sendLobbyChatMessage={sendLobbyChatMessage}
+          sendLobbyText={sendLobbyText}
           lobbyReplyingTo={lobbyReplyingTo}
           setLobbyReplyingTo={setLobbyReplyingTo}
           lobbyChatScrollRef={lobbyChatScrollRef}
@@ -23445,392 +24111,199 @@ function MovementDemo() {
           relaying them, so solo-test only ever shows this one player's
           own sent messages; a small note says so rather than pretending
           otherwise. */}
-      {meeting && meeting.stage === 'chat' && (
-        <div style={{
-          // [BUG FIX - GAME MAP VISIBLE THROUGH DISCUSSION CHAT WHEN THE
-          // KEYBOARD OPENED] Same fix as the Lobby chat panel and
-          // GifPickerSheet elsewhere in this file - position:'fixed'
-          // instead of 'absolute', so the browser's native "scroll the
-          // focused input into view" behavior on the message box can't
-          // drag this panel away from the real screen and leave a gap
-          // showing the game/joystick underneath, above the keyboard.
-          position: 'fixed', top: viewportTop, left: 0, right: 0, height: viewportHeight, zIndex: 65, background: '#0a0a0f',
-          display: 'flex', flexDirection: 'column',
-        }}>
-          <div style={{
-            padding: '14px 16px 10px', borderBottom: '1px solid rgba(255,255,255,0.08)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-          }}>
-            <div>
-              <h2 style={{ fontSize: 14, fontWeight: 800, color: '#fff', margin: '0 0 2px' }}>💬 Discussion</h2>
-              <p style={{ fontSize: 10, color: '#7a8a86', margin: 0 }}>
-                {meeting.calledByReason === 'report' ? 'A body was reported' : 'Emergency meeting called'}
+      {/* [CHAT REDESIGN] One meeting screen for the whole talk + vote.
+          - 150s discussion, then the last 30s VOTING opens INSIDE the chat
+            (chat stays open, same total time as before).
+          - One vote per player, no changes; every voter's small avatar
+            shows under whoever they voted for, live, for everyone.
+          - Chat history covers every meeting of this match.
+          - Ghosts get their own tab (the living can't see it).
+          Phones: full-screen chat, vote tray slides in above the box.
+          Big screens: players / votes on the left, chat on the right. */}
+      {meeting && (meeting.stage === 'chat' || meeting.stage === 'voting') && meetingCards && meetingChatKit && (() => {
+        const kit = meetingChatKit;
+        const votingOpen = meeting.stage === 'voting';
+        const now = Date.now();
+        const typingNames = Object.values(botTyping).filter((b) => b.until > now).map((b) => b.name);
+        const ghostTab = !myAlive && meetingTab === 'ghost';
+        const ghostUnread = Math.max(0, ghostChatMessages.length - ghostSeenCount);
+        const hasBots = meetingCards.some((c) => c.isBot) || (roomInfo?.players || []).some((p) => p.isBot || isBotPlayerId(p.id));
+        const botMode = roomInfo?.botChatMode || 'auto';
+        const wide = wideLayout;
+        const compact = !wide && viewportHeight < 540; // phone keyboard is up
+        const gifLocked = !loggedInPlayer?.hasPlayPass;
+        const reasonText = meeting.calledByReason === 'report'
+          ? `${meeting.reportedBody?.name ? `${meeting.reportedBody.name}'s body` : 'A body'} reported${meeting.callerName ? ` by ${meeting.callerName}` : ''}`
+          : `Emergency meeting${meeting.callerName ? ` by ${meeting.callerName}` : ''}`;
+        const voteBoardProps = {
+          cards: meetingCards, liveVotes: meeting.liveVotes || {}, myVote: meeting.myVote, canVote: myAlive,
+          votingOpen, pending: pendingVoteTarget, setPending: setPendingVoteTarget, onVote: castVote,
+          calledById: meeting.calledByPlayerId, avatarForId: kit.avatarForId,
+          totalVotes: meeting.totalVotesIn || Object.keys(meeting.liveVotes || {}).length,
+          totalAlive: meeting.totalAliveForVote || meetingCards.filter((c) => !c.isDead).length,
+        };
+        const skipButton = myAlive && !votingOpen && (
+          <button
+            onClick={() => { socketRef.current?.emit('voteSkipDiscussion'); setMeeting((m) => m && { ...m, iVotedSkip: true }); }}
+            disabled={meeting.iVotedSkip}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: meeting.iVotedSkip ? 'default' : 'pointer',
+              padding: wide ? '9px 12px' : '6px 12px', borderRadius: 999, border: '1px solid rgba(255,193,76,0.5)', width: wide ? '100%' : 'auto',
+              background: meeting.iVotedSkip ? 'rgba(255,193,76,0.08)' : 'rgba(255,193,76,0.16)', color: '#ffc14c', fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap',
+            }}
+          >
+            ⏭ {meeting.iVotedSkip
+              ? `Waiting for others (${meeting.skipVoteCount || 0}/${meeting.skipVoteTotal || '?'})`
+              : 'Skip to vote (60%)'}
+          </button>
+        );
+        const header = (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: wide ? '14px 20px' : '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <h2 style={{ fontSize: wide ? 18 : 15, fontWeight: 900, color: '#fff', margin: 0, whiteSpace: 'nowrap' }}>
+                  {votingOpen ? '🗳 Vote now' : '💬 Discussion'}
+                </h2>
+                {votingOpen && wide && (
+                  <span style={{ fontSize: 9.5, fontWeight: 900, padding: '2px 7px', borderRadius: 999, background: 'rgba(255,92,92,0.15)', color: '#ff9b9b', border: '1px solid rgba(255,92,92,0.35)', whiteSpace: 'nowrap' }}>CHAT STILL OPEN</span>
+                )}
+              </div>
+              <p style={{ fontSize: 10.5, color: '#7a8a86', margin: '2px 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                Meeting {meeting.meetingNo || 1} · {reasonText}
               </p>
             </div>
-            <MeetingCountdown startedAt={meeting.startedAt} durationMs={MEETING_CHAT_DURATION_MS} />
+            {hasBots && <BotModeToggle mode={botMode} onChange={setBotChatMode} />}
+            <MeetingCountdown key={meeting.stage} startedAt={meeting.startedAt} durationMs={votingOpen ? 30000 : MEETING_CHAT_DURATION_MS} />
           </div>
-
-          {/* [NEW FEATURE] Player status badges - every alive AND dead
-              player shown at a glance right under the header, reusing
-              the SAME card visuals as the voting screen (cross overlay
-              on dead avatars, megaphone icon on whoever called this
-              meeting) but here it's read-only - no tapping/voting
-              during chat. Whichever player was JUST found dead by this
-              specific report (not anyone who was already dead before
-              this meeting) plays a brief cross-draws-in + fade
-              animation the moment chat opens, so it's obvious who's
-              new versus who was already known. */}
-          {(() => {
-            const myId = socketRef.current?.id;
-            const badgeCards = [
-              { id: myId, name: displayPlayerName(playerName, playerAvatarId), avatarId: playerAvatarId, avatarVariantId: loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null, isDead: !myAlive, hasLegionBadge: !!loggedInPlayer?.hasLegionBadge, hasPlayPass: disguiseActive ? !!displayedHasPlayPass : !!loggedInPlayer?.hasPlayPass },
-              ...Object.entries(otherPlayers).map(([id, p]) => ({
-                // [BUG FIX] Same disguise-leak fix as the CCTV/voting
-                // screens - was showing the real name even while
-                // disguised.
-                id, name: p.disguiseAvatarId
-                  ? (roomInfo?.players?.find((rp) => rp.avatarId === p.disguiseAvatarId)?.name || getAvatar(p.disguiseAvatarId).name)
-                  : displayPlayerName(p.name, p.avatarId),
-                avatarId: p.disguiseAvatarId || p.avatarId,
-                // [NEW FEATURE - PLAY PASS] null while disguised, same
-                // rule as everywhere else.
-                avatarVariantId: p.disguiseAvatarId ? (p.disguiseAvatarVariantId || null) : (p.avatarVariantId || null),
-                isDead: p.alive === false,
-                hasLegionBadge: !!p.hasLegionBadge,
-                isBot: displayedIsBot(p, roomInfo?.players), // [AI BOTS] disguise-aware
-                // [NEW FEATURE - PLAY PASS] Name tag must reflect the
-                // DISGUISED identity's Play Pass status while disguised
-                // (genuine impersonation, same principle as the avatar
-                // skin itself), otherwise the player's own real status.
-                hasPlayPass: p.disguiseAvatarId ? !!p.disguiseHasPlayPass : !!p.hasPlayPass,
-              })),
-            ];
-            return (
-              <div style={{ display: 'flex', gap: 10, overflowX: 'auto', padding: '10px 14px 2px', flexShrink: 0 }}>
-                {badgeCards.map((card) => {
-                  const isNewlyDead = card.isDead && meeting.calledByReason === 'report'
-                    && meeting.reportedBody && card.id === meeting.reportedBody.id;
-                  return (
-                    <div key={card.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 40, flexShrink: 0, gap: 2 }}>
-                      <div style={{ position: 'relative', width: 28, height: 28 }}>
-                        <img src={resolveAvatarImg(card.avatarId, true, card.avatarVariantId)} alt="" style={{
-                          width: '100%', height: '100%', objectFit: 'contain',
-                          opacity: card.isDead ? 0.5 : 1,
-                          animation: isNewlyDead ? 'chatBadgeDeathFade 0.6s ease-out' : undefined,
-                        }} />
-                        {card.hasLegionBadge && (
-                          <img src={LEGION_LOGO_IMG} alt="" title="NEAR Legion Initiate" style={{
-                            position: 'absolute', bottom: -2, right: -2, width: 11, height: 11, borderRadius: 2,
-                          }} />
-                        )}
-                        {card.isDead && (
-                          <svg viewBox="0 0 24 24" style={{
-                            position: 'absolute', inset: 0,
-                            animation: isNewlyDead ? 'chatBadgeCrossIn 0.5s ease-out' : undefined,
-                          }}>
-                            <line x1="3" y1="3" x2="21" y2="21" stroke="#ff5c5c" strokeWidth="2.5" />
-                            <line x1="21" y1="3" x2="3" y2="21" stroke="#ff5c5c" strokeWidth="2.5" />
-                          </svg>
-                        )}
-                        {card.id === meeting.calledByPlayerId && (
-                          <div style={{
-                            position: 'absolute', top: -3, right: -6, width: 13, height: 10,
-                            background: '#ffc14c',
-                            clipPath: 'polygon(0% 30%, 40% 30%, 100% 0%, 100% 100%, 40% 70%, 0% 70%)',
-                          }} title="Called this meeting" />
-                        )}
-                      </div>
-                      <span style={{
-                        fontSize: 8, fontWeight: 700, color: card.isDead ? '#8a9490' : '#e8eaf0',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
-                      }}><PlayerNameTag name={card.name} premium={card.hasPlayPass} isBot={!!card.isBot} /></span>
-                    </div>
-                  );
-                })}
-                <style>{`
-                  @keyframes chatBadgeCrossIn { 0% { opacity: 0; } 100% { opacity: 1; } }
-                  @keyframes chatBadgeDeathFade { 0% { opacity: 1; } 100% { opacity: 0.5; } }
-                `}</style>
-              </div>
-            );
-          })()}
-
-          {/* [DEATH ANNOUNCEMENT] Lists every player known to be dead so
-              far, right under the header — same as Among Us announcing
-              every death (not just whichever specific body triggered
-              this meeting) the moment a meeting starts. */}
-          {meeting.deadPlayerNames && meeting.deadPlayerNames.length > 0 && (
-            <div style={{
-              margin: '8px 14px 0', padding: '8px 12px', borderRadius: 10,
-              background: 'rgba(255,92,92,0.1)', border: '1px solid rgba(255,92,92,0.3)',
-              fontSize: 11.5, color: '#ff8a8a', flexShrink: 0,
-            }}>
-              💀 {meeting.deadPlayerNames.length === 1
-                ? `${meeting.deadPlayerNames[0]}'s body was found.`
-                : `Bodies found: ${meeting.deadPlayerNames.join(', ')}.`}
-            </div>
-          )}
-
-          {/* [UPDATE] Redesigned - now that the player-badge row sits
-              right above this, the old plain text button blended in and
-              was easy to miss/ignore (Om7eth's explicit feedback). Now
-              a clearly pill-shaped, icon-led button with its own row,
-              and the copy spells out exactly what it does and the
-              current progress toward the (now 60%, was 50% then 80%) threshold -
-              see voteSkipDiscussion on the backend. */}
-          {myAlive && (
-            <div style={{ padding: '6px 14px 0', flexShrink: 0 }}>
-              <button
-                onClick={() => {
-                  socketRef.current?.emit('voteSkipDiscussion');
-                  setMeeting((m) => m && { ...m, iVotedSkip: true });
-                }}
-                disabled={meeting.iVotedSkip}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  padding: '10px 0', borderRadius: 999, border: '1.5px solid rgba(255,193,76,0.55)',
-                  background: meeting.iVotedSkip ? 'rgba(255,193,76,0.1)' : 'rgba(255,193,76,0.2)',
-                  color: '#ffc14c', fontSize: 12, fontWeight: 800,
-                }}
-              >
-                <span style={{ fontSize: 15 }}>⏭️</span>
-                {meeting.iVotedSkip
-                  ? `Waiting for others to skip… (${meeting.skipVoteCount || 0}/${meeting.skipVoteTotal || '?'})`
-                  : 'Skip Discussion, Go to Voting (needs 60%)'}
-              </button>
-            </div>
-          )}
-
-          <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-          <div ref={chatScrollRef} style={{ height: '100%', overflowY: 'auto', padding: '12px 14px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {meeting.messages.length === 0 && (
-              <p style={{ fontSize: 11, color: '#5f6b67', textAlign: 'center', marginTop: 30 }}>
-                No messages yet. Say something to start the discussion.
-              </p>
-            )}
-            {meeting.messages.map(msg => {
-              // [NEW FEATURE] ALL-CAPS messages get a distinct highlighted
-              // treatment (gold border/glow, bold text) so they visually
-              // stand out in the chat, same idea as "shouting" in most
-              // chat apps.
-              // [NEW FEATURE - PLAY PASS] Play Pass perk - only for senders
-              // who have it (server-provided flag, never client-trusted).
-              const shouting = msg.authorHasPlayPass && isAllCapsMessage(msg.text);
+        );
+        const deadBanner = meeting.deadPlayerNames && meeting.deadPlayerNames.length > 0 && !compact && (
+          <div style={{
+            margin: wide ? '0 0 10px' : '6px 12px 0', padding: '6px 10px', borderRadius: 9, flexShrink: 0,
+            background: 'rgba(255,92,92,0.1)', border: '1px solid rgba(255,92,92,0.3)', fontSize: 11, color: '#ff8a8a',
+          }}>
+            💀 {meeting.deadPlayerNames.length === 1 ? `${meeting.deadPlayerNames[0]} is dead.` : `Dead: ${meeting.deadPlayerNames.join(', ')}.`}
+          </div>
+        );
+        const strip = !wide && !votingOpen && !compact && (
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '8px 12px 2px', flexShrink: 0 }}>
+            {meetingCards.map((card) => {
+              const isNewlyDead = card.isDead && meeting.calledByReason === 'report' && meeting.reportedBody && card.id === meeting.reportedBody.id;
               return (
-              <div key={msg.id} style={{
-                display: 'flex', gap: 8, alignItems: 'flex-end',
-                flexDirection: msg.isSelf ? 'row-reverse' : 'row',
-              }}>
-                <img src={resolveAvatarImg(msg.authorAvatarId, true, msg.authorAvatarVariant)} alt="" style={{ width: 26, height: 26, objectFit: 'contain', flexShrink: 0 }} />
-                <div style={{ maxWidth: '72%' }}>
-                  <div style={{
-                    fontSize: 9.5, color: '#7a8a86', marginBottom: 2,
-                    textAlign: msg.isSelf ? 'right' : 'left',
-                    display: 'flex', alignItems: 'center', gap: 3, justifyContent: msg.isSelf ? 'flex-end' : 'flex-start',
-                  }}>
-                    <PlayerNameTag name={msg.authorName} premium={msg.authorHasPlayPass} isBot={isBotPlayerId(msg._sender)} />
-                    {msg.authorHasLegionBadge && <LegionBadge size={9} />}
-                  </div>
-                  {/* [NEW FEATURE] Swipe any message right to reply to it -
-                      shows a small quoted preview above the input box,
-                      same idea as WhatsApp/Telegram's reply feature. */}
-                  <SwipeToReply onReply={() => myAlive && setReplyingTo({ senderName: msg.authorName, text: msg.text })}>
-                  {msg.gifUrl ? (
-                    <div>
-                      {msg.replyTo && (
-                        <div style={{ borderLeft: '2px solid rgba(110,255,192,0.5)', paddingLeft: 7, marginBottom: 4, opacity: 0.8 }}>
-                          <div style={{ fontSize: 9.5, fontWeight: 700 }}>{msg.replyTo.senderName}</div>
-                          <div style={{ fontSize: 10.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{msg.replyTo.text}</div>
-                        </div>
-                      )}
-                      <img src={msg.gifUrl} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 14, display: 'block' }} />
-                    </div>
-                  ) : (
-                  <div
-                    style={{
-                      padding: '8px 12px', borderRadius: 14, fontSize: 12.5, lineHeight: 1.35,
-                      background: shouting
-                        ? 'linear-gradient(135deg,#ffd75e,#e8a831)'
-                        : (msg.isSelf ? 'linear-gradient(135deg,#2bb88a,#1f8a68)' : 'rgba(255,255,255,0.08)'),
-                      color: shouting ? '#241a00' : (msg.isSelf ? '#06140d' : '#e8eaf0'),
-                      fontWeight: shouting ? 800 : 400,
-                      border: shouting ? '1px solid rgba(255,255,255,0.4)' : 'none',
-                      boxShadow: shouting ? '0 0 10px rgba(255,215,94,0.5)' : 'none',
-                      borderBottomRightRadius: msg.isSelf ? 4 : 14,
-                      borderBottomLeftRadius: msg.isSelf ? 14 : 4,
-                    }}>
-                    {msg.replyTo && (
-                      <div style={{
-                        borderLeft: `2px solid ${msg.isSelf ? 'rgba(6,20,13,0.4)' : 'rgba(110,255,192,0.5)'}`,
-                        paddingLeft: 7, marginBottom: 5, opacity: 0.8,
-                      }}>
-                        <div style={{ fontSize: 9.5, fontWeight: 700 }}>{msg.replyTo.senderName}</div>
-                        <div style={{ fontSize: 10.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{msg.replyTo.text}</div>
-                      </div>
+                <div key={card.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: card.isBot ? 64 : 46, flexShrink: 0, gap: 1 }}>
+                  <div style={{ position: 'relative', width: 26, height: 26 }}>
+                    <img src={resolveAvatarImg(card.avatarId, true, card.avatarVariantId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', opacity: card.isDead ? 0.45 : 1, animation: isNewlyDead ? 'chatBadgeDeathFade 0.6s ease-out' : undefined }} />
+                    {card.isDead && (
+                      <svg viewBox="0 0 24 24" style={{ position: 'absolute', inset: 0, animation: isNewlyDead ? 'chatBadgeCrossIn 0.5s ease-out' : undefined }}>
+                        <line x1="3" y1="3" x2="21" y2="21" stroke="#ff5c5c" strokeWidth="2.5" /><line x1="21" y1="3" x2="3" y2="21" stroke="#ff5c5c" strokeWidth="2.5" />
+                      </svg>
                     )}
-                    {msg.text}
+                    {card.id === meeting.calledByPlayerId && (
+                      <div title="Called this meeting" style={{ position: 'absolute', top: -3, right: -6, width: 12, height: 9, background: '#ffc14c', clipPath: 'polygon(0% 30%, 40% 30%, 100% 0%, 100% 100%, 40% 70%, 0% 70%)' }} />
+                    )}
                   </div>
-                  )}
-                  </SwipeToReply>
+                  <span style={{ fontSize: 8.5, fontWeight: 700, color: card.isDead ? '#8a9490' : '#e8eaf0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                    <PlayerNameTag name={card.isMe ? 'You' : card.name} premium={card.hasPlayPass} isBot={!!card.isBot} />
+                  </span>
                 </div>
-              </div>
               );
             })}
-              {/* [BUG FIX - MESSAGES STILL GOT CROPPED BEHIND THE INPUT]
-                  Same fix as Lobby chat - input lives INSIDE the
-                  scrollable area now, position: sticky to its bottom,
-                  so it's mathematically guaranteed to sit at the true
-                  visible bottom regardless of any panel-height quirks,
-                  and every message scrolls fully clear of it. */}
-              <div style={{ position: 'sticky', bottom: 0, marginTop: 'auto', background: '#0a0a0f' }}>
-              {replyingTo && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
-                  borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(110,255,192,0.06)',
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 9.5, color: '#6effc0', fontWeight: 700 }}>Replying to {replyingTo.senderName}</div>
-                    <div style={{ fontSize: 10.5, color: '#9aa0ad', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{replyingTo.text}</div>
-                  </div>
-                  <button onClick={() => setReplyingTo(null)} style={{
-                    background: 'none', border: 'none', color: '#9aa0ad', fontSize: 16, flexShrink: 0,
-                  }}>✕</button>
-                </div>
-              )}
+            <style>{'@keyframes chatBadgeCrossIn { 0% { opacity: 0; } 100% { opacity: 1; } } @keyframes chatBadgeDeathFade { 0% { opacity: 1; } 100% { opacity: 0.45; } }'}</style>
+          </div>
+        );
+        const tabs = !myAlive && (
+          <div style={{ display: 'flex', gap: 6, padding: wide ? '10px 14px 0' : '8px 12px 0', flexShrink: 0 }}>
+            {[['meeting', '💬 Meeting'], ['ghost', '👻 Ghosts']].map(([k, label]) => (
+              <button key={k} onClick={() => setMeetingTab(k)} style={{
+                position: 'relative', flex: 1, padding: '7px 0', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 800,
+                border: `1px solid ${meetingTab === k ? 'rgba(200,200,220,0.55)' : 'rgba(255,255,255,0.1)'}`,
+                background: meetingTab === k ? 'rgba(200,200,220,0.14)' : 'transparent', color: meetingTab === k ? '#fff' : '#8a8a99',
+              }}>
+                {label}
+                {k === 'ghost' && meetingTab !== 'ghost' && ghostTagged && (
+                  <span style={{ marginLeft: 6, minWidth: 16, height: 16, borderRadius: 999, background: '#ffd75e', color: '#241a00', fontSize: 10, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>@</span>
+                )}
+                {k === 'ghost' && meetingTab !== 'ghost' && ghostUnread > 0 && (
+                  <span style={{ marginLeft: 6, minWidth: 16, height: 16, borderRadius: 999, background: '#ff5c5c', color: '#fff', fontSize: 9.5, fontWeight: 900, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{ghostUnread > 9 ? '9+' : ghostUnread}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        );
+        const feed = ghostTab ? (
+          <ChatFeed key="feed-ghost" items={ghostChatMessages} theme="ghost" ghostLook myName={ghostChatKit?.myName} mentionRe={ghostChatKit?.mentionRe}
+            onReply={setGhostReplyingTo} emptyText="Only ghosts can read this. The living can't hear you." fontSize={wide ? 14 : 13} />
+        ) : (
+          <ChatFeed key="feed-meeting" items={matchChat} theme="meeting" myName={kit.myName} mentionRe={kit.mentionRe}
+            onReply={myAlive ? setReplyingTo : null} avatarForId={kit.avatarForId} typingNames={typingNames}
+            emptyText="No messages yet. Say something to start the discussion." fontSize={wide ? 14 : 13} />
+        );
+        const composer = ghostTab ? (
+          <ChatComposer key="comp-ghost" theme="ghost" desktop={isDesktopPointer} placeholder="Talk to other ghosts…"
+            mentionables={ghostChatKit?.mentionables || []} onSend={sendGhostText}
+            gifLocked={gifLocked} onGif={() => (gifLocked ? openPlayPassUpsell() : setShowGhostGifPicker(true))}
+            replyTo={ghostReplyingTo} onCancelReply={() => setGhostReplyingTo(null)} />
+        ) : (
+          <ChatComposer key="comp-meeting" theme="meeting" desktop={isDesktopPointer} autoFocus={wide}
+            placeholder={votingOpen ? 'Talk while you vote…' : (wide ? 'Type a message… (@ to tag)' : 'Message… (@ to tag)')}
+            mentionables={kit.mentionables} onSend={sendMeetingText}
+            gifLocked={gifLocked} onGif={() => (gifLocked ? openPlayPassUpsell() : setShowMeetingGifPicker(true))}
+            replyTo={replyingTo} onCancelReply={() => setReplyingTo(null)}
+            disabled={!myAlive} disabledText="👻 You're dead - the living can't hear you. Talk in the Ghosts tab." />
+        );
+        const pickers = (
+          <>
+            {showMeetingGifPicker && myAlive && (
+              <GifPickerSheet customerId={playerName || 'guest'} viewportHeight={viewportHeight} viewportTop={viewportTop}
+                onSelect={sendMeetingGifMessage} onClose={() => setShowMeetingGifPicker(false)} />
+            )}
+            {showGhostGifPicker && !myAlive && (
+              <GifPickerSheet customerId={playerName || 'guest'} viewportHeight={viewportHeight} viewportTop={viewportTop}
+                onSelect={sendGhostGifMessage} onClose={() => setShowGhostGifPicker(false)} />
+            )}
+          </>
+        );
 
-              {myAlive ? (
-              <div style={{
-                display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', alignItems: 'flex-end',
-              }}>
-                {/* [NEW FEATURE - PLAY PASS] GIFs in chat are a Play Pass
-                    perk - locked look + opens the Play Pass modal for
-                    non-Play-Pass players instead of the picker. */}
-                <button
-                  onClick={() => { if (loggedInPlayer?.hasPlayPass) setShowMeetingGifPicker(true); else { setShowPlayPassModal(true); setPlayPassTab('skins'); setPlayPassError(''); loadPlayPassConfig(); loadPlayPassStatus(); } }}
-                  style={{
-                    width: 42, height: 42, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0,
-                    background: 'rgba(255,255,255,0.06)', color: loggedInPlayer?.hasPlayPass ? '#cfd2da' : '#5a655f', fontSize: 10, fontWeight: 800,
-                    position: 'relative',
-                  }}
-                >GIF
-                  {!loggedInPlayer?.hasPlayPass && (
-                    <span style={{
-                      position: 'absolute', top: -3, right: -3, width: 15, height: 15, borderRadius: '50%',
-                      background: '#1a1f1c', border: '1px solid rgba(255,255,255,0.25)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <svg width="7" height="8" viewBox="0 0 7 8" fill="none">
-                        <rect x="1" y="3.5" width="5" height="4" rx="0.7" fill="#9aa0ad" />
-                        <path d="M2 3.5V2.2a1.5 1.5 0 0 1 3 0V3.5" stroke="#9aa0ad" strokeWidth="0.9" fill="none" />
-                      </svg>
-                    </span>
-                  )}
-                </button>
-                <AutoGrowTextarea
-                  value={chatDraft}
-                  onChange={(v) => setChatDraft(v)}
-                  onSend={sendChatMessage}
-                  placeholder="Type a message..."
-                  maxLength={200}
-                  style={{
-                    flex: 1, padding: '10px 14px', borderRadius: 22, border: '1px solid rgba(255,255,255,0.15)',
-                    background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 13, outline: 'none',
-                  }}
-                />
-                <button onClick={sendChatMessage} disabled={!chatDraft.trim()} style={{
-                  width: 42, height: 42, borderRadius: '50%', border: 'none', flexShrink: 0,
-                  background: chatDraft.trim() ? 'linear-gradient(135deg,#6effc0,#2bb88a)' : 'rgba(255,255,255,0.08)',
-                  color: chatDraft.trim() ? '#06140d' : '#5a5a5a', fontSize: 16, fontWeight: 800,
-                }}>↑</button>
-              </div>
-              ) : (
-              <div style={{
-                borderTop: '1px solid rgba(180,180,200,0.15)',
-                background: 'rgba(10,10,14,0.7)', filter: 'grayscale(0.2)',
-              }}>
-                <div style={{
-                  padding: '5px 14px 4px',
-                  fontSize: 10, color: 'rgba(200,200,210,0.7)', fontWeight: 700, letterSpacing: 0.3,
-                }}>👻 Ghost Chat — only other ghosts can see this</div>
-                {ghostChatMessages.length > 0 && (
-                  <div style={{ maxHeight: 90, overflowY: 'auto', padding: '0 14px 4px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {ghostChatMessages.slice(-5).map(msg => (
-                      <div key={msg.id} style={{
-                        display: 'flex', gap: 6, alignItems: 'flex-end',
-                        flexDirection: msg.isSelf ? 'row-reverse' : 'row', opacity: 0.85,
-                      }}>
-                        <img src={resolveAvatarImg(msg.authorAvatarId, true, msg.authorAvatarVariant)} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0, opacity: 0.7 }} />
-                        <div style={{
-                          padding: '5px 10px', borderRadius: 12, fontSize: 11, lineHeight: 1.35,
-                          background: msg.isSelf ? 'rgba(160,160,180,0.22)' : 'rgba(255,255,255,0.06)',
-                          color: 'rgba(220,220,228,0.9)',
-                          borderBottomRightRadius: msg.isSelf ? 3 : 12, borderBottomLeftRadius: msg.isSelf ? 12 : 3,
-                          maxWidth: '75%',
-                        }}>{msg.text}</div>
-                      </div>
-                    ))}
+        if (wide) {
+          return (
+            <div style={{ position: 'fixed', top: viewportTop, left: 0, right: 0, height: viewportHeight, zIndex: 65, background: 'radial-gradient(circle at 30% 0%, #111826, #07090d 60%)', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: '100%', maxWidth: 1240, height: '100%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid rgba(255,255,255,0.05)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                {header}
+                <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+                  <div style={{ width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', padding: 14, gap: 10, borderRight: '1px solid rgba(255,255,255,0.07)', background: votingOpen ? 'linear-gradient(180deg, rgba(255,92,92,0.07), transparent 40%)' : 'transparent', transition: 'background .4s' }}>
+                    {deadBanner}
+                    <VoteBoard layout="column" {...voteBoardProps} />
+                    {skipButton}
                   </div>
-                )}
-                {ghostReplyingTo && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 14px', background: 'rgba(160,160,180,0.08)' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 9, color: 'rgba(200,200,210,0.9)', fontWeight: 700 }}>↩ {ghostReplyingTo.senderName}</div>
-                      <div style={{ fontSize: 10, color: 'rgba(160,160,170,0.8)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ghostReplyingTo.text}</div>
-                    </div>
-                    <button onClick={() => setGhostReplyingTo(null)} style={{ background: 'none', border: 'none', color: 'rgba(160,160,170,0.8)', fontSize: 13 }}>✕</button>
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: ghostTab ? CHAT_THEMES.ghost.bg : CHAT_THEMES.meeting.bg }}>
+                    {tabs}
+                    {feed}
+                    {composer}
                   </div>
-                )}
-                <div style={{ display: 'flex', gap: 7, padding: '6px 14px 10px', alignItems: 'flex-end' }}>
-                  <AutoGrowTextarea
-                    value={ghostChatDraft}
-                    onChange={(v) => setGhostChatDraft(v)}
-                    onSend={sendGhostChatMessage}
-                    placeholder="Talk to other ghosts..."
-                    maxLength={200}
-                    style={{
-                      flex: 1, padding: '8px 12px', borderRadius: 18,
-                      border: '1px solid rgba(180,180,200,0.2)',
-                      background: 'rgba(255,255,255,0.04)', color: 'rgba(225,225,232,0.9)',
-                      fontSize: 12.5, outline: 'none',
-                    }}
-                  />
-                  <button onClick={sendGhostChatMessage} disabled={!ghostChatDraft.trim()} style={{
-                    width: 36, height: 36, borderRadius: '50%', border: 'none', flexShrink: 0,
-                    background: ghostChatDraft.trim() ? 'rgba(180,180,200,0.3)' : 'rgba(255,255,255,0.05)',
-                    color: 'rgba(220,220,228,0.9)', fontSize: 15, fontWeight: 800,
-                  }}>↑</button>
                 </div>
               </div>
-              )}
+              {pickers}
+            </div>
+          );
+        }
+        return (
+          <div style={{ position: 'fixed', top: viewportTop, left: 0, right: 0, height: viewportHeight, zIndex: 65, background: ghostTab ? CHAT_THEMES.ghost.bg : CHAT_THEMES.meeting.bg, display: 'flex', flexDirection: 'column' }}>
+            {header}
+            {strip}
+            {deadBanner}
+            {skipButton && !compact && <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 12px 0', flexShrink: 0 }}>{skipButton}</div>}
+            {tabs}
+            {feed}
+            {votingOpen && !ghostTab && (
+              <div style={{ flexShrink: 0, padding: '8px 10px', borderTop: '1px solid rgba(255,92,92,0.35)', background: 'linear-gradient(180deg, rgba(255,92,92,0.10), rgba(255,92,92,0.03))', animation: 'voteTrayIn .35s ease-out' }}>
+                <style>{'@keyframes voteTrayIn { from { transform: translateY(16px); opacity: 0 } to { transform: none; opacity: 1 } }'}</style>
+                <VoteBoard layout="tray" {...voteBoardProps} />
               </div>
+            )}
+            {composer}
+            {pickers}
           </div>
-          {meetingChatNewBelow > 0 && (
-            <button
-              onClick={() => {
-                const el = chatScrollRef.current;
-                if (el) el.scrollTop = el.scrollHeight;
-                setMeetingChatNewBelow(0);
-              }}
-              style={{
-                position: 'absolute', bottom: 70, right: 14, zIndex: 5,
-                display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 20,
-                background: '#6effc0', color: '#06140d', border: 'none', fontSize: 11, fontWeight: 800,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-              }}
-            >↓ {meetingChatNewBelow > 9 ? '9+' : meetingChatNewBelow}</button>
-          )}
-          </div>
-          {showMeetingGifPicker && (
-            <GifPickerSheet
-              customerId={playerName || 'guest'}
-              viewportHeight={viewportHeight}
-              viewportTop={viewportTop}
-              onSelect={sendMeetingGifMessage}
-              onClose={() => setShowMeetingGifPicker(false)}
-            />
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* [NEW FEATURE] "Discussion skipped" transition overlay - covers
           the chat screen for 1.5s once the 50% skip-threshold is
@@ -23850,268 +24323,6 @@ function MovementDemo() {
           }} />
           <p style={{ fontSize: 14, fontWeight: 700, color: '#cfd2da', margin: 0 }}>Discussion skipped…</p>
           <style>{`@keyframes skipSpin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      )}
-
-      {/* Stage 3: Voting — every "live" player gets a tappable card
-          (just this one real player for now; dead players would show
-          dark/unvotable, but there are none yet in solo-test since the
-          dummy never joins meetings per the current scope), plus a Skip
-          Vote option. */}
-      {meeting && meeting.stage === 'voting' && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 65, background: '#1a2230',
-          display: 'flex', flexDirection: 'column',
-        }}>
-          <div style={{
-            padding: '14px 16px 10px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <h2 style={{ fontSize: 17, fontWeight: 800, color: '#fff', margin: 0 }}>Who Is The Saboteur?</h2>
-          </div>
-
-          {/* [NEW FEATURE] Grid layout (2 columns) instead of the old
-              vertical list - matches the requested Among-Us-style
-              voting screen layout. Every alive AND dead player (plus
-              ourselves) gets a card; dead ones show dimmed with a cross
-              mark, alive ones are tappable. */}
-          <div style={{
-            flex: 1, overflowY: 'auto', padding: 14,
-            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignContent: 'start',
-          }}>
-            {(() => {
-              const myId = socketRef.current?.id;
-              // Build a unified list: ourselves + every other player,
-              // each with a stable "voteKey" (their own id, used both
-              // for casting votes and for matching liveVotes entries).
-              const allCards = [
-                { id: myId, name: displayPlayerName(playerName, playerAvatarId), avatarId: playerAvatarId, avatarVariantId: loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null, isDead: !myAlive, isMe: true, hasLegionBadge: !!loggedInPlayer?.hasLegionBadge, hasPlayPass: disguiseActive ? !!displayedHasPlayPass : !!loggedInPlayer?.hasPlayPass },
-                ...Object.entries(otherPlayers).map(([id, p]) => ({
-                  // [BUG FIX] Pre-existing disguise-leak - the voting
-                  // screen was showing a disguised player's REAL name
-                  // right next to their disguised avatar, meaning anyone
-                  // could unmask a disguise just by opening the vote
-                  // screen. Now matches the same disguise-aware name
-                  // logic used for the on-map name tag.
-                  id, name: p.disguiseAvatarId
-                    ? (roomInfo?.players?.find((rp) => rp.avatarId === p.disguiseAvatarId)?.name || getAvatar(p.disguiseAvatarId).name)
-                    : displayPlayerName(p.name, p.avatarId),
-                  avatarId: p.disguiseAvatarId || p.avatarId,
-                  // [NEW FEATURE - PLAY PASS] null while disguised, same
-                  // rule as everywhere else.
-                  avatarVariantId: p.disguiseAvatarId ? (p.disguiseAvatarVariantId || null) : (p.avatarVariantId || null),
-                  isDead: p.alive === false, isMe: false,
-                  // [BUG FIX] Surface disconnected players here too, not
-                  // just as a plain vote target indistinguishable from
-                  // anyone else actively playing.
-                  isDisconnected: !!p.disconnected,
-                  hasLegionBadge: !!p.hasLegionBadge,
-                  isBot: displayedIsBot(p, roomInfo?.players), // [AI BOTS] disguise-aware
-                  // [NEW FEATURE - PLAY PASS] Same disguise-aware
-                  // Play Pass status as the meeting-chat badge cards.
-                  hasPlayPass: p.disguiseAvatarId ? !!p.disguiseHasPlayPass : !!p.hasPlayPass,
-                })),
-              ];
-              return allCards.map((card) => {
-                // [BUG FIX] "Has THIS player (the card itself) cast
-                // their vote yet" - not "is this card MY vote target".
-                // The badge means "this person has voted" (visible to
-                // everyone, on their OWN card), not "this is who I
-                // voted for" - those are different pieces of
-                // information and the original implementation
-                // conflated them.
-                const hasVoted = Object.prototype.hasOwnProperty.call(meeting.liveVotes || {}, card.id);
-                const isPending = pendingVoteTarget === card.id;
-                // Every voter (id) whose liveVotes entry points at this
-                // card - rendered as small avatars next to the card,
-                // live, the moment each vote is cast. Confirmed-intended
-                // behavior: once a player confirms their vote, who they
-                // voted for is meant to be visible live to everyone.
-                const votersForThisCard = Object.entries(meeting.liveVotes || {})
-                  .filter(([, choice]) => choice === card.id)
-                  .map(([voterId]) => voterId);
-                return (
-                  <div key={card.id} style={{ position: 'relative' }}>
-                    <button
-                      onClick={() => {
-                        if (card.isDead || !!meeting.myVote || !myAlive) return;
-                        setPendingVoteTarget(card.id);
-                      }}
-                      disabled={card.isDead || !!meeting.myVote || !myAlive}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px',
-                        borderRadius: 10, border: 'none', background: '#283447',
-                        opacity: card.isDead ? 0.5 : (card.isDisconnected ? 0.7 : 1), position: 'relative',
-                      }}
-                    >
-                      <div style={{ position: 'relative', width: 30, height: 30, flexShrink: 0 }}>
-                        <img src={resolveAvatarImg(card.avatarId, true, card.avatarVariantId)} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                        {/* [NEW FEATURE] Dead players show a cross over
-                            their dimmed avatar - matches the reference
-                            screenshot's eliminated-player styling. */}
-                        {card.isDead && (
-                          <svg viewBox="0 0 24 24" style={{ position: 'absolute', inset: 0 }}>
-                            <line x1="3" y1="3" x2="21" y2="21" stroke="#ff5c5c" strokeWidth="2.5" />
-                            <line x1="21" y1="3" x2="3" y2="21" stroke="#ff5c5c" strokeWidth="2.5" />
-                          </svg>
-                        )}
-                      </div>
-                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', textAlign: 'left', flex: 1, overflow: 'hidden' }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <PlayerNameTag name={card.name} premium={card.hasPlayPass} isBot={!!card.isBot} />{card.isMe ? ' (you)' : ''}
-                          {card.hasLegionBadge && <LegionBadge size={11} />}
-                        </span>
-                        {/* [BUG FIX - DISCONNECTED PLAYER LOOKED FULLY
-                            ACTIVE] Makes it visually obvious this
-                            player's vote (or lack of one) shouldn't be
-                            counted on, instead of them looking like a
-                            perfectly normal, present player. */}
-                        {card.isDisconnected && !card.isDead && (
-                          <span style={{ fontSize: 9, fontWeight: 700, color: '#ffc14c' }}>Reconnecting…</span>
-                        )}
-                      </span>
-                      {/* [NEW FEATURE] "Skip"-style speaker-call badge
-                          for whoever called this meeting - placeholder
-                          CSS icon (a small triangle/megaphone shape)
-                          until a custom sticker is provided. */}
-                      {card.id === meeting.calledByPlayerId && (
-                        <div style={{
-                          width: 16, height: 12, flexShrink: 0,
-                          background: '#ffc14c',
-                          clipPath: 'polygon(0% 30%, 40% 30%, 100% 0%, 100% 100%, 40% 70%, 0% 70%)',
-                        }} title="Called this meeting" />
-                      )}
-                      {/* [BUG FIX] "I voted" badge - now correctly shown
-                          on the CARD OF WHOEVER HAS VOTED (visible to
-                          everyone, on that player's own card), not on
-                          whichever card they happened to vote FOR. This
-                          tells everyone "this person has voted" without
-                          revealing who they voted for - exactly the
-                          distinction that was requested. Still styled
-                          the same green-checkmark badge as before. */}
-                      {hasVoted && (
-                        <div style={{
-                          position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: '50%',
-                          background: '#6effc0', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }} title="Voted">
-                          <svg width="10" height="10" viewBox="0 0 24 24"><path d="M4 12l6 6L20 6" stroke="#06140d" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </div>
-                      )}
-                    </button>
-                    {/* [NEW FEATURE] Small voter avatars under the card -
-                        every player whose live vote currently points at
-                        this target, shown in real time as votes come
-                        in. */}
-                    {votersForThisCard.length > 0 && (
-                      <div style={{ display: 'flex', gap: 2, marginTop: 3, paddingLeft: 4, flexWrap: 'wrap' }}>
-                        {votersForThisCard.map((vid) => {
-                          const voterInfo = vid === myId
-                            ? { avatarId: playerAvatarId, avatarVariantId: loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null }
-                            : otherPlayers[vid];
-                          if (!voterInfo) return null;
-                          return <img key={vid} src={resolveAvatarImg(voterInfo.avatarId, true, voterInfo.avatarVariantId)} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />;
-                        })}
-                      </div>
-                    )}
-
-                    {/* [NEW FEATURE] Tap-to-confirm overlay - tick/cross
-                        shown directly on the card the player just
-                        tapped, before the vote is actually sent.
-                        Placeholder CSS-drawn tick/cross until custom
-                        stickers are provided. */}
-                    {isPending && (
-                      <div style={{
-                        position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(10,14,20,0.92)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, zIndex: 2,
-                      }}>
-                        <button
-                          onClick={() => { castVote(card.id); setPendingVoteTarget(null); }}
-                          style={{
-                            width: 34, height: 34, borderRadius: '50%', border: 'none', background: '#3ddc84',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 12l6 6L20 6" stroke="#06140d" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </button>
-                        <button
-                          onClick={() => setPendingVoteTarget(null)}
-                          style={{
-                            width: 34, height: 34, borderRadius: '50%', border: 'none', background: '#ff5c5c',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" /></svg>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              });
-            })()}
-          </div>
-
-          <div style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <button
-                onClick={() => { if (!meeting.myVote && myAlive) setPendingVoteTarget('skip'); }}
-                disabled={!!meeting.myVote || !myAlive}
-                style={{
-                  padding: '9px 22px', borderRadius: 10,
-                  border: `1px solid ${meeting.myVote === 'skip' ? '#6effc0' : 'rgba(255,255,255,0.25)'}`,
-                  background: meeting.myVote === 'skip' ? 'rgba(110,255,192,0.12)' : '#283447',
-                  color: meeting.myVote === 'skip' ? '#6effc0' : '#cfd2da', fontWeight: 700, fontSize: 13,
-                  position: 'relative',
-                }}
-              >
-                Skip Vote
-                {pendingVoteTarget === 'skip' && (
-                  <div style={{
-                    position: 'absolute', inset: -2, borderRadius: 10, background: 'rgba(10,14,20,0.95)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                  }}>
-                    <span
-                      onClick={(e) => { e.stopPropagation(); castVote('skip'); setPendingVoteTarget(null); }}
-                      style={{ width: 26, height: 26, borderRadius: '50%', background: '#3ddc84', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24"><path d="M4 12l6 6L20 6" stroke="#06140d" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </span>
-                    <span
-                      onClick={(e) => { e.stopPropagation(); setPendingVoteTarget(null); }}
-                      style={{ width: 26, height: 26, borderRadius: '50%', background: '#ff5c5c', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" strokeWidth="4" strokeLinecap="round" /></svg>
-                    </span>
-                  </div>
-                )}
-              </button>
-              <MeetingCountdown startedAt={meeting.startedAt} durationMs={30000} />
-            </div>
-            {/* [BUG FIX] Skip Vote was missing the same "small voter
-                avatars" row every other player-card already has - so a
-                player who voted to skip just silently disappeared from
-                the live vote display instead of showing up here. Same
-                liveVotes lookup, just filtered for choice === 'skip'
-                instead of a player id. */}
-            {(() => {
-              const skipVoters = Object.entries(meeting.liveVotes || {})
-                .filter(([, choice]) => choice === 'skip')
-                .map(([voterId]) => voterId);
-              if (skipVoters.length === 0) return null;
-              const myId = socketRef.current?.id;
-              return (
-                <div style={{ display: 'flex', gap: 2, paddingLeft: 4, flexWrap: 'wrap' }}>
-                  {skipVoters.map((vid) => {
-                    const avatarId = vid === myId ? playerAvatarId : otherPlayers[vid]?.avatarId;
-                    if (!avatarId) return null;
-                    const variantId = vid === myId
-                      ? (loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null)
-                      : (otherPlayers[vid]?.avatarVariantId || null);
-                    return <img key={vid} src={resolveAvatarImg(avatarId, true, variantId)} alt="" style={{ width: 16, height: 16, objectFit: 'contain' }} />;
-                  })}
-                </div>
-              );
-            })()}
-          </div>
         </div>
       )}
 
@@ -24973,6 +25184,7 @@ function MovementDemo() {
           }}
         >
           👻 Ghost Chat
+          {ghostTagged && <span title="Someone tagged you" style={{ minWidth: 17, height: 17, borderRadius: 999, background: '#ffd75e', color: '#241a00', fontSize: 10.5, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', filter: 'grayscale(0)' }}>@</span>}
           {/* [BUG FIX] Unread badge - a ghost messaging while another
               ghost was elsewhere on the game screen now actually shows. */}
           {ghostChatUnread > 0 && (
@@ -24986,175 +25198,39 @@ function MovementDemo() {
         </button>
       )}
 
+      {/* [CHAT REDESIGN] Ghost chat (outside meetings) on the shared chat
+          parts. Phones: full screen. Big screens: a side drawer, so the
+          map stays visible while you haunt. */}
       {!myAlive && showGhostChat && (
-        <div style={{
-          // [BUG FIX - GAME VISIBLE THROUGH GHOST CHAT WHEN THE KEYBOARD
-          // OPENED] Same fix as the Lobby/Discussion chat panels and
-          // GifPickerSheet - position:'fixed' instead of 'absolute'.
-          position: 'fixed', top: viewportTop, left: 0, right: 0, height: viewportHeight, zIndex: 60, display: 'flex', flexDirection: 'column',
-          background: 'rgba(10,10,14,0.96)', filter: 'grayscale(0.25)',
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 16px', borderBottom: '1px solid rgba(180,180,200,0.15)', flexShrink: 0,
+        <div
+          onClick={wideLayout ? () => setShowGhostChat(false) : undefined}
+          style={{
+            position: 'fixed', top: viewportTop, left: 0, right: 0, height: viewportHeight, zIndex: 60,
+            background: wideLayout ? 'rgba(0,0,0,0.25)' : CHAT_THEMES.ghost.bg, display: 'flex', justifyContent: 'flex-end',
           }}>
-            <span style={{ fontSize: 14, fontWeight: 800, color: 'rgba(220,220,230,0.9)' }}>👻 Ghost Chat — only ghosts can see this</span>
-            <button onClick={() => setShowGhostChat(false)} style={{
-              background: 'none', border: 'none', color: 'rgba(220,220,230,0.8)', fontSize: 18,
-            }}>✕</button>
-          </div>
-
-          <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-          <div ref={ghostChatScrollRef} style={{ height: '100%', overflowY: 'auto', padding: '12px 14px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {ghostChatMessages.length === 0 && (
-              <p style={{ fontSize: 11, color: 'rgba(150,150,160,0.7)', textAlign: 'center', marginTop: 30 }}>
-                No spirits have spoken yet. Say something only the dead can hear.
-              </p>
-            )}
-            {ghostChatMessages.map(msg => {
-              const shouting = isAllCapsMessage(msg.text);
-              return (
-              <div key={msg.id} style={{
-                display: 'flex', gap: 8, alignItems: 'flex-end',
-                flexDirection: msg.isSelf ? 'row-reverse' : 'row',
-              }}>
-                <img src={resolveAvatarImg(msg.authorAvatarId, true, msg.authorAvatarVariant)} alt="" style={{ width: 26, height: 26, objectFit: 'contain', flexShrink: 0, opacity: 0.7 }} />
-                <div style={{ maxWidth: '72%' }}>
-                  <div style={{
-                    fontSize: 9.5, color: 'rgba(160,160,170,0.8)', marginBottom: 2,
-                    textAlign: msg.isSelf ? 'right' : 'left',
-                    display: 'flex', alignItems: 'center', gap: 3, justifyContent: msg.isSelf ? 'flex-end' : 'flex-start',
-                  }}>
-                    <PlayerNameTag name={msg.authorName} premium={msg.authorHasPlayPass} isBot={isBotPlayerId(msg._sender)} />
-                    {msg.authorHasLegionBadge && <LegionBadge size={9} />}
-                  </div>
-                  <SwipeToReply onReply={() => setGhostReplyingTo({ senderName: msg.authorName, text: msg.text })}>
-                  {msg.gifUrl ? (
-                    <div>
-                      {msg.replyTo && (
-                        <div style={{ borderLeft: '2px solid rgba(180,180,200,0.4)', paddingLeft: 7, marginBottom: 4, opacity: 0.75 }}>
-                          <div style={{ fontSize: 9.5, fontWeight: 700 }}>{msg.replyTo.senderName}</div>
-                          <div style={{ fontSize: 10.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{msg.replyTo.text}</div>
-                        </div>
-                      )}
-                      <img src={msg.gifUrl} alt="" style={{ maxWidth: 160, maxHeight: 160, borderRadius: 14, display: 'block', opacity: 0.9 }} />
-                    </div>
-                  ) : (
-                  <div
-                    style={{
-                      padding: '8px 12px', borderRadius: 14, fontSize: 12.5, lineHeight: 1.35,
-                      background: shouting ? 'linear-gradient(135deg,#ffd75e,#e8a831)' : (msg.isSelf ? 'rgba(160,160,180,0.25)' : 'rgba(255,255,255,0.06)'),
-                      color: shouting ? '#241a00' : 'rgba(225,225,232,0.9)',
-                      fontWeight: shouting ? 800 : 400,
-                      boxShadow: shouting ? '0 0 10px rgba(255,215,94,0.4)' : 'none',
-                      borderBottomRightRadius: msg.isSelf ? 4 : 14,
-                      borderBottomLeftRadius: msg.isSelf ? 14 : 4,
-                    }}>
-                    {msg.replyTo && (
-                      <div style={{
-                        borderLeft: '2px solid rgba(180,180,200,0.4)',
-                        paddingLeft: 7, marginBottom: 5, opacity: 0.75,
-                      }}>
-                        <div style={{ fontSize: 9.5, fontWeight: 700 }}>{msg.replyTo.senderName}</div>
-                        <div style={{ fontSize: 10.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{msg.replyTo.text}</div>
-                      </div>
-                    )}
-                    {msg.text}
-                  </div>
-                  )}
-                  </SwipeToReply>
-                </div>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: wideLayout ? 420 : '100%', height: '100%', display: 'flex', flexDirection: 'column',
+            background: CHAT_THEMES.ghost.bg, borderLeft: wideLayout ? '1px solid rgba(180,180,200,0.18)' : 'none',
+            boxShadow: wideLayout ? '-12px 0 40px rgba(0,0,0,0.5)' : 'none', animation: wideLayout ? 'ghostDrawerIn .22s ease-out' : undefined,
+          }}>
+            <style>{'@keyframes ghostDrawerIn { from { transform: translateX(30px); opacity: 0 } to { transform: none; opacity: 1 } }'}</style>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${CHAT_THEMES.ghost.line}`, flexShrink: 0 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 900, color: '#ececf4' }}>👻 Ghost Chat</div>
+                <div style={{ fontSize: 10.5, color: CHAT_THEMES.ghost.muted }}>Only other ghosts can see this</div>
               </div>
-              );
-            })}
-              {/* [BUG FIX - MESSAGES STILL GOT CROPPED BEHIND THE INPUT]
-                  Same sticky fix as the other two chats. */}
-              <div style={{ position: 'sticky', bottom: 0, marginTop: 'auto', background: 'rgba(10,10,14,0.98)' }}>
-              {ghostReplyingTo && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px',
-                  borderTop: '1px solid rgba(180,180,200,0.15)', background: 'rgba(160,160,180,0.08)',
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 9.5, color: 'rgba(200,200,210,0.9)', fontWeight: 700 }}>Replying to {ghostReplyingTo.senderName}</div>
-                    <div style={{ fontSize: 10.5, color: 'rgba(160,160,170,0.8)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ghostReplyingTo.text}</div>
-                  </div>
-                  <button onClick={() => setGhostReplyingTo(null)} style={{
-                    background: 'none', border: 'none', color: 'rgba(160,160,170,0.8)', fontSize: 16, flexShrink: 0,
-                  }}>✕</button>
-                </div>
-              )}
-
-              <div style={{
-                display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid rgba(180,180,200,0.15)', alignItems: 'flex-end',
-              }}>
-                {/* [NEW FEATURE - PLAY PASS] GIFs in chat are a Play Pass
-                    perk - locked look + opens the Play Pass modal for
-                    non-Play-Pass players instead of the picker. */}
-                <button
-                  onClick={() => { if (loggedInPlayer?.hasPlayPass) setShowGhostGifPicker(true); else { setShowPlayPassModal(true); setPlayPassTab('skins'); setPlayPassError(''); loadPlayPassConfig(); loadPlayPassStatus(); } }}
-                  style={{
-                    width: 42, height: 42, borderRadius: '50%', border: '1px solid rgba(180,180,200,0.25)', flexShrink: 0,
-                    background: 'rgba(255,255,255,0.05)', color: loggedInPlayer?.hasPlayPass ? 'rgba(220,220,228,0.9)' : 'rgba(140,140,150,0.7)', fontSize: 10, fontWeight: 800,
-                    position: 'relative',
-                  }}
-                >GIF
-                  {!loggedInPlayer?.hasPlayPass && (
-                    <span style={{
-                      position: 'absolute', top: -3, right: -3, width: 15, height: 15, borderRadius: '50%',
-                      background: 'rgba(20,20,24,0.95)', border: '1px solid rgba(180,180,200,0.3)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <svg width="7" height="8" viewBox="0 0 7 8" fill="none">
-                        <rect x="1" y="3.5" width="5" height="4" rx="0.7" fill="rgba(180,180,190,0.9)" />
-                        <path d="M2 3.5V2.2a1.5 1.5 0 0 1 3 0V3.5" stroke="rgba(180,180,190,0.9)" strokeWidth="0.9" fill="none" />
-                      </svg>
-                    </span>
-                  )}
-                </button>
-                <AutoGrowTextarea
-                  value={ghostChatDraft}
-                  onChange={(v) => setGhostChatDraft(v)}
-                  onSend={sendGhostChatMessage}
-                  placeholder="Talk to other ghosts..."
-                  maxLength={200}
-                  style={{
-                    flex: 1, padding: '10px 14px', borderRadius: 22, border: '1px solid rgba(180,180,200,0.25)',
-                    background: 'rgba(255,255,255,0.05)', color: 'rgba(225,225,232,0.9)', fontSize: 13, outline: 'none',
-                  }}
-                />
-                <button onClick={sendGhostChatMessage} disabled={!ghostChatDraft.trim()} style={{
-                  width: 42, height: 42, borderRadius: '50%', border: 'none', flexShrink: 0,
-                  background: ghostChatDraft.trim() ? 'rgba(180,180,200,0.35)' : 'rgba(255,255,255,0.06)',
-                  color: 'rgba(225,225,232,0.9)', fontSize: 16, fontWeight: 800,
-                }}>↑</button>
-              </div>
-              </div>
-          </div>
-          {ghostChatNewBelow > 0 && (
-            <button
-              onClick={() => {
-                const el = ghostChatScrollRef.current;
-                if (el) el.scrollTop = el.scrollHeight;
-                setGhostChatNewBelow(0);
-              }}
-              style={{
-                position: 'absolute', bottom: 70, right: 14, zIndex: 5,
-                display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 20,
-                background: 'rgba(180,180,200,0.35)', color: '#fff', border: 'none', fontSize: 11, fontWeight: 800,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-              }}
-            >↓ {ghostChatNewBelow > 9 ? '9+' : ghostChatNewBelow}</button>
-          )}
+              <button onClick={() => setShowGhostChat(false)} title="Close" style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#e8e8f0', fontSize: 13, cursor: 'pointer' }}>✕</button>
+            </div>
+            <ChatFeed items={ghostChatMessages} theme="ghost" ghostLook myName={ghostChatKit?.myName} mentionRe={ghostChatKit?.mentionRe}
+              onReply={setGhostReplyingTo} emptyText="No spirits have spoken yet. Say something only the dead can hear." />
+            <ChatComposer theme="ghost" desktop={isDesktopPointer} autoFocus placeholder="Talk to other ghosts…"
+              mentionables={ghostChatKit?.mentionables || []} onSend={sendGhostText}
+              gifLocked={!loggedInPlayer?.hasPlayPass} onGif={() => (!loggedInPlayer?.hasPlayPass ? openPlayPassUpsell() : setShowGhostGifPicker(true))}
+              replyTo={ghostReplyingTo} onCancelReply={() => setGhostReplyingTo(null)} />
           </div>
           {showGhostGifPicker && (
-            <GifPickerSheet
-              customerId={playerName || 'guest'}
-              viewportHeight={viewportHeight}
-              viewportTop={viewportTop}
-              onSelect={sendGhostGifMessage}
-              onClose={() => setShowGhostGifPicker(false)}
-            />
+            <GifPickerSheet customerId={playerName || 'guest'} viewportHeight={viewportHeight} viewportTop={viewportTop}
+              onSelect={sendGhostGifMessage} onClose={() => setShowGhostGifPicker(false)} />
           )}
         </div>
       )}
