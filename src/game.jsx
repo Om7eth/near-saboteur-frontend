@@ -3421,101 +3421,92 @@ function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewpor
     return () => clearTimeout(t);
   }, [query, runSearch]);
 
-  return (
-    // [BUG FIX - GIF PICKER SHOWED GAME/CHAT UI THROUGH IT WHEN THE
-    // KEYBOARD OPENED] Same recurring bug pattern as the other
-    // position:absolute-modals-render-behind-the-current-screen fixes
-    // elsewhere in this file, PLUS the same "bottom:0 assumes the
-    // layout viewport's bottom is the real visible bottom" issue the 3
-    // chat panels had (see useVisualViewport's own comment) - once the
-    // keyboard opens and the page auto-scrolls to bring the focused
-    // input into view, the layout viewport's bottom edge no longer
-    // lines up with where the keyboard actually starts. Anchoring from
-    // the TOP using viewportTop + viewportHeight (both tracking the
-    // real visual viewport) instead of `bottom: 0` keeps this glued to
-    // the actual visible bottom edge through that scroll.
-    <div style={{
-      position: 'fixed', left: 0, right: 0,
-      top: viewportTop + (viewportHeight || 700) - Math.min((viewportHeight || 700) * 0.42, 340),
-      height: Math.min((viewportHeight || 700) * 0.42, 340), zIndex: 40,
-      background: '#0d0d13', borderTop: '1px solid rgba(255,255,255,0.1)', borderTopLeftRadius: 16, borderTopRightRadius: 16,
-      display: 'flex', flexDirection: 'column', boxShadow: '0 -8px 24px rgba(0,0,0,0.55)',
-      animation: 'gifSheetSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+  // [GIF PICKER REDESIGN] Cleaner picker: dimmed backdrop, a taller sheet
+  // on phones (no auto keyboard - it used to eat half the sheet), a
+  // centred panel on big screens, quick tags, and tiles that fade in
+  // instead of popping. Portalled to <body> so no parent panel can
+  // clip or shift it.
+  const wide = useWideLayout();
+  const vh = viewportHeight || (typeof window !== 'undefined' ? window.innerHeight : 700);
+  const sheetH = wide ? Math.min(600, Math.round(vh * 0.82)) : Math.max(300, Math.min(Math.round(vh * 0.7), 560));
+  const QUICK = ['Trending', 'lol', 'gg', 'sus', 'wow', 'no way', 'bye', 'angry', 'facepalm', 'thinking'];
+  const active = query.trim() ? query.trim().toLowerCase() : 'trending';
+  const panel = (
+    <div onClick={(e) => e.stopPropagation()} style={{
+      position: 'relative', width: wide ? 'min(560px, 92vw)' : '100%', height: sheetH,
+      background: '#101218', border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: wide ? 18 : '18px 18px 0 0', borderBottom: wide ? undefined : 'none',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      boxShadow: '0 -10px 40px rgba(0,0,0,0.6)',
+      animation: wide ? 'gifPop .18s ease-out' : 'gifSheetSlideUp .24s cubic-bezier(0.16, 1, 0.3, 1)',
     }}>
       <style>{`
         @keyframes gifSheetSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes gifPop { from { transform: scale(.96); opacity: 0 } to { transform: none; opacity: 1 } }
         @keyframes gifTileShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        .gif-tile { transition: transform 0.1s ease; -webkit-tap-highlight-color: transparent; }
-        .gif-tile:active { transform: scale(0.94); }
-        .gif-search-input:focus { border-color: rgba(110,255,192,0.55) !important; box-shadow: 0 0 0 3px rgba(110,255,192,0.12); }
-        .gif-close-btn:active { background: rgba(255,255,255,0.14) !important; }
+        .gif-tile { transition: transform .12s ease, opacity .25s ease; -webkit-tap-highlight-color: transparent; }
+        .gif-tile:hover { transform: scale(1.03); }
+        .gif-tile:active { transform: scale(0.95); }
+        .gif-search-input:focus { border-color: rgba(255,215,94,0.55) !important; }
+        .gif-chips::-webkit-scrollbar, .gif-grid::-webkit-scrollbar { width: 6px; height: 0 }
+        .gif-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px }
       `}</style>
-      {/* Drag-handle affordance - a small visual cue this is a sheet you
-          could dismiss, matching the pull-tab convention most native
-          bottom-sheet pickers (including Telegram's own) use. */}
-      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 7, flexShrink: 0 }}>
-        <div style={{ width: 32, height: 3.5, borderRadius: 3, background: 'rgba(255,255,255,0.18)' }} />
+      {!wide && (
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 7, flexShrink: 0 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 3, background: 'rgba(255,255,255,0.18)' }} />
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: wide ? '14px 14px 8px' : '8px 12px 6px', flexShrink: 0 }}>
+        <span style={{ fontSize: 15, fontWeight: 900, color: '#fff' }}>GIFs</span>
+        <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.5, color: '#241a00', background: '#ffd75e', borderRadius: 4, padding: '1px 5px' }}>PLAY PASS</span>
+        <button onClick={onClose} title="Close" style={{
+          marginLeft: 'auto', width: 30, height: 30, borderRadius: '50%', border: 'none', cursor: 'pointer',
+          background: 'rgba(255,255,255,0.08)', color: '#cfd2da', fontSize: 13,
+        }}>✕</button>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px 10px', flexShrink: 0 }}>
-        <div style={{ position: 'relative', flex: 1 }}>
-          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: '#6a7078', pointerEvents: 'none' }}>🔍</span>
+      <div style={{ padding: '0 12px 8px', flexShrink: 0 }}>
+        <div style={{ position: 'relative' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="7" stroke="#7a8088" strokeWidth="2.4" fill="none" /><path d="M16.5 16.5L21 21" stroke="#7a8088" strokeWidth="2.4" strokeLinecap="round" />
+          </svg>
           <input
             className="gif-search-input"
-            autoFocus
+            autoFocus={wide}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search KLIPY"
+            placeholder="Search GIFs"
+            enterKeyHint="search"
             style={{
-              width: '100%', background: 'rgba(255,255,255,0.055)', border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 20, padding: '9px 32px 9px 32px', color: '#e8e8f0', fontSize: 13.5,
-              outline: 'none', transition: 'border-color 0.15s ease, box-shadow 0.15s ease', boxSizing: 'border-box',
+              width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 12, padding: '10px 34px', color: '#e8e8f0', fontSize: 14,
+              outline: 'none', boxSizing: 'border-box',
             }}
           />
           {query && (
-            <button
-              onClick={() => setQuery('')}
-              style={{
-                position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                width: 20, height: 20, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)',
-                color: '#cfd2da', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-              }}
-            >✕</button>
+            <button onClick={() => setQuery('')} title="Clear" style={{
+              position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer',
+              width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.12)',
+              color: '#cfd2da', fontSize: 11, padding: 0,
+            }}>✕</button>
           )}
         </div>
-        {/* [NEW FEATURE] Manual refresh - auto-search already re-runs on
-            every keystroke, but on a shaky connection that automatic
-            fetch can silently fail with no obvious retry path; this
-            just re-runs the exact same search on demand. */}
-        <button
-          className="gif-close-btn"
-          onClick={() => runSearch(query)}
-          disabled={loading}
-          title="Refresh"
-          style={{
-            width: 32, height: 32, borderRadius: '50%', border: 'none', flexShrink: 0,
-            background: 'rgba(255,255,255,0.07)', color: '#cfd2da', fontSize: 14,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.1s ease',
-            opacity: loading ? 0.5 : 1,
-          }}
-        >🔄</button>
-        <button
-          className="gif-close-btn"
-          onClick={onClose}
-          style={{
-            width: 32, height: 32, borderRadius: '50%', border: 'none', flexShrink: 0,
-            background: 'rgba(255,255,255,0.07)', color: '#cfd2da', fontSize: 15,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.1s ease',
-          }}
-        >✕</button>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 8px' }}>
+      <div className="gif-chips" style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 12px 10px', flexShrink: 0 }}>
+        {QUICK.map((q) => {
+          const on = active === q.toLowerCase();
+          return (
+            <button key={q} onClick={() => setQuery(q === 'Trending' ? '' : q)} style={{
+              flexShrink: 0, padding: '5px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 11.5, fontWeight: 800, whiteSpace: 'nowrap',
+              border: `1px solid ${on ? 'rgba(255,215,94,0.6)' : 'rgba(255,255,255,0.12)'}`,
+              background: on ? 'rgba(255,215,94,0.14)' : 'transparent', color: on ? '#ffd75e' : '#aab0bb',
+            }}>{q === 'Trending' ? '🔥 Trending' : q}</button>
+          );
+        })}
+      </div>
+      <div className="gif-grid" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 10px 10px', overscrollBehavior: 'contain' }}>
         {loading && (
-          // [UI POLISH] Shimmering placeholder tiles instead of bare
-          // "Loading…" text - reads as an app actively working rather
-          // than a stalled/broken screen, and fills the same grid shape
-          // the real results will land in a moment later.
-          <div style={{ columnCount: 2, columnGap: 6 }}>
-            {[168, 130, 150, 120, 175, 140].map((h, i) => (
+          <div style={{ columnCount: wide ? 3 : 2, columnGap: 6 }}>
+            {[120, 90, 140, 100, 130, 95, 115, 105, 125].map((h, i) => (
               <div key={i} style={{
                 width: '100%', height: h, borderRadius: 10, marginBottom: 6, breakInside: 'avoid',
                 background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%)',
@@ -3523,33 +3514,52 @@ function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewpor
               }} />
             ))}
             {slowLoad && (
-              <p style={{ fontSize: 11, color: '#7a8088', textAlign: 'center', marginTop: 12, gridColumn: '1 / -1' }}>
-                Server's waking up — can take up to 30s the first time
-              </p>
+              <p style={{ fontSize: 11, color: '#7a8088', textAlign: 'center', marginTop: 12 }}>Server's waking up - can take up to 30s the first time</p>
             )}
           </div>
         )}
         {!loading && error && (
-          <div style={{ textAlign: 'center', marginTop: 36 }}>
-            <div style={{ fontSize: 24, marginBottom: 6, opacity: 0.5 }}>🔍</div>
-            <p style={{ fontSize: 12, color: '#7a8088', margin: 0 }}>{error}</p>
+          <div style={{ textAlign: 'center', marginTop: 40 }}>
+            <p style={{ fontSize: 12.5, color: '#8a9099', margin: '0 0 12px' }}>{error}</p>
+            <button onClick={() => runSearch(query)} style={{
+              padding: '8px 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent',
+              color: '#e8e8f0', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+            }}>Try again</button>
           </div>
         )}
         {!loading && !error && (
-          <div style={{ columnCount: 2, columnGap: 6 }}>
-            {gifs.map((g, i) => (
-              <img
-                key={i} className="gif-tile" src={g.url} alt={g.title} loading="lazy"
-                onClick={() => onSelect(g.url)}
-                style={{ width: '100%', borderRadius: 10, marginBottom: 6, display: 'block', breakInside: 'avoid', cursor: 'pointer' }}
-              />
-            ))}
+          <div style={{ columnCount: wide ? 3 : 2, columnGap: 6 }}>
+            {gifs.map((g, i) => <GifTile key={`${g.url}-${i}`} gif={g} onPick={() => onSelect(g.url)} />)}
           </div>
         )}
       </div>
       <div style={{ textAlign: 'center', padding: '5px 0 7px', flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <span style={{ fontSize: 9.5, color: '#5a5f6e' }}>Powered by KLIPY</span>
+        <span style={{ fontSize: 9.5, color: '#5a5f6e' }}>Powered by KLIPY · tap a GIF to send</span>
       </div>
+    </div>
+  );
+  const sheet = (
+    <div onClick={(e) => { e.stopPropagation(); onClose(); }} style={{
+      position: 'fixed', left: 0, right: 0, top: viewportTop, height: vh, zIndex: 700,
+      fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', // portalled to <body>: set the app font here
+      background: 'rgba(0,0,0,0.55)', display: 'flex',
+      alignItems: wide ? 'center' : 'flex-end', justifyContent: 'center',
+    }}>
+      {panel}
+    </div>
+  );
+  return typeof document !== 'undefined' ? createPortal(sheet, document.body) : sheet;
+}
+// A GIF tile that keeps its space while loading and fades in when ready.
+function GifTile({ gif, onPick }) {
+  const [ready, setReady] = useState(false);
+  return (
+    <div style={{
+      marginBottom: 6, breakInside: 'avoid', borderRadius: 10, overflow: 'hidden', minHeight: ready ? 0 : 90,
+      background: ready ? 'transparent' : 'rgba(255,255,255,0.05)',
+    }}>
+      <img className="gif-tile" src={gif.url} alt={gif.title} loading="lazy" onLoad={() => setReady(true)} onClick={onPick}
+        style={{ width: '100%', display: 'block', cursor: 'pointer', opacity: ready ? 1 : 0 }} />
     </div>
   );
 }
