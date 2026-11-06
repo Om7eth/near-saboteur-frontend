@@ -209,6 +209,39 @@ function detectDesktopPointer() {
     return !!fine && !touch;
   } catch (e) { return false; }
 }
+// [UPDATE - DESKTOP + MOBILE CONTROLS] detectDesktopPointer() alone
+// guessed once, at load, from the hardware - so a touchscreen laptop was
+// treated as a phone (joystick shown, keyboard shortcuts OFF) and a tablet
+// with a keyboard never got shortcuts. This follows what the player is
+// ACTUALLY using: touching the screen switches to touch controls
+// (joystick), using a mouse or a physical keyboard switches to desktop
+// controls (WASD/key badges, no joystick). Keys typed into chat/inputs are
+// ignored so a phone's on-screen keyboard never flips the mode.
+const DESKTOP_MODE_KEYS = new Set(['w', 'a', 's', 'd', 'e', 'q', 'r', 'f', 'm', ' ', 'escape', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', '?']);
+function useDesktopInput() {
+  const [desktop, setDesktop] = useState(() => detectDesktopPointer());
+  useEffect(() => {
+    const onPointer = (e) => {
+      if (e.pointerType === 'touch' || e.pointerType === 'pen') setDesktop(false);
+      else if (e.pointerType === 'mouse') setDesktop(true);
+    };
+    const onTouch = () => setDesktop(false);
+    const onKey = (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.key && DESKTOP_MODE_KEYS.has(e.key.toLowerCase())) setDesktop(true);
+    };
+    window.addEventListener('pointerdown', onPointer, true);
+    window.addEventListener('touchstart', onTouch, { capture: true, passive: true });
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('pointerdown', onPointer, true);
+      window.removeEventListener('touchstart', onTouch, { capture: true });
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, []);
+  return desktop;
+}
 // Small keyboard-key badge shown on action buttons (desktop only). `corner`
 // pins it inside the button's own corner so it never sits over another button.
 function KeyCap({ k, corner = false, dark = false, at = null }) {
@@ -1825,6 +1858,15 @@ const CORRIDOR_BORDER_EDGES = (() => {
   }
   return edges;
 })();
+// [AI BOTS] Fingerprint of this map (FNV-1a of GRID), compared with the
+// server's at game start - bots walk the SERVER's copy of the map, so a
+// backend that wasn't restarted/redeployed after a map change would make
+// bots walk through the new walls.
+const MAP_VERSION = (() => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < GRID.length; i++) { h ^= GRID.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, '0');
+})();
 function isWalkableTile(tx, ty) {
   const c = tileAt(tx, ty);
   // '#' = wall (blocks), 'D' = door (passable unless locked), '.'/'c' = floor/corridor
@@ -1936,7 +1978,10 @@ function setCollisionScale(scale, avatarPx = AVATAR_SCREEN_PX) {
   const S = avatarPx / scale; // drawn avatar box size, in world px
   const hw = Math.max(4, Math.min(half + COLLISION_PAD_X, S * 0.292));      // half body width
   const below = Math.max(4, Math.min(half + COLLISION_PAD_BOTTOM, S * 0.369)); // center -> feet
-  const above = Math.max(2, Math.min(half + COLLISION_PAD_TOP, S * 0.192));    // head may overlap a wall above (3/4 view)
+  // Top edge stays where it always was: room art paints wall decoration
+  // (screens, panels) over the first floor row, so letting the box go
+  // higher made players look like they stood ON the wall art.
+  const above = half + COLLISION_PAD_TOP;
   collisionBox.padX = hw - half;
   collisionBox.padBottom = below - half;
   collisionBox.padTop = above - half;
@@ -3518,6 +3563,10 @@ function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewpor
 const SWIPE_REPLY_THRESHOLD = 46;
 function SwipeToReply({ onReply, children, style }) {
   const [dragX, setDragX] = useState(0);
+  // [UPDATE - DESKTOP CONTROLS] Swipe is touch-only, so mouse users had no
+  // way to reply at all. Hovering a message now shows a reply button, and
+  // double-clicking a message replies too.
+  const [hovered, setHovered] = useState(false);
   const startXRef = useRef(0);
   const startYRef = useRef(0);
   const draggingRef = useRef(false);
@@ -3552,8 +3601,22 @@ function SwipeToReply({ onReply, children, style }) {
   return (
     <div
       onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse') setHovered(true); }}
+      onPointerLeave={() => setHovered(false)}
+      onDoubleClick={() => onReply()}
       style={{ position: 'relative', touchAction: 'pan-y', ...style }}
     >
+      {hovered && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onReply(); }}
+          title="Reply (or double-click the message)"
+          style={{
+            position: 'absolute', right: 4, top: -11, zIndex: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+            whiteSpace: 'nowrap', padding: '3px 8px', borderRadius: 999, border: '1px solid rgba(110,255,192,0.45)',
+            background: 'rgba(6,20,13,0.92)', color: '#6effc0', fontSize: 11, fontWeight: 800, cursor: 'pointer',
+          }}
+        >↩ Reply</button>
+      )}
       <div style={{
         position: 'absolute', left: -28, top: '50%', transform: 'translateY(-50%)',
         opacity: Math.min(dragX / SWIPE_REPLY_THRESHOLD, 1), fontSize: 15, color: '#6effc0', pointerEvents: 'none',
@@ -6316,6 +6379,7 @@ function LobbyScreen({
     return () => window.removeEventListener('resize', onResize);
   }, []);
   const lobbyHudK = Math.max(1, Math.min(1.9, Math.min(lobbyVp.w, lobbyVp.h) / 520));
+  const lobbyDesktop = useDesktopInput(); // [UPDATE - DESKTOP + MOBILE CONTROLS]
 
   // [MULTIPLAYER] Other real players' positions while still in the Lobby
   // — kept entirely separate from the in-game otherPlayers state (see the
@@ -8129,7 +8193,7 @@ function LobbyScreen({
 
       {/* Joystick — same bottom-center placement and size as in-game.
           [DESKTOP] Replaced by a WASD hint on keyboard+mouse devices. */}
-      {detectDesktopPointer() ? (
+      {lobbyDesktop ? (
         <div style={{
           position: 'absolute', bottom: 92, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
           zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
@@ -12151,6 +12215,9 @@ function MovementDemo() {
       // [SPAWN FIX] Each player gets a unique spawnIndex from the server,
       // so everyone lands on a different cafeteria spawn point instead of
       // all stacking on the same tile and getting stuck inside each other.
+      if (data.mapVersion && data.mapVersion !== MAP_VERSION) {
+        console.warn(`[MAP] Server map ${data.mapVersion} != client map ${MAP_VERSION} - restart/redeploy the backend (and re-run its map sync) so bots use the same map.`);
+      }
       const spawnPos = spawnPointPx(typeof data.spawnIndex === 'number' ? data.spawnIndex : 0);
       setPos(spawnPos);
       posRef.current = spawnPos;
@@ -13705,7 +13772,7 @@ function MovementDemo() {
   const [showMissionTracker, setShowMissionTracker] = useState(false); // [LOCAL-UI]
   const [showSaboteurPanel, setShowSaboteurPanel] = useState(false); // [LOCAL-UI]
   // [NEW FEATURE - DESKTOP CONTROLS]
-  const [isDesktopPointer] = useState(() => detectDesktopPointer());
+  const isDesktopPointer = useDesktopInput(); // [UPDATE - DESKTOP + MOBILE CONTROLS] follows the input actually in use
   const [showControlsGuide, setShowControlsGuide] = useState(false);
   const [showDisguisePicker, setShowDisguisePicker] = useState(false); // [LOCAL-UI] — avatar-choice screen for Disguise
   const [congratsNote, setCongratsNote] = useState(null); // { label } | null, shown briefly on mission completion — [LOCAL-UI]
@@ -16109,7 +16176,7 @@ function MovementDemo() {
   // render, so the single window listener never sees stale state.
   const desktopKeysRef = useRef(null);
   desktopKeysRef.current = {
-    enabled: isDesktopPointer && screen === 'game',
+    enabled: screen === 'game', // [UPDATE] keys work on every device - a pressed key means a keyboard exists
     nearTask, showMission, vaultUnlocked, canReportBody, meeting, nearestReportableBody,
     canKillDummy, killCooldownSecLeft, playerRole, myAlive,
     showMap, showSettings, showSaboteurPanel, showMissionTracker, showWallet, showGhostChat, showControlsGuide, showExitConfirm,
@@ -16125,7 +16192,6 @@ function MovementDemo() {
     return undefined;
   }, [isDesktopPointer, screen]);
   useEffect(() => {
-    if (!isDesktopPointer) return undefined;
     const onKey = (e) => {
       const st = desktopKeysRef.current;
       if (!st || !st.enabled || e.repeat) return;
@@ -16163,7 +16229,7 @@ function MovementDemo() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isDesktopPointer, callMeeting, handleKillDummy]);
+  }, [callMeeting, handleKillDummy]);
 
 
   return (
