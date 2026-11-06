@@ -1593,7 +1593,7 @@ const VISION_RADIUS_SABOTAGED = 5;
 const VISION_FADE_START = 0.82;
 
 // Each char = one tile: '.'=room floor, 'c'=corridor, ' '=wall/void
-const GRID = '                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          ####################                      ##########                                                                              #..................#                      #.....TTT#                                                                              #..................#                      #.....TTT#                                                                              #..................#                      #........#                                                                              #..................#                      #........#                                                                              #..................#                      #........#                              ##########                     ###########      #........TT........#cccccccccccccccccccccc#........#                              #.....TTT#                     #.........#      #.......TTTT.......DccccccccccccccccccccccD........#                              #.....TTT#                     #.........#      #......TTTTTT......DccccccccccccccccccccccD........#                              #........#                     #.........#      #......TTTTTT......DccccccccccccccccccccccD........#                              #........#                     #.........#cccccc#.......TTTT.......#cccccccccccccccccccccc#........#                              #........DcccccccccccccccccccccD...TT....#ccccccD..................#    ccccc             ####DDD###                              #........DcccccccccccccccccccccD...TT....#ccccccD..................#    ccccc                ccccc                                #........DcccccccccccccccccccccD.........DccccccD..................#    ccccc                ccccc                                #........#                     #.........Dcccccc#..................#    ccccc                ccccc                                #........#                     #.........Dcccccc#####DDD############    ccccc                ccccc                                #........#                     #.........#           ccc                ccccc                ccccc                                #DD#######                     ####DD#####           ccc                ccccc                ccccc                              ccccc                          cccccccc                ccc                ccccc             ####DDD##                             ccccc                          cccccccc                ccc                ccccc             #.......#                             ccccc                          cccccccc                ccc                ccccc             #.......#                             ccccc                          cccccccc                ccc                ccccc             #.......#               ##########    ccccc             #########    ccccc                   ccc                cc#DD########     #.......#               #........#    ccccc             #.......#    ccccc                   ccc                  #.........#     #.......#               #TTT.....#    ccccc             #.......#    ccccc                   ccc                  #.........#    cD.......#               #TTT.....#    ccccc             #.......#    ccccc                   ccc                  #TT.......#    cD....TTT#               #........#    ccccc             #.......#    ccccc                   ccc                  #TT.......#    cD....TTT#               #........#ccccccccccccccccccccccD..TTT..Dccccccccc                   ccc                  #TT.......#ccccc#.......#               #........DccccccccccccccccccccccD..TTT..Dccccccccc                   ccc                  #TT.......Dccccc#DDD#####               #........DccccccccccccccccccccccD..TTT..Dccccccccc                   ccc                  #.........Dccccccccc                    #........Dcccccccccccccccccccccc#.......#ccccccccc                   ccc                  #.........Dccccccccc                    #........#cccccccccccccccccccccc#.......#ccccccccc                   ccc                  #.........#ccccccccc                    #........#    ccccc             #.......#    ccccc                   ccc                  #.........#    ccccc                    #........#    ccccc             #.......#    ccccc                   ccc                  #.........#    ccccc                    #........#    ccccc             #.......#    ccccc                   ccc                  #.........#    cc#DD#######             ##########    ccccc             #########    ccccc                   ccc                  ####DDD####    cc#........#                           ccccc                          ccccc                   ccc                     ccccc       cc#........#                           ccccc                          ccccc                   ccc                     ccccc       ccD........#                           ccccc                          ccccc                   ccc                     ccccc       ccD........#                           ccccc                          ccccc                   ccc                     ccccc       ccD........#                           cc#DD#######                   cc#DD########      #####DDD########             ccccc       cc#........#                           cc#........#                   cc#.........#      #........TTTT..#             ccccc       cc#........#                           cc#........#                   cc#.........#      #........TTTT..#             ccccc         #........#                           ccD........#                   cc#.........#      #........TTTT..#             ccccc         #....TTTT#                           ccD........DcccccccccccccccccccccD.........#cccccc#........TTTT..#             ccccc         #....TTTT#                           ccD........DcccccccccccccccccccccD.........DccccccD..............#ccc          ccccc         #....TTTT#                           cc#........DcccccccccccccccccccccD.........DccccccD..............#ccc          ccccc         #........#                             #........#                     #.........DccccccD..............#ccccc        ccccc         ##########                             #...TT...#                     #...TTTT..#cccccc#..............Dccccc        ccccc                                                #...TTT..#                     #...TTTT..#      #..............Dccccc        ccccc                                                #...TT...#                     #...TTTT..#      #..............Dccccc        ccccccccc                                            ##########                     ###########      #..............#ccccc        ccccccccc                                                                                            #..............#cc#DD######  ccc##DDD#####                                                                                        #######DDD######cc#.......#     #........#                                                                                              ccccc     cc#.......#     #........#                                                                                              ccccc     cc#.......#     #........#                                                                                              ccccccccccccD.......#ccccc#........#                                                                                              ccccccccccccD.......DcccccD........#                                                                                              ccccccccccccD.......DcccccD........#                                                                                                cccccccccc#.......DcccccD........#                                                                                                cccccccccc#.......#ccccc#...TTT..#                                                                                                          #..TTTT.#     #...TTT..#                                                                                                          #..TTTT.#     #...TTT..#                                                                                                          #########     ##########                                                                                                                                                                                                                                                                                          ';
+const GRID = '                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          ####################                      ##########                                                                              #..................#                      #.....TTT#                                                                              #..................#                      #.....TTT#                                                                              #..................#                      #........#                                                                              #..................#                      #........#                                                                              #..................#                      #........#                              ##########                     ###########      #........TT........#cccccccccccccccccccccc#........#                              #.....TTT#                     #.........#      #.......TTTT.......DccccccccccccccccccccccD........#                              #.....TTT#                     #.........#      #......TTTTTT......DccccccccccccccccccccccD........#                              #........#                     #.........#      #......TTTTTT......DccccccccccccccccccccccD........#                              #........#ccccccccccccccccccccc#.........#cccccc#.......TTTT.......#cccccccccccccccccccccc#........#                              #........DcccccccccccccccccccccD...TT....DccccccD..................#       ccccc          ####DDD###                              #........DcccccccccccccccccccccD...TT....DccccccD..................#       ccccc             ccccc                                #........DcccccccccccccccccccccD.........DccccccD..................#       ccccc             ccccc                                #........#ccccccccccccccccccccc#.........#cccccc#..................#       ccccc             ccccc                                #........#                     #.........#      #####DDD############       ccccc             ccccc                                #........#                     #.........#          ccccc                  ccccc             ccccc                                ###DDD####                     ####DDD####          ccccc                  ccccc             ccccc                                  ccccc                           ccccc             ccccc                  ccccc          ####DDD##                                 ccccc                           ccccc             ccccc                  ccccc          #.......#                                 ccccc                           ccccc             ccccc                  ccccc          #.......#                                 ccccc                           ccccc             ccccc                  ccccc          #.......#               ##########        ccccc         #########         ccccc             ccccc                 ##DDD######     #.......#               #........#        ccccc         #.......#         ccccc             ccccc                 #.........#     #.......#               #TTT.....#        ccccc         #.......#         ccccc             ccccc                 #.........#     #.......#               #TTT.....#        ccccc         #.......#         ccccc             ccccc                 #TT.......#     #....TTT#               #........#        ccccc         #.......#         ccccc             ccccc                 #TT.......#     #....TTT#               #........#cccccccccccccccccccccc#..TTT..#cccccccccccccc             ccccc                 #TT.......#     #.......#               #........DccccccccccccccccccccccD..TTT..Dcccccccccccccc             ccccc                 #TT.......#     ###DDD###               #........DccccccccccccccccccccccD..TTT..Dcccccccccccccc             ccccc                 #.........#cccccccccccc                 #........DccccccccccccccccccccccD.......Dcccccccccccccc             ccccc                 #.........Dcccccccccccc                 #........#cccccccccccccccccccccc#.......#cccccccccccccc             ccccc                 #.........Dcccccccccccc                 #........#        ccccc         #.......# ccccc   ccccc             ccccc                 #.........Dcccccccccccc                 #........#        ccccc         #.......# ccccc   ccccc             ccccc                 #.........#cccccccccccc                 #........#        ccccc         #.......# ccccc   ccccc             ccccc                 #.........#      ###DDD####             ##########        ccccc         ######### ccccc   ccccc             ccccc                 ######DDD##      #........#                               ccccc                   ccccc   ccccc             ccccc                      ccccc       #........#                               ccccc                   ccccc   ccccc             ccccc                      ccccc       #........#                               ccccc                   ccccc   ccccc             ccccc                      ccccc       #........#                               ccccc                   ccccc   ccccc             ccccc                      ccccc       #........#                             ###DDD####                ccccc####DDD####      #####DDD########               ccccc       #........#                             #........#                ccccc#.........#      #........TTTT..#               ccccc       #........#                             #........#                ccccc#.........#      #........TTTT..#               ccccc       #........#                             #........#ccccccccccccccccccccc#.........#      #........TTTT..#               ccccc       #....TTTT#                             #........DcccccccccccccccccccccD.........#cccccc#........TTTT..#               ccccc       #....TTTT#                             #........DcccccccccccccccccccccD.........DccccccD..............#               ccccc       #....TTTT#                             #........DcccccccccccccccccccccD.........DccccccD..............#               ccccc       #........#                             #........#ccccccccccccccccccccc#.........DccccccD..............#cccccccccc     ccccc       ##########                             #...TT...#                     #...TTTT..#cccccc#..............Dcccccccccc     ccccc                                              #...TTT..#                     #...TTTT..#      #..............Dcccccccccc     ccccc                                              #...TT...#                     #...TTTT..#      #..............Dcccccccccc     ccccc                                              ##########                     ###########      #..............#cccccccccc     ccccc                                                                                              #..............#  ###DDD###     #DDD######                                                                                        ######DDD#######  #.......#     #........#                                                                                             ccccc        #.......#     #........#                                                                                             ccccccccccccc#.......#     #........#                                                                                             cccccccccccccD.......#ccccc#........#                                                                                             cccccccccccccD.......DcccccD........#                                                                                             cccccccccccccD.......DcccccD........#                                                                                             ccccccccccccc#.......DcccccD........#                                                                                                          #.......#ccccc#...TTT..#                                                                                                          #..TTTT.#     #...TTT..#                                                                                                          #..TTTT.#     #...TTT..#                                                                                                          #########     ##########                                                                                                                                                                                                                                                                                          ';
 
 const ROOMS = [
   { id:'reactor', name:'Reactor', x:2, y:26, w:10, h:14, color:'#2a3550' },
@@ -1670,41 +1670,39 @@ const VENT_INTERACT_RANGE_TILES = 1.8;
 
 
 const DOORS = [
-  { id:'door0', x:85, y:10, w:1, h:3, side:'R', locked:false },
-  { id:'door1', x:108, y:10, w:1, h:3, side:'L', locked:false },
-  { id:'door2', x:59, y:14, w:1, h:3, side:'R', locked:false },
-  { id:'door3', x:66, y:14, w:1, h:3, side:'L', locked:false },
-  { id:'door4', x:111, y:15, w:3, h:1, side:'B', locked:false },
-  { id:'door5', x:18, y:17, w:1, h:3, side:'L', locked:false },
-  { id:'door6', x:49, y:17, w:1, h:3, side:'L', locked:false },
-  { id:'door7', x:18, y:21, w:2, h:1, side:'B', locked:false },
-  { id:'door8', x:49, y:21, w:2, h:1, side:'B', locked:false },
-  { id:'door9', x:111, y:22, w:3, h:1, side:'T', locked:false },
-  { id:'door10', x:92, y:28, w:1, h:3, side:'L', locked:false },
-  { id:'door11', x:92, y:26, w:2, h:1, side:'T', locked:false },
-  { id:'door12', x:108, y:28, w:1, h:3, side:'L', locked:false },
-  { id:'door13', x:11, y:31, w:1, h:3, side:'R', locked:false },
-  { id:'door14', x:34, y:31, w:1, h:3, side:'L', locked:false },
-  { id:'door15', x:42, y:31, w:1, h:3, side:'R', locked:false },
-  { id:'door16', x:102, y:31, w:1, h:3, side:'R', locked:false },
-  { id:'door17', x:108, y:32, w:3, h:1, side:'B', locked:false },
-  { id:'door18', x:109, y:40, w:1, h:3, side:'L', locked:false },
-  { id:'door19', x:109, y:38, w:2, h:1, side:'T', locked:false },
-  { id:'door20', x:95, y:39, w:3, h:1, side:'B', locked:false },
-  { id:'door21', x:18, y:46, w:1, h:3, side:'L', locked:false },
-  { id:'door22', x:18, y:44, w:2, h:1, side:'T', locked:false },
-  { id:'door23', x:49, y:46, w:1, h:3, side:'L', locked:false },
-  { id:'door24', x:49, y:44, w:2, h:1, side:'T', locked:false },
-  { id:'door25', x:59, y:48, w:1, h:3, side:'R', locked:false },
-  { id:'door26', x:66, y:48, w:1, h:3, side:'L', locked:false },
-  { id:'door27', x:81, y:52, w:1, h:3, side:'R', locked:false },
-  { id:'door28', x:84, y:58, w:1, h:3, side:'L', locked:false },
-  { id:'door29', x:84, y:56, w:2, h:1, side:'T', locked:false },
-  { id:'door30', x:98, y:56, w:1, h:2, side:'L', locked:false },
-  { id:'door31', x:99, y:56, w:3, h:1, side:'T', locked:false },
-  { id:'door32', x:72, y:57, w:3, h:1, side:'B', locked:false },
-  { id:'door33', x:92, y:60, w:1, h:3, side:'R', locked:false },
-  { id:'door34', x:98, y:60, w:1, h:3, side:'L', locked:false },
+  { id:'door0', x:27, y:15, w:1, h:3, side:'R', locked:false },
+  { id:'door1', x:21, y:21, w:3, h:1, side:'B', locked:false },
+  { id:'door2', x:49, y:15, w:1, h:3, side:'L', locked:false },
+  { id:'door3', x:59, y:15, w:1, h:3, side:'R', locked:false },
+  { id:'door4', x:53, y:21, w:3, h:1, side:'B', locked:false },
+  { id:'door5', x:66, y:15, w:1, h:3, side:'L', locked:false },
+  { id:'door6', x:85, y:11, w:1, h:3, side:'R', locked:false },
+  { id:'door7', x:71, y:19, w:3, h:1, side:'B', locked:false },
+  { id:'door8', x:108, y:11, w:1, h:3, side:'L', locked:false },
+  { id:'door9', x:112, y:15, w:3, h:1, side:'B', locked:false },
+  { id:'door10', x:112, y:22, w:3, h:1, side:'T', locked:false },
+  { id:'door11', x:111, y:32, w:3, h:1, side:'B', locked:false },
+  { id:'door12', x:94, y:26, w:3, h:1, side:'T', locked:false },
+  { id:'door13', x:102, y:34, w:1, h:3, side:'R', locked:false },
+  { id:'door14', x:98, y:39, w:3, h:1, side:'B', locked:false },
+  { id:'door15', x:112, y:38, w:3, h:1, side:'T', locked:false },
+  { id:'door16', x:99, y:56, w:3, h:1, side:'T', locked:false },
+  { id:'door17', x:98, y:61, w:1, h:3, side:'L', locked:false },
+  { id:'door18', x:87, y:56, w:3, h:1, side:'T', locked:false },
+  { id:'door19', x:84, y:60, w:1, h:3, side:'L', locked:false },
+  { id:'door20', x:92, y:61, w:1, h:3, side:'R', locked:false },
+  { id:'door21', x:71, y:44, w:3, h:1, side:'T', locked:false },
+  { id:'door22', x:66, y:49, w:1, h:3, side:'L', locked:false },
+  { id:'door23', x:81, y:52, w:1, h:3, side:'R', locked:false },
+  { id:'door24', x:72, y:57, w:3, h:1, side:'B', locked:false },
+  { id:'door25', x:53, y:44, w:3, h:1, side:'T', locked:false },
+  { id:'door26', x:49, y:48, w:1, h:3, side:'L', locked:false },
+  { id:'door27', x:59, y:49, w:1, h:3, side:'R', locked:false },
+  { id:'door28', x:21, y:44, w:3, h:1, side:'T', locked:false },
+  { id:'door29', x:27, y:48, w:1, h:3, side:'R', locked:false },
+  { id:'door30', x:34, y:32, w:1, h:3, side:'L', locked:false },
+  { id:'door31', x:42, y:32, w:1, h:3, side:'R', locked:false },
+  { id:'door32', x:11, y:32, w:1, h:3, side:'R', locked:false },
 ];
 
 const TASK_POINTS = [
@@ -1725,50 +1723,47 @@ const TASK_POINTS = [
 ];
 
 const GATES = [
-  { id:'g0', x:85, y:11, w:1, h:3, orient:'v' },
-  { id:'g1', x:108, y:11, w:1, h:3, orient:'v' },
-  { id:'g2', x:59, y:17, w:1, h:3, orient:'v' },
-  { id:'g3', x:66, y:15, w:1, h:3, orient:'v' },
-  { id:'g4', x:112, y:15, w:3, h:1, orient:'h' },
-  { id:'g7', x:19, y:21, w:2, h:1, orient:'h' },
-  { id:'g8', x:53, y:21, w:2, h:1, orient:'h' },
-  { id:'g9', x:112, y:22, w:3, h:1, orient:'h' },
-  { id:'g10', x:93, y:26, w:2, h:1, orient:'h' },
-  { id:'g11', x:108, y:28, w:1, h:3, orient:'v' },
-  { id:'g13', x:11, y:32, w:1, h:3, orient:'v' },
-  { id:'g14', x:34, y:31, w:1, h:3, orient:'v' },
-  { id:'g15', x:42, y:31, w:1, h:3, orient:'v' },
-  { id:'g16', x:102, y:32, w:1, h:3, orient:'v' },
-  { id:'g17', x:109, y:32, w:3, h:1, orient:'h' },
-  { id:'g18', x:110, y:38, w:2, h:1, orient:'h' },
-  { id:'g19', x:96, y:39, w:3, h:1, orient:'h' },
-  { id:'g20', x:109, y:41, w:1, h:3, orient:'v' },
-  { id:'g21', x:19, y:44, w:2, h:1, orient:'h' },
-  { id:'g22', x:50, y:44, w:2, h:1, orient:'h' },
-  { id:'g23', x:18, y:47, w:1, h:3, orient:'v' },
-  { id:'g24', x:49, y:48, w:1, h:3, orient:'v' },
-  { id:'g25', x:59, y:49, w:1, h:3, orient:'v' },
-  { id:'g26', x:66, y:49, w:1, h:3, orient:'v' },
-  { id:'g27', x:81, y:52, w:1, h:3, orient:'v' },
-  { id:'g28', x:85, y:56, w:2, h:1, orient:'h' },
-  { id:'g29', x:100, y:56, w:3, h:1, orient:'h' },
-  { id:'g30', x:73, y:57, w:3, h:1, orient:'h' },
-  { id:'g32', x:84, y:60, w:1, h:3, orient:'v' },
-  { id:'g33', x:92, y:61, w:1, h:3, orient:'v' },
-  { id:'g34', x:98, y:61, w:1, h:3, orient:'v' },
-  { id:'g35', x:27, y:15, w:1, h:3, orient:'v' },
-  { id:'g36', x:49, y:15, w:1, h:3, orient:'v' },
-  { id:'g37', x:27, y:48, w:1, h:3, orient:'v' },
-  { id:'g38', x:71, y:19, w:3, h:1, orient:'h' },
-  { id:'g39', x:71, y:44, w:3, h:1, orient:'h' },
+  { id:'g0', x:27, y:15, w:1, h:3, orient:'v' }, // upper_eng R
+  { id:'g1', x:21, y:21, w:3, h:1, orient:'h' }, // upper_eng B
+  { id:'g2', x:49, y:15, w:1, h:3, orient:'v' }, // medbay L
+  { id:'g3', x:59, y:15, w:1, h:3, orient:'v' }, // medbay R
+  { id:'g4', x:53, y:21, w:3, h:1, orient:'h' }, // medbay B
+  { id:'g5', x:66, y:15, w:1, h:3, orient:'v' }, // cafeteria L
+  { id:'g6', x:85, y:11, w:1, h:3, orient:'v' }, // cafeteria R
+  { id:'g7', x:71, y:19, w:3, h:1, orient:'h' }, // cafeteria B
+  { id:'g8', x:108, y:11, w:1, h:3, orient:'v' }, // weapons L
+  { id:'g9', x:112, y:15, w:3, h:1, orient:'h' }, // weapons B
+  { id:'g10', x:112, y:22, w:3, h:1, orient:'h' }, // o2 T
+  { id:'g11', x:111, y:32, w:3, h:1, orient:'h' }, // o2 B
+  { id:'g12', x:94, y:26, w:3, h:1, orient:'h' }, // admin T
+  { id:'g13', x:102, y:34, w:1, h:3, orient:'v' }, // admin R
+  { id:'g14', x:98, y:39, w:3, h:1, orient:'h' }, // admin B
+  { id:'g15', x:112, y:38, w:3, h:1, orient:'h' }, // navigation T
+  { id:'g16', x:99, y:56, w:3, h:1, orient:'h' }, // shields T
+  { id:'g17', x:98, y:61, w:1, h:3, orient:'v' }, // shields L
+  { id:'g18', x:87, y:56, w:3, h:1, orient:'h' }, // comms T
+  { id:'g19', x:84, y:60, w:1, h:3, orient:'v' }, // comms L
+  { id:'g20', x:92, y:61, w:1, h:3, orient:'v' }, // comms R
+  { id:'g21', x:71, y:44, w:3, h:1, orient:'h' }, // storage T
+  { id:'g22', x:66, y:49, w:1, h:3, orient:'v' }, // storage L
+  { id:'g23', x:81, y:52, w:1, h:3, orient:'v' }, // storage R
+  { id:'g24', x:72, y:57, w:3, h:1, orient:'h' }, // storage B
+  { id:'g25', x:53, y:44, w:3, h:1, orient:'h' }, // electrical T
+  { id:'g26', x:49, y:48, w:1, h:3, orient:'v' }, // electrical L
+  { id:'g27', x:59, y:49, w:1, h:3, orient:'v' }, // electrical R
+  { id:'g28', x:21, y:44, w:3, h:1, orient:'h' }, // lower_eng T
+  { id:'g29', x:27, y:48, w:1, h:3, orient:'v' }, // lower_eng R
+  { id:'g30', x:34, y:32, w:1, h:3, orient:'v' }, // security L
+  { id:'g31', x:42, y:32, w:1, h:3, orient:'v' }, // security R
+  { id:'g32', x:11, y:32, w:1, h:3, orient:'v' }, // reactor R
 ];
 
 // Saboteur gate-lock groups — split by which half of the map each gate sits
 // in, matching the room numbering on the minimap (rooms 1-7 = left half,
 // rooms 8-14 = right half). Locking a group seals every gate in it
 // simultaneously; only one group can ever be locked at a time.
-const GATE_GROUP_A = ['g13', 'g23', 'g7', 'g21', 'g35', 'g37', 'g14', 'g15', 'g24', 'g36', 'g22', 'g8', 'g2', 'g25', 'g3', 'g26'];
-const GATE_GROUP_B = ['g38', 'g39', 'g30', 'g27', 'g32', 'g0', 'g28', 'g33', 'g10', 'g19', 'g34', 'g29', 'g16', 'g1', 'g11', 'g17', 'g20', 'g18', 'g4', 'g9'];
+const GATE_GROUP_A = ['g0', 'g1', 'g2', 'g3', 'g4', 'g5', 'g22', 'g25', 'g26', 'g27', 'g28', 'g29', 'g30', 'g31', 'g32'];
+const GATE_GROUP_B = ['g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12', 'g13', 'g14', 'g15', 'g16', 'g17', 'g18', 'g19', 'g20', 'g21', 'g23', 'g24'];
 const GATE_LOCK_DURATION_MS = 30000;
 // Module-level mutable lock state — canStand() is a plain function called
 // from inside a rAF loop, not a component, so it reads this directly rather
@@ -6311,6 +6306,16 @@ function LobbyScreen({
   const rafRef = useRef(null);
   const roomRef = useRef(null);
   const [roomSize, setRoomSize] = useState({ w: 320, h: 213 });
+  // [UPDATE - HUD SCALE] Same idea as hudK in the game screen: Lobby
+  // buttons/panels were phone-sized and tiny on laptops/desktops. 1 on
+  // phones (short side <= 520px), up to 1.9x on big screens.
+  const [lobbyVp, setLobbyVp] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }));
+  useEffect(() => {
+    const onResize = () => setLobbyVp({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const lobbyHudK = Math.max(1, Math.min(1.9, Math.min(lobbyVp.w, lobbyVp.h) / 520));
 
   // [MULTIPLAYER] Other real players' positions while still in the Lobby
   // — kept entirely separate from the in-game otherPlayers state (see the
@@ -6798,6 +6803,7 @@ function LobbyScreen({
           onClick={() => setShowPoolDetails(true)}
           style={{
             position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 30,
+            zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(8,10,14,0.92)',
             border: pendingPoolConfirmForMe ? '1px solid #ffd75e' : '1px solid rgba(255,215,80,0.4)',
             borderRadius: 20, padding: '6px 14px',
@@ -6863,6 +6869,7 @@ function LobbyScreen({
       {roomInfo && connStatus !== 'connected' && (
         <div style={{
           position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 31,
+          zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           background: connStatus === 'connecting' ? 'rgba(255,215,80,0.95)' : 'rgba(255,92,92,0.95)',
           color: '#1a0505', padding: '6px 14px', borderRadius: 20, fontSize: 11.5, fontWeight: 800,
           boxShadow: '0 2px 10px rgba(0,0,0,0.4)', whiteSpace: 'nowrap',
@@ -6878,6 +6885,7 @@ function LobbyScreen({
       {roomInfo && (
         <div style={{
           position: 'absolute', top: 8, right: 10, zIndex: 30,
+          zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(8,10,14,0.85)',
           border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '3px 8px',
         }}>
@@ -7179,6 +7187,7 @@ function LobbyScreen({
           onClick={onClearPoolError}
           style={{
             position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 61,
+            zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,120,120,0.4)',
             borderRadius: 10, padding: '8px 14px', fontSize: 11, color: '#ff8a8a', maxWidth: '90%',
           }}
@@ -7389,7 +7398,7 @@ function LobbyScreen({
                     get just the BOT chip floating above them. */}
                 {(info?.isBot || isBotPlayerId(id)) && (
                   <div style={{ position: 'absolute', left: '50%', bottom: '100%', transform: 'translate(-50%, -2px)' }}>
-                    <BotTag size={8} />
+                    <BotTag size={Math.round(8 * Math.max(1, (roomSize?.w || 480) / 480))} />
                   </div>
                 )}
               </div>
@@ -7433,6 +7442,7 @@ function LobbyScreen({
           of sharing one column. */}
       <div style={{
         position: 'absolute', top: 38, left: 12, display: 'flex', flexDirection: 'column',
+        zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
         gap: 6, alignItems: 'flex-start', zIndex: 12,
       }}>
         {/* [NEW FEATURE - HOST CONTROL PANEL] Saboteur count, speed,
@@ -7547,6 +7557,7 @@ function LobbyScreen({
           are visible. */}
       <div style={{
         position: 'absolute', top: 38, right: 12, display: 'flex', flexDirection: 'column',
+        zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
         gap: 6, alignItems: 'flex-end', zIndex: 12,
       }}>
         {roomInfo && (
@@ -7686,6 +7697,7 @@ function LobbyScreen({
           own roleAssigned event arrives (handled in MovementDemo). */}
       <button onClick={() => setShowLeaveMenu(true)} style={{
         position: 'absolute', left: 18, bottom: 22, padding: '13px 26px', borderRadius: 999,
+        zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
         border: '2px solid #ff5c5c', background: 'rgba(255,92,92,0.12)', color: '#ff8a8a',
         fontWeight: 800, fontSize: 13.5, letterSpacing: 0.3, zIndex: 15,
       }}>LEAVE</button>
@@ -8022,6 +8034,7 @@ function LobbyScreen({
               disabled={!canStartGame || poolLockBusy}
               style={{
                 position: 'absolute', right: 18, bottom: 22, padding: '13px 26px', borderRadius: 999,
+                zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
                 border: (canStartGame && !poolLockBusy) ? 'none' : '2px solid rgba(255,255,255,0.15)',
                 background: poolLockBusy ? 'rgba(255,215,80,0.25)' : ((canStartGame) ? 'linear-gradient(135deg,#ffd75e,#e0a92e)' : 'rgba(255,255,255,0.06)'),
                 color: poolLockBusy ? '#ffd75e' : (canStartGame ? '#1a1200' : '#5a655f'),
@@ -8034,6 +8047,7 @@ function LobbyScreen({
         return (
           <button onClick={canStartGame ? () => onStart({ imposterCount, speedLevel }) : undefined} disabled={!canStartGame} style={{
             position: 'absolute', right: 18, bottom: 22, padding: '13px 30px', borderRadius: 999,
+            zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             border: canStartGame ? 'none' : '2px solid rgba(255,255,255,0.15)',
             background: canStartGame ? 'linear-gradient(135deg,#6effc0,#2bb88a)' : 'rgba(255,255,255,0.06)',
             color: canStartGame ? '#06140d' : '#5a655f',
@@ -8046,6 +8060,7 @@ function LobbyScreen({
       {!isHost && roomInfo && (
         <div style={{
           position: 'absolute', right: 18, bottom: 22, padding: '13px 20px', borderRadius: 999,
+          zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           border: '2px solid rgba(255,255,255,0.15)', color: '#9aa0ad',
           fontWeight: 700, fontSize: 12, zIndex: 15,
         }}>Waiting for host…</div>
@@ -8078,6 +8093,7 @@ function LobbyScreen({
         ) : (
           <div style={{
             position: 'absolute', bottom: 185, left: '50%', transform: 'translateX(-50%)',
+            zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
             background: 'rgba(255,180,60,0.14)', border: '1.5px solid rgba(255,180,60,0.55)',
             borderRadius: 999, padding: '8px 16px',
@@ -8101,6 +8117,7 @@ function LobbyScreen({
       {allMatchesDone && (
         <div style={{
           position: 'absolute', bottom: 185, left: '50%', transform: 'translateX(-50%)',
+          zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           background: 'rgba(110,255,192,0.14)', border: '1px solid rgba(110,255,192,0.4)',
           borderRadius: 10, padding: '7px 14px', maxWidth: '85%', textAlign: 'center', zIndex: 10,
         }}>
@@ -8115,6 +8132,7 @@ function LobbyScreen({
       {detectDesktopPointer() ? (
         <div style={{
           position: 'absolute', bottom: 92, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
+          zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
           background: 'rgba(5,10,9,0.82)', border: '1px solid rgba(110,255,192,0.25)', pointerEvents: 'none',
           fontSize: 12, color: '#c7d4ce', whiteSpace: 'nowrap',
@@ -8128,6 +8146,7 @@ function LobbyScreen({
         onTouchEnd={joyEnd}
         style={{
           position: 'absolute', bottom: 65, left: '50%', transform: 'translateX(-50%)',
+          zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           width: 110, height: 110, borderRadius: '50%',
           background: 'rgba(255,255,255,0.06)', border: '2px solid rgba(255,255,255,0.25)',
           touchAction: 'none', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -8153,6 +8172,7 @@ function LobbyScreen({
           onClick={() => setShowLobbyChat(true)}
           style={{
             position: 'absolute', left: 12, top: '55%', transform: 'translateY(-50%)', zIndex: 20,
+            zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             width: 42, height: 42, borderRadius: '50%', border: '2px solid rgba(110,255,192,0.55)',
             background: 'rgba(8,8,13,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 18, padding: 0,
@@ -8182,6 +8202,7 @@ function LobbyScreen({
           onClick={() => setShowRoomLeaderboard(true)}
           style={{
             position: 'absolute', right: 12, top: '55%', transform: 'translateY(-50%)', zIndex: 20,
+            zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             width: 42, height: 42, borderRadius: '50%', border: '2px solid rgba(255,215,80,0.55)',
             background: 'rgba(8,8,13,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 0,
@@ -15944,6 +15965,11 @@ function MovementDemo() {
   // size; avatarK scales everything drawn around it (name tag, body).
   const avatarPx = avatarScreenPx(scale);
   const avatarK = avatarPx / AVATAR_SCREEN_PX;
+  // [UPDATE - HUD SCALE] Buttons, pills and banners were sized for phones
+  // and looked tiny on laptops/desktops. hudK enlarges them (CSS zoom on
+  // each HUD block, so their corner offsets scale too) - exactly 1 on
+  // phones (short side <= 520px), up to 1.9x on big screens.
+  const hudK = Math.max(1, Math.min(1.9, Math.min(viewport.w, viewport.h) / 520));
   setCollisionScale(scale, avatarPx); // [BUG FIX - CAN'T TOUCH WALLS] keep the hitbox matched to the drawn avatar
   const mapPxW = GRID_W * TILE, mapPxH = GRID_H * TILE;
   const camX = Math.max(0, Math.min(mapPxW - worldViewPx, pos.x + PLAYER_SIZE / 2 - worldViewPx / 2));
@@ -21131,6 +21157,7 @@ function MovementDemo() {
         {screen === 'game' && (
           <div style={{
             position: 'absolute', bottom: 8, left: 10, zIndex: 16,
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(8,10,14,0.85)',
             border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '3px 8px',
           }}>
@@ -22182,6 +22209,7 @@ function MovementDemo() {
           eats into the play area; one tap target (settings) holds everything else. */}
       <div style={{
         position: 'absolute', top: 8, left: 8, zIndex: 20,
+        zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
         display: 'flex', alignItems: 'center', gap: 6,
         background: 'rgba(8,8,13,0.82)', borderRadius: 9, padding: '5px 10px',
         border: '1px solid rgba(110,255,192,0.22)', backdropFilter: 'blur(3px)',
@@ -22202,7 +22230,7 @@ function MovementDemo() {
 
       {/* Top-right controls: map + settings only. Sound now lives inside Settings,
           not duplicated out here. */}
-      <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, display: 'flex', alignItems: 'center', gap: 6, zoom: hudK /* [UPDATE - HUD SCALE] */ }}>
         {gateLock.group && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 4, padding: '5px 9px', borderRadius: 8,
@@ -22265,6 +22293,7 @@ function MovementDemo() {
           <div onClick={e => e.stopPropagation()} style={{
             background: 'linear-gradient(160deg, #11141a, #0a0a0f)', borderRadius: 16,
             padding: '18px 18px 16px', width: '100%', maxWidth: 300,
+            zoom: Math.min(hudK, 1.5), // [UPDATE - HUD SCALE]
             border: '1px solid rgba(110,255,192,0.25)', boxShadow: '0 0 30px rgba(110,255,192,0.08)',
           }}>
             <h2 style={{
@@ -22345,6 +22374,7 @@ function MovementDemo() {
           <div onClick={e => e.stopPropagation()} style={{
             background: 'linear-gradient(160deg, #11141a, #0a0a0f)', borderRadius: 16, padding: 14,
             width: '100%', maxWidth: 420, border: '1px solid rgba(110,255,192,0.25)',
+            zoom: Math.min(hudK, 1.5), // [UPDATE - HUD SCALE]
             boxShadow: '0 0 30px rgba(110,255,192,0.08)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -22461,6 +22491,7 @@ function MovementDemo() {
           }}
           style={{
             position: 'absolute', bottom: 200, left: '50%', transform: 'translateX(-50%)',
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', alignItems: 'center', gap: 7,
             background: nearTask.room === 'reactor' && !vaultUnlocked ? 'rgba(40,28,8,0.85)'
               : nearTask.room === 'cafeteria' ? 'rgba(40,10,10,0.82)' : 'rgba(8,8,13,0.82)',
@@ -22819,6 +22850,7 @@ function MovementDemo() {
       {crewProgress.total > 0 && (
         <div style={{
           position: 'absolute', top: 44, left: 8, zIndex: 13, width: 108,
+          zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           background: 'rgba(8,8,13,0.85)', border: '1px solid rgba(110,255,192,0.22)',
           borderRadius: 9, padding: '6px 8px', backdropFilter: 'blur(3px)',
           boxShadow: '0 2px 10px rgba(0,0,0,0.4)', pointerEvents: 'none',
@@ -22881,6 +22913,7 @@ function MovementDemo() {
         }}>
           <div style={{
             marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             background: 'linear-gradient(135deg,#ffc14c,#ff9f3c)', color: '#1a0f00',
             borderRadius: 14, padding: '10px 18px', boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
             maxWidth: '86%',
@@ -22914,6 +22947,7 @@ function MovementDemo() {
         }}>
           <div style={{
             marginTop: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             background: 'linear-gradient(135deg,#ff5c5c,#c92f2f)', color: '#fff',
             borderRadius: 14, padding: '10px 18px', boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
             maxWidth: '86%',
@@ -22967,6 +23001,7 @@ function MovementDemo() {
           don't eat into the play area. */}
       <div style={{
         position: 'absolute', bottom: 36, right: 12, zIndex: 20,
+        zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
         display: 'flex', flexDirection: 'column', gap: 8,
       }}>
         {/* Saboteur-only action panel — invisible to crewmates entirely.
@@ -24235,6 +24270,7 @@ function MovementDemo() {
         onClick={() => setShowPointsBreakdown(true)}
         style={{
           position: 'absolute', top: 48, right: 8, zIndex: 40,
+          zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           display: 'flex', alignItems: 'center', gap: 5,
           background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,215,80,0.35)',
           borderRadius: 20, padding: '4px 11px 4px 6px', WebkitTapHighlightColor: 'transparent',
@@ -24687,6 +24723,7 @@ function MovementDemo() {
           aria-label="Kill"
           style={{
             position: 'absolute', bottom: 150, left: 16, zIndex: 16,
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             width: 72, height: 72, borderRadius: '50%', border: '3px solid #fff',
             background: killCooldownSecLeft > 0
               ? 'radial-gradient(circle at 35% 30%, #5a1414, #2a0808)'
@@ -24727,6 +24764,7 @@ function MovementDemo() {
           onClick={() => callMeeting('report', nearestReportableBody?.id)}
           style={{
             position: 'absolute', bottom: 200, left: '50%', transform: 'translateX(-50%)',
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', alignItems: 'center', gap: 7, zIndex: 16,
             background: 'rgba(40,10,10,0.85)', color: '#ff8a8a',
             border: '1px solid rgba(255,85,85,0.45)', borderRadius: 20,
@@ -24746,6 +24784,7 @@ function MovementDemo() {
         <div
           style={{
             position: 'absolute', bottom: 200, left: '50%', transform: 'translateX(-50%)',
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', alignItems: 'center', gap: 7, zIndex: 16,
             background: 'rgba(30,30,30,0.75)', color: '#8a8a8a',
             border: '1px solid rgba(255,255,255,0.15)', borderRadius: 20,
@@ -24782,6 +24821,7 @@ function MovementDemo() {
           onClick={() => socketRef.current?.emit('devForceEndGame')}
           style={{
             position: 'absolute', top: 64, left: 14, zIndex: 15,
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'rgba(224,118,43,0.55)', color: '#fff',
             border: '1px solid rgba(255,159,90,0.6)', borderRadius: 20,
@@ -24795,6 +24835,7 @@ function MovementDemo() {
           onClick={() => setShowGhostChat(true)}
           style={{
             position: 'absolute', top: 64, right: 14, zIndex: 15,
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', alignItems: 'center', gap: 6,
             background: 'rgba(40,40,50,0.55)', color: 'rgba(220,220,230,0.85)',
             border: '1px solid rgba(180,180,200,0.3)', borderRadius: 20,
@@ -25019,6 +25060,7 @@ function MovementDemo() {
         <>
           <div style={{
             position: 'absolute', bottom: 110, left: 0, right: 0, zIndex: 17,
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '0 16px',
           }}>
             <div style={{
@@ -25053,6 +25095,7 @@ function MovementDemo() {
 
           <button onClick={exitVent} style={{
             position: 'absolute', bottom: 36, left: 16, zIndex: 17,
+            zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
             padding: '10px 22px', borderRadius: 999, border: 'none',
             background: 'linear-gradient(135deg,#6effc0,#2bb88a)', color: '#06140d',
             fontWeight: 800, fontSize: 12.5,
