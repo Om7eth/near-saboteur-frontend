@@ -37,7 +37,10 @@ if (typeof window !== 'undefined' && !window.Buffer) {
 // IMPORTANT: change this URL if the backend ever moves to a different
 // Render service / custom domain. This is the ONLY place it needs to
 // change — everything else in the file goes through socketRef below.
-const BACKEND_URL = 'https://near-saboteur-backend-test.onrender.com';
+// [LOCAL DEV] Set VITE_BACKEND_URL in a git-ignored .env.local (e.g.
+// http://localhost:3000) to point a local frontend at a local backend.
+// When it's unset (as on Render), the hosted test backend is used.
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'https://near-saboteur-backend-test.onrender.com').replace(/\/$/, '');
 // [SMART CONTRACT] The deployed pool-escrow contract's own NEAR
 // account - update this if the contract is ever redeployed to a
 // different account (e.g. moving to mainnet later).
@@ -732,12 +735,47 @@ function PremiumProfileFrame() {
 // a Play Pass holder's name is shown, matching the exact demo design
 // (option B) - see resolveNameTagProps() below for the single place
 // that decides whether a given name/player qualifies.
-function PlayerNameTag({ name, premium, style }) {
-  if (!premium) return <>{name}</>;
+// [AI BOTS - NEAR HACKATHON] "BOT" chip shown next to every bot's name
+// (filled cyan - kept apart from Play Pass gold and UI mint). Pass
+// isBot to PlayerNameTag rather than rendering this directly, so the tag
+// travels with the name everywhere.
+function BotTag({ size }) {
+  // No size => sized relative to the surrounding name text (em), so the
+  // tag grows with in-game name tags on big screens.
+  const u = (k) => (size ? `${Math.round(size * k)}px` : `${k}em`);
+  return (
+    <span title="AI bot" style={{
+      display: 'inline-flex', alignItems: 'center', height: u(1.65), padding: `0 ${u(0.6)}`,
+      borderRadius: 4, background: '#8fe3ff', color: '#04141a', fontSize: size || '0.9em', fontWeight: 900,
+      letterSpacing: 0.7, lineHeight: 1, flexShrink: 0, verticalAlign: 'middle', marginLeft: size ? 4 : '0.4em',
+      textShadow: 'none', fontStyle: 'normal', textDecoration: 'none',
+    }}>BOT</span>
+  );
+}
+// [AI BOTS] Bot ids always start with "bot_" (see bots/botManager.js on
+// the backend) - lets payloads that only carry an id still show the tag.
+function isBotPlayerId(id) {
+  return typeof id === 'string' && id.startsWith('bot_');
+}
+// [AI BOTS] Disguise-aware: if a Saboteur is disguised as a bot, their
+// tag must show BOT too (and a bot's real tag must not leak through a
+// disguise), exactly like the name/skin impersonation itself.
+function displayedIsBot(p, roomPlayers) {
+  if (!p) return false;
+  if (p.disguiseAvatarId) {
+    const target = (roomPlayers || []).find((rp) => rp.avatarId === p.disguiseAvatarId);
+    return !!(target && (target.isBot || isBotPlayerId(target.id)));
+  }
+  return !!(p.isBot || isBotPlayerId(p.id));
+}
+
+function PlayerNameTag({ name, premium, style, isBot }) {
+  if (!premium) return <>{name}{isBot && <BotTag />}</>;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#ffd75e', fontWeight: 700, ...style }}>
       <span style={{ width: 6, height: 6, flexShrink: 0, background: '#ffd75e', transform: 'rotate(45deg)', boxShadow: '0 0 4px #ffd75e', display: 'inline-block' }} />
       {name}
+      {isBot && <BotTag />}
     </span>
   );
 }
@@ -1872,23 +1910,87 @@ const PLAYER_SOLID_RADIUS_PX = PLAYER_SIZE * 1.1;
 const COLLISION_PAD_X = 7;
 const COLLISION_PAD_TOP = 2;
 const COLLISION_PAD_BOTTOM = 6;
+// [BUG FIX - CAN'T TOUCH WALLS] The pads above are now only the MAXIMUM
+// box (still used as-is by the server-side bots, which must look right on
+// every screen at once). The avatar is drawn at a fixed 26px on SCREEN,
+// so its size in WORLD pixels depends on the camera scale: ~25 world px on
+// a narrow phone, only ~11 on a big desktop. A fixed 30px-wide box left a
+// visible gap between the body and every wall/door edge on most screens.
+// The local player's box now follows what is actually drawn - measured
+// from the avatar art (63x90, drawn "contain" in the 26px box => ~18px
+// wide; anchored translate(-50%,-60%) => feet ~10px below the center).
+// Collision is checked only by each player's own client, so this changes
+// how close YOU can get to a wall on YOUR screen, nothing else (kill/
+// report/task ranges all use positions, not this box).
+const AVATAR_SCREEN_PX = 26;
+// [UPDATE - AVATAR TOO SMALL ON BIG SCREENS] In-game avatars used to be
+// drawn at a fixed 26px on screen while the map scaled with the window,
+// so on a laptop/desktop the map looked right but players looked tiny.
+// Avatars now scale WITH the map: AVATAR_WORLD_PX world pixels, but never
+// smaller than the old 26px - so phones (where 23 world px is already
+// ~26px) look exactly as before, and big screens get proportionally
+// bigger players, same as the tiles around them.
+const AVATAR_WORLD_PX = 23;
+function avatarScreenPx(scale) {
+  return Math.max(AVATAR_SCREEN_PX, Math.round(AVATAR_WORLD_PX * (scale > 0 ? scale : 1)));
+}
+const collisionBox = { padX: COLLISION_PAD_X, padTop: COLLISION_PAD_TOP, padBottom: COLLISION_PAD_BOTTOM };
+function setCollisionScale(scale, avatarPx = AVATAR_SCREEN_PX) {
+  if (!(scale > 0)) return;
+  const half = PLAYER_SIZE / 2;
+  const S = avatarPx / scale; // drawn avatar box size, in world px
+  const hw = Math.max(4, Math.min(half + COLLISION_PAD_X, S * 0.292));      // half body width
+  const below = Math.max(4, Math.min(half + COLLISION_PAD_BOTTOM, S * 0.369)); // center -> feet
+  const above = Math.max(2, Math.min(half + COLLISION_PAD_TOP, S * 0.192));    // head may overlap a wall above (3/4 view)
+  collisionBox.padX = hw - half;
+  collisionBox.padBottom = below - half;
+  collisionBox.padTop = above - half;
+}
 
 function canStand(px, py) {
-  // check all four corners of the (visually-padded) player box
-  const x1 = px - COLLISION_PAD_X, x2 = px + PLAYER_SIZE + COLLISION_PAD_X;
-  const y1 = py - COLLISION_PAD_TOP, y2 = py + PLAYER_SIZE + COLLISION_PAD_BOTTOM;
-  const corners = [
-    [x1, y1],
-    [x2, y1],
-    [x1, y2],
-    [x2, y2],
-  ];
-  for (const [cx, cy] of corners) {
-    const tx = Math.floor(cx / TILE);
-    const ty = Math.floor(cy / TILE);
-    if (!isWalkableTile(tx, ty)) return false;
+  // [BUG FIX - WALL CLIPPING] Check EVERY tile the (visually-padded)
+  // player box overlaps, not just its four corners. The padded box can be
+  // up to 30px wide (PLAYER_SIZE 16 + 7 + 7) but a tile is only 22px, so a
+  // 1-tile-thick wall could sit entirely BETWEEN the left and right
+  // corners and never be checked - that's what let players slide into /
+  // through walls, mostly at doors (where walls are 1 tile thick).
+  // Verified: every room, door, vent and mission station stays reachable.
+  // Keep in sync with near-saboteur-backend/bots/pathfinding.js.
+  const x1 = px - collisionBox.padX, x2 = px + PLAYER_SIZE + collisionBox.padX;
+  const y1 = py - collisionBox.padTop, y2 = py + PLAYER_SIZE + collisionBox.padBottom;
+  const tx1 = Math.floor(x1 / TILE), tx2 = Math.floor(x2 / TILE);
+  const ty1 = Math.floor(y1 / TILE), ty2 = Math.floor(y2 / TILE);
+  for (let ty = ty1; ty <= ty2; ty++) {
+    for (let tx = tx1; tx <= tx2; tx++) {
+      if (!isWalkableTile(tx, ty)) return false;
+    }
   }
   return true;
+}
+
+// [BUG FIX - WALL CLIPPING] How many square pixels of the player box
+// overlap non-walkable tiles. Only used to let a player who is ALREADY
+// partly inside a wall (e.g. reconnecting at a position the old, looser
+// check allowed) walk back out: a move is allowed if it strictly reduces
+// this overlap, so they can never get stuck, but also can't push deeper.
+function wallOverlapArea(px, py) {
+  const x1 = px - collisionBox.padX, x2 = px + PLAYER_SIZE + collisionBox.padX;
+  const y1 = py - collisionBox.padTop, y2 = py + PLAYER_SIZE + collisionBox.padBottom;
+  let area = 0;
+  for (let ty = Math.floor(y1 / TILE); ty <= Math.floor(y2 / TILE); ty++) {
+    for (let tx = Math.floor(x1 / TILE); tx <= Math.floor(x2 / TILE); tx++) {
+      if (isWalkableTile(tx, ty)) continue;
+      const ox = Math.min(x2, (tx + 1) * TILE) - Math.max(x1, tx * TILE);
+      const oy = Math.min(y2, (ty + 1) * TILE) - Math.max(y1, ty * TILE);
+      if (ox > 0 && oy > 0) area += ox * oy;
+    }
+  }
+  return area;
+}
+function canMoveTo(fromX, fromY, toX, toY) {
+  if (canStand(toX, toY)) return true;
+  const fromOverlap = wallOverlapArea(fromX, fromY);
+  return fromOverlap > 0 && wallOverlapArea(toX, toY) < fromOverlap;
 }
 
 // Detect which room (if any) the player center is in
@@ -6177,6 +6279,8 @@ function LobbyScreen({
   const [showHostPanel, setShowHostPanel] = useState(false);
   const [kickError, setKickError] = useState('');
   const [kickConfirmId, setKickConfirmId] = useState(null); // tap-again-to-confirm, per player row
+  // [AI BOTS] Debounces the + Add Bot button while the server answers.
+  const [addingBot, setAddingBot] = useState(false);
   useEffect(() => {
     if (!socket) return;
     const onKickError = (data) => setKickError(data?.message || "Couldn't remove that player.");
@@ -7281,6 +7385,13 @@ function LobbyScreen({
                   width: '100%', height: '100%', objectFit: 'contain', display: 'block',
                   filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.5))',
                 }} />
+                {/* [AI BOTS] Lobby avatars carry no name labels, so bots
+                    get just the BOT chip floating above them. */}
+                {(info?.isBot || isBotPlayerId(id)) && (
+                  <div style={{ position: 'absolute', left: '50%', bottom: '100%', transform: 'translate(-50%, -2px)' }}>
+                    <BotTag size={8} />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -7548,7 +7659,7 @@ function LobbyScreen({
                   }}>
                     {p.isHost ? '👑' : '•'}
                     <img src={avatarImgForPlayer(p)} alt="" style={{ width: 12, height: 12, objectFit: 'contain', flexShrink: 0 }} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}><PlayerNameTag name={displayPlayerName(p.name, p.avatarId)} premium={p.hasPlayPass} /></span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}><PlayerNameTag name={displayPlayerName(p.name, p.avatarId)} premium={p.hasPlayPass} isBot={!!p.isBot} /></span>
                     {p.hasLegionBadge && <LegionBadge size={11} />}
                     {/* [BUG FIX - DISCONNECTED PLAYER LOOKED FULLY
                         ACTIVE] Same reasoning as the voting screen fix -
@@ -7800,19 +7911,39 @@ function LobbyScreen({
                 again to actually remove - a lightweight safeguard
                 against a misclick, without a whole extra popup. */}
             <div>
-              <span style={{ fontSize: 10, color: '#9aa0ad', fontWeight: 700, letterSpacing: 0.3 }}>PLAYERS</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: 10, color: '#9aa0ad', fontWeight: 700, letterSpacing: 0.3 }}>PLAYERS</span>
+                <span style={{ fontSize: 10, color: '#6effc0', fontWeight: 800 }}>{(roomInfo?.players || []).length} / {MAX_PLAYERS}</span>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6, maxHeight: '24vh', overflowY: 'auto' }}>
                 {(roomInfo?.players || []).map(p => (
                   <div key={p.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '6px 8px',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    background: p.isBot ? 'rgba(143,227,255,0.045)' : 'rgba(255,255,255,0.04)',
+                    border: p.isBot ? '1px solid rgba(143,227,255,0.16)' : '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 8, padding: '6px 8px',
                   }}>
                     <img src={avatarImgForPlayer(p)} alt="" style={{ width: 18, height: 18, objectFit: 'contain', flexShrink: 0 }} />
                     <span style={{ fontSize: 11.5, color: '#cfd3da', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {p.isHost ? '👑 ' : ''}<PlayerNameTag name={displayPlayerName(p.name, p.avatarId)} premium={p.hasPlayPass} />
+                      {p.isHost ? '👑 ' : ''}<PlayerNameTag name={displayPlayerName(p.name, p.avatarId)} premium={p.hasPlayPass} isBot={!!p.isBot} />
                       {p.hasLegionBadge && <LegionBadge size={11} />}
                     </span>
-                    {!p.isHost && (
+                    {/* [AI BOTS] Bots are removed instantly - no "Confirm?" step,
+                        nothing is lost by removing one. */}
+                    {!p.isHost && p.isBot && (
+                      <button
+                        onClick={() => {
+                          setKickError('');
+                          socket?.emit('removeBot', { botId: p.id }, (res) => { if (res && !res.ok) setKickError(res.error || 'Could not remove bot.'); });
+                        }}
+                        title="Remove bot"
+                        style={{
+                          width: 24, height: 24, borderRadius: 6, border: '1px solid rgba(255,92,92,0.4)',
+                          background: 'rgba(255,92,92,0.12)', color: '#ff8a8a', fontSize: 12, fontWeight: 800, flexShrink: 0,
+                        }}
+                      >✕</button>
+                    )}
+                    {!p.isHost && !p.isBot && (
                       kickConfirmId === p.id ? (
                         <button
                           onClick={() => { socket?.emit('kickPlayer', { targetId: p.id }); setKickConfirmId(null); }}
@@ -7835,6 +7966,41 @@ function LobbyScreen({
                   </div>
                 ))}
               </div>
+              {/* [AI BOTS - NEAR HACKATHON] Free Play only - Pool/Paid rooms
+                  never show this (the server refuses it there too). */}
+              {!roomInfo?.pool && (() => {
+                const full = (roomInfo?.players || []).length >= MAX_PLAYERS;
+                const disabled = full || addingBot;
+                return (
+                  <>
+                    <button
+                      disabled={disabled}
+                      onClick={() => {
+                        if (disabled || !socket) return;
+                        setKickError('');
+                        setAddingBot(true);
+                        let settled = false;
+                        const done = () => { if (!settled) { settled = true; setAddingBot(false); } };
+                        setTimeout(done, 4000); // never leave the button stuck if no ack arrives
+                        socket.emit('addBot', {}, (res) => {
+                          done();
+                          if (res && !res.ok) setKickError(res.error || 'Could not add a bot.');
+                        });
+                      }}
+                      style={{
+                        marginTop: 8, width: '100%', padding: '10px 0', borderRadius: 9,
+                        border: full ? '1.5px dashed rgba(255,255,255,0.12)' : '1.5px dashed rgba(143,227,255,0.55)',
+                        background: full ? 'rgba(255,255,255,0.03)' : 'rgba(143,227,255,0.06)',
+                        color: full ? '#5a655f' : '#8fe3ff', fontSize: 12, fontWeight: 900, letterSpacing: 0.4,
+                        opacity: addingBot ? 0.6 : 1, cursor: disabled ? 'default' : 'pointer',
+                      }}
+                    >{full ? `ROOM FULL (${MAX_PLAYERS}/${MAX_PLAYERS})` : '+ ADD BOT'}</button>
+                    <p style={{ fontSize: 10, color: '#5a655f', lineHeight: 1.45, margin: '7px 0 0' }}>
+                      Bots play as crew for now. Free Play only, and they never earn points.
+                    </p>
+                  </>
+                );
+              })()}
               {kickError && <p style={{ fontSize: 10.5, color: '#ff8a8a', margin: '8px 0 0' }}>{kickError}</p>}
             </div>
           </div>
@@ -8090,7 +8256,7 @@ function LobbyScreen({
                       display: 'flex', alignItems: 'center', gap: 3,
                       justifyContent: m.isSelf ? 'flex-end' : 'flex-start',
                     }}>
-                      <PlayerNameTag name={m.authorName} premium={m.authorHasPlayPass} />
+                      <PlayerNameTag name={m.authorName} premium={m.authorHasPlayPass} isBot={isBotPlayerId(m._sender)} />
                       {m.authorHasLegionBadge && <LegionBadge size={9} />}
                     </p>
                     <SwipeToReply onReply={() => setLobbyReplyingTo({ senderName: m.authorName, text: m.text })}>
@@ -11115,6 +11281,8 @@ function MovementDemo() {
           avatarVariantId: p.avatarVariantId || null,
           // [NEW FEATURE - NEAR LEGION BADGE]
           hasLegionBadge: !!p.hasLegionBadge,
+          // [AI BOTS] drives the BOT tag
+          isBot: !!p.isBot,
           // [RENDER FIX] Seed x/y/alive from the server's player-list
           // too (not just from playerMoved broadcasts) — this is what
           // lets a newly-joined player immediately see everyone who's
@@ -12636,7 +12804,7 @@ function MovementDemo() {
         // style - separate from (and shown before) the regular results/
         // vote-breakdown screen.
         setEliminationRoleReveal({
-          name: data.eliminatedName, role: data.eliminatedRole, avatarId: data.eliminatedAvatarId, avatarVariantId: data.eliminatedAvatarVariantId || null, hasPlayPass: !!data.eliminatedHasPlayPass,
+          id: data.eliminatedId, name: data.eliminatedName, role: data.eliminatedRole, avatarId: data.eliminatedAvatarId, avatarVariantId: data.eliminatedAvatarVariantId || null, hasPlayPass: !!data.eliminatedHasPlayPass,
         });
         // [BUG FIX] If this elimination also ends the game (e.g. the
         // last Saboteur just got voted out), gameOver needs to know to
@@ -15546,8 +15714,8 @@ function MovementDemo() {
           nx = Math.max(0, Math.min(cur.x + sx, MAP_W_PX - PLAYER_SIZE));
           ny = Math.max(0, Math.min(cur.y + sy, MAP_H_PX - PLAYER_SIZE));
         } else {
-          if (canStand(cur.x + sx, cur.y) && !blockedByOtherPlayer(cur.x + sx, cur.y)) nx = cur.x + sx;
-          if (canStand(nx, cur.y + sy) && !blockedByOtherPlayer(nx, cur.y + sy)) ny = cur.y + sy;
+          if (canMoveTo(cur.x, cur.y, cur.x + sx, cur.y) && !blockedByOtherPlayer(cur.x + sx, cur.y)) nx = cur.x + sx;
+          if (canMoveTo(nx, cur.y, nx, cur.y + sy) && !blockedByOtherPlayer(nx, cur.y + sy)) ny = cur.y + sy;
 
           // [COLLISION-STUCK FIX] If we're ALREADY overlapping another
           // player this frame (can happen from two players approaching
@@ -15575,8 +15743,8 @@ function MovementDemo() {
           }
           if (pushX !== 0 || pushY !== 0) {
             const pushedX = nx + pushX, pushedY = ny + pushY;
-            if (canStand(pushedX, ny)) nx = pushedX;
-            if (canStand(nx, pushedY)) ny = pushedY;
+            if (canMoveTo(nx, ny, pushedX, ny)) nx = pushedX;
+            if (canMoveTo(nx, ny, nx, pushedY)) ny = pushedY;
           }
         }
         const next = { x: nx, y: ny };
@@ -15772,6 +15940,11 @@ function MovementDemo() {
   // component's own render body rather than only being declared here.
   const worldViewPx = VIEW_TILES * TILE;
   const scale = Math.min(viewport.w, viewport.h) / worldViewPx;
+  // [UPDATE - AVATAR TOO SMALL ON BIG SCREENS] avatarPx = on-screen avatar
+  // size; avatarK scales everything drawn around it (name tag, body).
+  const avatarPx = avatarScreenPx(scale);
+  const avatarK = avatarPx / AVATAR_SCREEN_PX;
+  setCollisionScale(scale, avatarPx); // [BUG FIX - CAN'T TOUCH WALLS] keep the hitbox matched to the drawn avatar
   const mapPxW = GRID_W * TILE, mapPxH = GRID_H * TILE;
   const camX = Math.max(0, Math.min(mapPxW - worldViewPx, pos.x + PLAYER_SIZE / 2 - worldViewPx / 2));
   const camY = Math.max(0, Math.min(mapPxH - worldViewPx, pos.y + PLAYER_SIZE / 2 - worldViewPx / 2));
@@ -21509,7 +21682,7 @@ function MovementDemo() {
         // the point of cutting the power. Below the fog, anyone outside
         // the visible radius is now actually hidden by it, the way it
         // should be.
-        width: 26, height: 26, zIndex: 7, pointerEvents: 'none',
+        width: avatarPx, height: avatarPx, zIndex: 7, pointerEvents: 'none',
         // [BUG FIX - NAME TAG LANDED ON THE FACE] This translate(-50%,
         // -60%) used to live on the INNER avatar-only div below, which
         // meant our own name tag (a sibling of that inner div, deliberately
@@ -21563,8 +21736,8 @@ function MovementDemo() {
             Pass status (displayedHasPlayPass), a genuine impersonation
             just like the avatar skin itself. */}
         <div style={{
-          position: 'absolute', left: '50%', top: -12, transform: 'translateX(-50%)',
-          whiteSpace: 'nowrap', fontSize: 8.5, fontWeight: 700, color: '#fff',
+          position: 'absolute', left: '50%', top: -12 * Math.min(avatarK, 1.6), transform: 'translateX(-50%)',
+          whiteSpace: 'nowrap', fontSize: 8.5 * Math.min(avatarK, 1.6), fontWeight: 700, color: '#fff',
           textShadow: '0 1px 2px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.6)',
           opacity: myAlive ? 1 : 0.6,
         }}>
@@ -21573,6 +21746,7 @@ function MovementDemo() {
               ? (roomInfo?.players?.find((rp) => rp.avatarId === disguiseActive.avatarId)?.name || getAvatar(disguiseActive.avatarId).name)
               : displayPlayerName(playerName, playerAvatarId)}
             premium={displayedHasPlayPass}
+            isBot={!!disguiseActive && displayedIsBot({ disguiseAvatarId: disguiseActive.avatarId }, roomInfo?.players)}
           />
         </div>
       </div>
@@ -21632,7 +21806,7 @@ function MovementDemo() {
             // above. This is what actually makes the fog-of-war hide
             // distant players during a power sabotage, instead of them
             // staying fully visible right through the darkness.
-            width: 26, height: 26, zIndex: 7, pointerEvents: 'none',
+            width: avatarPx, height: avatarPx, zIndex: 7, pointerEvents: 'none',
             transform: 'translate(-50%, -60%)',
             opacity: p.ventAnimPhase ? 0 : (isGhost ? 0.4 : 1),
             transition: p.ventAnimPhase ? 'opacity 0.35s ease, transform 0.35s ease' : 'none',
@@ -21692,8 +21866,8 @@ function MovementDemo() {
               const displayedHasPlayPassForTag = p.disguiseAvatarId ? !!p.disguiseHasPlayPass : !!p.hasPlayPass;
               return (
                 <div style={{
-                  position: 'absolute', left: '50%', top: -12, transform: 'translateX(-50%)',
-                  whiteSpace: 'nowrap', fontSize: 8.5, fontWeight: 700,
+                  position: 'absolute', left: '50%', top: -12 * Math.min(avatarK, 1.6), transform: 'translateX(-50%)',
+                  whiteSpace: 'nowrap', fontSize: 8.5 * Math.min(avatarK, 1.6), fontWeight: 700,
                   color: isFellowSaboteur ? '#ff5c5c' : '#fff',
                   textShadow: '0 1px 2px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.6)',
                   opacity: isGhost ? 0.6 : 1,
@@ -21701,6 +21875,7 @@ function MovementDemo() {
                   <PlayerNameTag
                     name={displayedName}
                     premium={displayedHasPlayPassForTag}
+                    isBot={displayedIsBot(p, roomInfo?.players)}
                     style={isFellowSaboteur ? { color: '#ff5c5c' } : undefined}
                   />
                 </div>
@@ -21724,7 +21899,7 @@ function MovementDemo() {
           top: worldToScreenY(b.y),
           zIndex: 4, pointerEvents: 'none', transform: 'translate(-50%, -50%)',
         }}>
-          <svg width="64" height="46" viewBox="0 0 140 100" style={{
+          <svg width={64 * avatarK} height={46 * avatarK} viewBox="0 0 140 100" style={{
             position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', zIndex: 0,
           }}>
             <path d="M70 12 C86 8 102 18 108 32 C116 42 114 58 100 66 C92 76 76 80 60 78 C44 80 28 74 20 60 C12 50 16 34 28 24 C38 12 54 14 70 12 Z"
@@ -21742,7 +21917,7 @@ function MovementDemo() {
             <circle cx="120" cy="48" r="1.5" fill="#6e0d0d" />
           </svg>
           <img src={resolveAvatarImg(b.avatarId, true, b.avatarVariantId)} alt="" style={{
-            position: 'relative', width: 24, height: 24, objectFit: 'contain', display: 'block',
+            position: 'relative', width: 24 * avatarK, height: 24 * avatarK, objectFit: 'contain', display: 'block',
             transform: 'rotate(90deg)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))', zIndex: 1,
           }} />
         </div>
@@ -23025,7 +23200,7 @@ function MovementDemo() {
                   >
                     <img src={resolveAvatarImg(p.avatarId, true, p.avatarVariantId || null)} alt="" style={{ width: 28, height: 'auto', display: 'block' }} />
                     <span style={{ fontSize: 8, color: '#9aa0ad', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
-                      <PlayerNameTag name={displayPlayerName(p.name, p.avatarId)} premium={p.hasPlayPass} style={{ fontSize: 8 }} />
+                      <PlayerNameTag name={displayPlayerName(p.name, p.avatarId)} premium={p.hasPlayPass} isBot={!!p.isBot} style={{ fontSize: 8 }} />
                     </span>
                   </button>
                 ))}
@@ -23074,12 +23249,12 @@ function MovementDemo() {
                 style={{ width: 76, height: 'auto', filter: 'drop-shadow(0 4px 14px rgba(255,80,80,0.5))', marginBottom: 10 }}
               />
               <h2 style={{ fontSize: 16, fontWeight: 800, color: '#ff5c5c', margin: '0 0 6px', letterSpacing: 0.5, textAlign: 'center' }}>
-                <PlayerNameTag name={displayPlayerName(meeting.reportedBody.name, meeting.reportedBody.avatarId)} premium={meeting.reportedBody.hasPlayPass} /> was found dead
+                <PlayerNameTag name={displayPlayerName(meeting.reportedBody.name, meeting.reportedBody.avatarId)} premium={meeting.reportedBody.hasPlayPass} isBot={isBotPlayerId(meeting.reportedBody.id)} /> was found dead
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <img src={resolveAvatarImg(meeting.callerAvatarId, true, meeting.callerAvatarVariantId)} alt="" style={{ width: 20, height: 'auto' }} />
                 <p style={{ fontSize: 12, color: '#ffb4b4', margin: 0, fontWeight: 600 }}>
-                  Reported by <span style={{ fontWeight: 800, color: '#fff' }}><PlayerNameTag name={displayPlayerName(meeting.callerName, meeting.callerAvatarId)} premium={meeting.callerHasPlayPass} /></span>
+                  Reported by <span style={{ fontWeight: 800, color: '#fff' }}><PlayerNameTag name={displayPlayerName(meeting.callerName, meeting.callerAvatarId)} premium={meeting.callerHasPlayPass} isBot={isBotPlayerId(meeting.calledByPlayerId)} /></span>
                 </p>
               </div>
             </>
@@ -23158,6 +23333,7 @@ function MovementDemo() {
                 avatarVariantId: p.disguiseAvatarId ? (p.disguiseAvatarVariantId || null) : (p.avatarVariantId || null),
                 isDead: p.alive === false,
                 hasLegionBadge: !!p.hasLegionBadge,
+                isBot: displayedIsBot(p, roomInfo?.players), // [AI BOTS] disguise-aware
                 // [NEW FEATURE - PLAY PASS] Name tag must reflect the
                 // DISGUISED identity's Play Pass status while disguised
                 // (genuine impersonation, same principle as the avatar
@@ -23203,7 +23379,7 @@ function MovementDemo() {
                       <span style={{
                         fontSize: 8, fontWeight: 700, color: card.isDead ? '#8a9490' : '#e8eaf0',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%',
-                      }}><PlayerNameTag name={card.name} premium={card.hasPlayPass} /></span>
+                      }}><PlayerNameTag name={card.name} premium={card.hasPlayPass} isBot={!!card.isBot} /></span>
                     </div>
                   );
                 })}
@@ -23288,7 +23464,7 @@ function MovementDemo() {
                     textAlign: msg.isSelf ? 'right' : 'left',
                     display: 'flex', alignItems: 'center', gap: 3, justifyContent: msg.isSelf ? 'flex-end' : 'flex-start',
                   }}>
-                    <PlayerNameTag name={msg.authorName} premium={msg.authorHasPlayPass} />
+                    <PlayerNameTag name={msg.authorName} premium={msg.authorHasPlayPass} isBot={isBotPlayerId(msg._sender)} />
                     {msg.authorHasLegionBadge && <LegionBadge size={9} />}
                   </div>
                   {/* [NEW FEATURE] Swipe any message right to reply to it -
@@ -23566,6 +23742,7 @@ function MovementDemo() {
                   // anyone else actively playing.
                   isDisconnected: !!p.disconnected,
                   hasLegionBadge: !!p.hasLegionBadge,
+                  isBot: displayedIsBot(p, roomInfo?.players), // [AI BOTS] disguise-aware
                   // [NEW FEATURE - PLAY PASS] Same disguise-aware
                   // Play Pass status as the meeting-chat badge cards.
                   hasPlayPass: p.disguiseAvatarId ? !!p.disguiseHasPlayPass : !!p.hasPlayPass,
@@ -23617,7 +23794,7 @@ function MovementDemo() {
                       </div>
                       <span style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', textAlign: 'left', flex: 1, overflow: 'hidden' }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <PlayerNameTag name={card.name} premium={card.hasPlayPass} />{card.isMe ? ' (you)' : ''}
+                          <PlayerNameTag name={card.name} premium={card.hasPlayPass} isBot={!!card.isBot} />{card.isMe ? ' (you)' : ''}
                           {card.hasLegionBadge && <LegionBadge size={11} />}
                         </span>
                         {/* [BUG FIX - DISCONNECTED PLAYER LOOKED FULLY
@@ -23794,7 +23971,7 @@ function MovementDemo() {
             }} />
           )}
           <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#cfd2da', letterSpacing: 0.4, textAlign: 'center' }}>
-            <PlayerNameTag name={displayPlayerName(eliminationRoleReveal.name, eliminationRoleReveal.avatarId)} premium={eliminationRoleReveal.hasPlayPass} /> was
+            <PlayerNameTag name={displayPlayerName(eliminationRoleReveal.name, eliminationRoleReveal.avatarId)} premium={eliminationRoleReveal.hasPlayPass} isBot={isBotPlayerId(eliminationRoleReveal.id)} /> was
           </p>
           <p style={{
             margin: 0, fontSize: 30, fontWeight: 900, letterSpacing: 1.4, textTransform: 'uppercase',
@@ -23818,7 +23995,7 @@ function MovementDemo() {
             <>
               <div style={{ fontSize: 40, marginBottom: 10 }}>⚖️</div>
               <h2 style={{ fontSize: 17, fontWeight: 800, color: '#ff5c5c', margin: '0 0 6px', textAlign: 'center' }}>
-                <PlayerNameTag name={displayPlayerName(meeting.result.eliminatedName, meeting.result.eliminatedAvatarId)} premium={meeting.result.eliminatedHasPlayPass} /> was eliminated
+                <PlayerNameTag name={displayPlayerName(meeting.result.eliminatedName, meeting.result.eliminatedAvatarId)} premium={meeting.result.eliminatedHasPlayPass} isBot={isBotPlayerId(meeting.result.eliminatedId)} /> was eliminated
               </h2>
               <p style={{ fontSize: 11.5, color: '#9aa0ad', margin: '0 0 16px', textAlign: 'center' }}>
                 The group has voted them out.
@@ -24678,7 +24855,7 @@ function MovementDemo() {
                     textAlign: msg.isSelf ? 'right' : 'left',
                     display: 'flex', alignItems: 'center', gap: 3, justifyContent: msg.isSelf ? 'flex-end' : 'flex-start',
                   }}>
-                    <PlayerNameTag name={msg.authorName} premium={msg.authorHasPlayPass} />
+                    <PlayerNameTag name={msg.authorName} premium={msg.authorHasPlayPass} isBot={isBotPlayerId(msg._sender)} />
                     {msg.authorHasLegionBadge && <LegionBadge size={9} />}
                   </div>
                   <SwipeToReply onReply={() => setGhostReplyingTo({ senderName: msg.authorName, text: msg.text })}>
