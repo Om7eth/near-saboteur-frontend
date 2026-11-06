@@ -22421,7 +22421,20 @@ function MovementDemo() {
                 flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)',
                 background: 'transparent', color: '#cfd2da', fontWeight: 600, fontSize: 13,
               }}>Cancel</button>
-              <button onClick={resetGame} style={{
+              <button onClick={async () => {
+                // [BUG FIX - EXIT DIDN'T LEAVE] This used to only reset the
+                // local screen - the server still had us seated in the
+                // match, so a refresh (or the auto-rejoin) put us straight
+                // back in, despite the "you won't be able to rejoin" text.
+                // Now it really leaves (same steps as "Yes, Leave" on the
+                // disconnect screen): tell the server, forget the saved
+                // session, reset, go home. This is the deliberate in-
+                // settings leave the auto-rejoin rule allows.
+                await emitLeaveRoomAndWait(socketRef.current);
+                clearSavedRoomSession();
+                resetGame();
+                setScreen('home');
+              }} style={{
                 flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
                 background: '#ff5555', color: '#fff', fontWeight: 700, fontSize: 13,
               }}>Exit</button>
