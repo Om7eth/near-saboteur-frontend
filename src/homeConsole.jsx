@@ -163,6 +163,9 @@ const CSS = `
 .hc-vault .lab svg{width:15px;height:15px}
 .hc-vault .amt{display:block;font:700 40px var(--disp);margin:6px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hc-vault .amt small{font-size:16px;color:var(--m)}
 .hc-vault .sub{font:11.5px var(--mono);color:var(--dim)}
+.hc-testnet{display:flex;gap:9px;align-items:flex-start;margin-top:12px;padding:9px 11px;border:1px solid rgba(255,207,110,.4);background:rgba(255,207,110,.08)}
+.hc-testnet b{flex-shrink:0;font:700 10px var(--mono);letter-spacing:.14em;color:#1c1203;background:#ffcf6e;padding:2px 6px}
+.hc-testnet span{font:11.5px var(--mono);color:#e9d7a8;line-height:1.45}
 .hc-addr{display:flex;align-items:center;gap:8px;margin-top:12px;padding:8px 10px;background:rgba(0,0,0,.32);border:1px solid var(--line);font:12px var(--mono);color:#c7d0cb;min-width:0}
 .hc-addr span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hc-acts{display:flex;gap:8px;margin-top:16px}.hc-acts .hc-act{flex:1;padding:11px 6px !important}
@@ -630,8 +633,11 @@ export function WalletScreen({ mobile, onClose, w }) {
       </div>
       {w.loading && w.balance === null ? <span className="amt" style={{ fontSize: 16, color: '#7fd9b8' }}>Loading…</span>
         : w.error ? <button type="button" className="amt" onClick={w.onRefresh} style={{ fontSize: 14, color: '#ff8a8a', textAlign: 'left' }}>Couldn't load balance — tap to retry</button>
-        : <span className="amt">{w.hidden ? '••••••' : w.totalText} <small>NEAR</small></span>}
+        : <span className="amt">{w.hidden ? '••••••' : w.totalText} <small>{w.network !== 'mainnet' ? 'TEST NEAR' : 'NEAR'}</small></span>}
       <span className="sub">{w.subline}</span>
+      {w.network !== 'mainnet' && (
+        <div className="hc-testnet"><b>TESTNET</b><span>Test NEAR for playing — it has no real money value and can't be sold.</span></div>
+      )}
       <div className="hc-addr"><span>{w.address || 'No wallet set up yet.'}</span>{w.address && w.copyButton}</div>
       <div className="hc-acts">
         <button type="button" className="hc-act" disabled={!w.hasWallet} onClick={w.onSend}><Ico d={P.send} c="#04130c" w={2} />SEND</button>

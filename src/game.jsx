@@ -16,6 +16,7 @@ import { setupIntearWallet } from '@near-wallet-selector/intear-wallet';
 import { KeyPair, actions, nearToYocto, yoctoToNear, teraToGas, viewFunction, viewAccount, signAndSendTransaction } from './nearLite';
 import { generateSeedPhrase, parseSeedPhrase } from 'near-seed-phrase';
 import { createBgm } from './bgm';
+import { HudIcon, HudButton, MissionFloat, MISSION_ICON, HUD_CSS } from './hudKit';
 import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen } from './homeConsole';
 
 // [BGM] one shared music + UI-click engine for the whole app (all synthesised, no audio files)
@@ -441,25 +442,30 @@ function roomDisplayName(roomId) {
 // not a personal task) with their mission label. Used to build each player's
 // randomly-assigned task list at game start, Among-Us style.
 const MISSION_DEFS = [
-  { room: 'medbay', label: '🔐 Verify Wallet' },
-  { room: 'reactor', label: '🔒 Confidential Swap' },
-  { room: 'upper_eng', label: '📈 Stake NEAR' },
-  { room: 'lower_eng', label: '🎁 Claim Rewards' },
-  { room: 'electrical', label: '⚡ Repair Power Grid' },
-  { room: 'storage', label: '🤖 Ask NEAR AI 4 Questions' },
-  { room: 'comms', label: '🛒 Buy Merch' },
-  { room: 'o2', label: '🚀 Deploy AI Agent' },
-  { room: 'admin', label: '🏛️ NEAR Legion' },
-  { room: 'shields', label: '🔁 Cross-Chain Swap' },
-  { room: 'weapons', label: '🪙 Buy Meme Coin' },
-  { room: 'navigation', label: '🛡️ Stop Hacker Attack' },
+  { room: 'medbay', label: 'Verify Wallet' },
+  { room: 'reactor', label: 'Confidential Swap' },
+  { room: 'upper_eng', label: 'Stake NEAR' },
+  { room: 'lower_eng', label: 'Claim Rewards' },
+  { room: 'electrical', label: 'Repair Power Grid' },
+  { room: 'storage', label: 'Ask NEAR AI 4 Questions' },
+  { room: 'comms', label: 'Buy Merch' },
+  { room: 'o2', label: 'Deploy AI Agent' },
+  { room: 'admin', label: 'NEAR Legion' },
+  { room: 'shields', label: 'Cross-Chain Swap' },
+  { room: 'weapons', label: 'Buy Meme Coin' },
+  { room: 'navigation', label: 'Stop Hacker Attack' },
   // Not tied to any room — completes/un-completes live based on the
   // player's current NEAR balance (everyone starts with exactly 100 NEAR,
   // so reaching 200 means they've net-earned 100 from missions/trading).
   // Re-checked continuously: if the balance ever drops back below 200
   // (e.g. spent on a swap/stake fee), the mission un-completes too.
-  { room: 'wallet_balance', label: '💰 Hold 200 NEAR in Wallet' },
+  { room: 'wallet_balance', label: 'Hold 200 NEAR in Wallet' },
 ];
+// [HUD] Title shown on the floating mission window.
+const MISSION_TITLE_EXTRA = { security: 'Security Hub', reactor: 'Confidential Mode', cafeteria: 'Call Assembly' };
+function missionTitleFor(room) {
+  return (MISSION_TITLE_EXTRA[room] || (MISSION_DEFS.find((m) => m.room === room) || {}).label || 'Mission').toUpperCase();
+}
 const NEAR_REWARD_PER_MISSION = 10;
 // [NEW FEATURE - POINTS CHECKLIST] Display-only mirror of the backend's
 // POINTS config (index.js) - only used to LABEL what each action is
@@ -1542,7 +1548,7 @@ function pickRandomMissions(count, excludeRooms = []) {
       const { targetNear, holdMinutes } = randomMemeMissionTarget();
       return {
         ...m, done: false, memeTargetNear: targetNear, memeHoldMinutes: holdMinutes,
-        label: `🪙 Buy ${targetNear} NEAR of meme coin & hold ${holdMinutes} min`,
+        label: `Buy ${targetNear} NEAR of meme coin & hold ${holdMinutes} min`,
       };
     }
     return { ...m, done: false };
@@ -15234,6 +15240,15 @@ function MovementDemo() {
   const [showWallet, setShowWallet] = useState(false); // [LOCAL-UI]
   const [showMissionTracker, setShowMissionTracker] = useState(false); // [LOCAL-UI]
   const [showSaboteurPanel, setShowSaboteurPanel] = useState(false); // [LOCAL-UI]
+  // [HUD HINTS] First match as crewmate / saboteur: the Missions / Sabotage
+  // button glows with a "tap" tip until the player opens it once.
+  const [hudSeen, setHudSeen] = useState(() => { try { return JSON.parse(localStorage.getItem('ns_hud_seen') || '{}'); } catch (e) { return {}; } });
+  const markHudSeen = (k) => setHudSeen((h) => {
+    if (h[k]) return h;
+    const n = { ...h, [k]: true };
+    try { localStorage.setItem('ns_hud_seen', JSON.stringify(n)); } catch (e) { /* private mode */ }
+    return n;
+  });
   // [NEW FEATURE - DESKTOP CONTROLS]
   const isDesktopPointer = useDesktopInput(); // [UPDATE - DESKTOP + MOBILE CONTROLS] follows the input actually in use
   const [showControlsGuide, setShowControlsGuide] = useState(false);
@@ -15305,7 +15320,7 @@ function MovementDemo() {
   // [BGM] soft "pop" on button taps outside the match (and in meetings);
   // the big PLAY buttons get a confirm chime, close/back buttons a lower pop.
   const bgmClickRef = useRef({ on: soundOn, quiet: false });
-  bgmClickRef.current = { on: soundOn, quiet: screen === 'game' && !inMeeting && !gameResult };
+  bgmClickRef.current = { on: soundOn, quiet: false }; // [HUD] buttons + missions click in-match too
   useEffect(() => {
     const onClick = (e) => {
       const st = bgmClickRef.current;
@@ -16796,6 +16811,7 @@ function MovementDemo() {
   // hasn't already been completed (so re-opening a finished mission, or
   // finishing a room that was never assigned, doesn't pay out twice/wrongly).
   const completeMission = useCallback((roomId) => {
+    if (bgmClickRef.current?.on) BGM.click('success'); // [HUD] mission-done chime
     setMyMissions(prev => {
       const idx = prev.findIndex(m => m.room === roomId && !m.done);
       if (idx === -1) return prev;
@@ -17661,6 +17677,9 @@ function MovementDemo() {
   // each HUD block, so their corner offsets scale too) - exactly 1 on
   // phones (short side <= 520px), up to 1.9x on big screens.
   const hudK = Math.max(1, Math.min(1.9, Math.min(viewport.w, viewport.h) / 520));
+  // [HUD] Missions were drawn for phones (~360px wide); on a big screen
+  // the floating window is scaled up so it's actually readable.
+  const missionZoom = viewport.w >= 900 && viewport.h >= 560 ? Math.max(1, Math.min(1.55, viewport.h / 620, viewport.w / 720)) : 1;
   setCollisionScale(scale, avatarPx); // [BUG FIX - CAN'T TOUCH WALLS] keep the hitbox matched to the drawn avatar
   const mapPxW = GRID_W * TILE, mapPxH = GRID_H * TILE;
   const camX = Math.max(0, Math.min(mapPxW - worldViewPx, pos.x + PLAYER_SIZE / 2 - worldViewPx / 2));
@@ -20197,7 +20216,7 @@ function MovementDemo() {
               <>
                 <HomeConsole {...consoleShell('wallet')}>
                   <WalletScreen mobile={consoleMobile} onClose={closeConsole} w={{
-                    hasWallet, address: loggedInPlayer?.walletAddress || '', copyButton: hasWallet ? <CopyButton text={loggedInPlayer.walletAddress} /> : null,
+                    hasWallet, network: POOL_NEAR_NETWORK, address: loggedInPlayer?.walletAddress || '', copyButton: hasWallet ? <CopyButton text={loggedInPlayer.walletAddress} /> : null,
                     balance: walletBalance, totalText: portfolioTotalText, subline: portfolioSubline,
                     loading: walletBalanceLoading, error: walletBalanceError, hidden: walletBalanceHidden,
                     onToggleHidden: () => setWalletBalanceHidden((v) => !v), onRefresh: handleRefreshWalletBalance,
@@ -22615,44 +22634,15 @@ function MovementDemo() {
             background: 'rgba(40,12,12,0.85)', border: '1px solid rgba(255,85,85,0.4)',
             boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
           }}>
-            <span style={{ fontSize: 12 }}>🔒</span>
+            <HudIcon name="lock" size={13} color="#ff8a8a" />
             <span style={{ fontSize: 11, fontWeight: 800, color: '#ff8a8a', letterSpacing: 0.2 }}>
               {gateLock.group === 'A' ? 'Left' : 'Right'} · {lockSecondsLeft}s
             </span>
           </div>
         )}
-        <button onClick={() => setShowMap(true)} aria-label="Map" style={{
-          position: 'relative',
-          width: 34, height: 34, borderRadius: 9, border: '1px solid rgba(110,255,192,0.22)',
-          background: 'rgba(8,8,13,0.82)', color: '#6effc0', fontSize: 15,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-        }}>
-          {isDesktopPointer && <KeyCap k="M" at={{ bottom: -7, right: -5 }} />}
-          <span style={{ position: 'relative', width: 18, height: 14, flexShrink: 0 }}>
-            <span style={{
-              position: 'absolute', inset: 0, border: '1.6px solid #6effc0', borderRadius: 2, boxSizing: 'border-box',
-            }} />
-            <span style={{
-              position: 'absolute', top: 0, left: '33%', width: 0, height: '100%',
-              borderLeft: '1.2px dashed #6effc0', opacity: 0.7,
-            }} />
-            <span style={{
-              position: 'absolute', top: 0, left: '67%', width: 0, height: '100%',
-              borderLeft: '1.2px dashed #6effc0', opacity: 0.7,
-            }} />
-            <span style={{
-              position: 'absolute', top: 3, left: '50%', width: 4.5, height: 4.5, borderRadius: '50%',
-              background: '#6effc0', transform: 'translateX(-50%)',
-            }} />
-          </span>
-        </button>
-        <MusicToggle on={musicActive} onToggle={toggleMusic} />
-        <button onClick={() => setShowSettings(true)} aria-label="Settings" style={{
-          position: 'relative',
-          width: 34, height: 34, borderRadius: 9, border: '1px solid rgba(110,255,192,0.22)',
-          background: 'rgba(8,8,13,0.82)', color: '#6effc0', fontSize: 15,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-        }}>⚙️{isDesktopPointer && <KeyCap k="Esc" at={{ bottom: -7, right: -7 }} />}</button>
+        <HudButton icon="map" size={38} ariaLabel="Map" onClick={() => setShowMap(true)} keycap={isDesktopPointer ? 'M' : null} keyAt={{ bottom: -6, right: -5 }} />
+        <MusicToggle on={musicActive} onToggle={toggleMusic} size={38} />
+        <HudButton icon="settings" size={38} ariaLabel="Settings" onClick={() => setShowSettings(true)} keycap={isDesktopPointer ? 'Esc' : null} keyAt={{ bottom: -6, right: -7 }} />
         {isDesktopPointer && (
           <button onClick={() => setShowControlsGuide(true)} aria-label="Keyboard controls" style={{
             width: 34, height: 34, borderRadius: 9, border: '1px solid rgba(110,255,192,0.35)',
@@ -22719,11 +22709,8 @@ function MovementDemo() {
             <button onClick={() => setShowExitConfirm(true)} style={{
               width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
               background: 'rgba(255,85,85,0.15)', color: '#ff7a7a', fontWeight: 600, fontSize: 13,
-            }}>🚪 Exit Game</button>
+            }}>Exit Game</button>
 
-            <p style={{
-              textAlign: 'center', fontSize: 10, color: '#454c48', margin: '14px 0 0', letterSpacing: 0.2,
-            }}>Game creator — Om7eth</p>
           </div>
         </div>
       )}
@@ -22876,7 +22863,7 @@ function MovementDemo() {
                       fontSize: 9, fontWeight: 700,
                     }}>{idx + 1}</span>
                     <span style={{ fontSize: 11, lineHeight: 1.2 }}>
-                      {label}{rm.id === 'reactor' ? (vaultUnlocked ? ' 🔓' : ' 🔒') : ''}
+                      {label}{rm.id === 'reactor' ? (vaultUnlocked ? ' · open' : ' · locked') : ''}
                       {isBonusRoom && <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 4 }}>(Bonus Points)</span>}
                     </span>
                   </div>
@@ -22889,6 +22876,7 @@ function MovementDemo() {
 
       {nearTask && !showMission && (
         <button
+          data-sfx={nearTask.room === 'cafeteria' ? 'none' : 'open'}
           onClick={() => {
             if (nearTask.room === 'cafeteria') { callMeeting('self'); return; }
             if (nearTask.room === 'reactor' && !vaultUnlocked) return;
@@ -22910,29 +22898,23 @@ function MovementDemo() {
             whiteSpace: 'nowrap', maxWidth: '88vw', textAlign: 'center',
           }}
         >
-          {isDesktopPointer && <KeyCap k="E" />}{nearTask.room === 'reactor' && !vaultUnlocked
-          ? `🔒 Vault Locked — needs ${MISSIONS_REQUIRED_FOR_VAULT} missions done (crew: ${crewProgress.minDone}/${MISSIONS_REQUIRED_FOR_VAULT})`
-          : nearTask.room === 'cafeteria' ? '🚨 Call Assembly' : nearTask.room === 'medbay' ? '🔐 Verify Wallet' : nearTask.room === 'security' ? '🛡️ Access Security Hub' : nearTask.room === 'reactor' ? '🔒 Enable Confidential Mode' : nearTask.room === 'upper_eng' ? '📈 Stake NEAR' : nearTask.room === 'lower_eng' ? '🎁 Claim Rewards' : nearTask.room === 'electrical' ? '⚡ Repair Power Grid' : nearTask.room === 'storage' ? '🤖 Ask NEAR AI 4 Questions' : nearTask.room === 'comms' ? '🛒 Buy Merch' : nearTask.room === 'o2' ? '🚀 Deploy AI Agent' : nearTask.room === 'admin' ? (roomInfo?.gameMode === 'pool' ? '🎁 Bonus Mission' : '🏛️ NEAR Legion') : nearTask.room === 'shields' ? '🔁 Cross-Chain Swap' : nearTask.room === 'weapons' ? '🪙 Buy Meme Coin' : nearTask.room === 'navigation' ? '🛡️ Stop Hacker Attack' : 'Start Mission'}</button>
+          {isDesktopPointer && <KeyCap k="E" />}<HudIcon name={nearTask.room === 'reactor' && !vaultUnlocked ? 'lock' : nearTask.room} size={15} color="currentColor" style={{ marginRight: 2 }} />{nearTask.room === 'reactor' && !vaultUnlocked
+          ? `Vault locked — needs ${MISSIONS_REQUIRED_FOR_VAULT} missions done (crew: ${crewProgress.minDone}/${MISSIONS_REQUIRED_FOR_VAULT})`
+          : ({ cafeteria: 'Call Assembly', medbay: 'Verify Wallet', security: 'Access Security Hub', reactor: 'Enable Confidential Mode', upper_eng: 'Stake NEAR', lower_eng: 'Claim Rewards', electrical: 'Repair Power Grid', storage: 'Ask NEAR AI 4 Questions', comms: 'Buy Merch', o2: 'Deploy AI Agent', admin: roomInfo?.gameMode === 'pool' ? 'Bonus Mission' : 'NEAR Legion', shields: 'Cross-Chain Swap', weapons: 'Buy Meme Coin', navigation: 'Stop Hacker Attack' }[nearTask.room] || 'Start Mission')}</button>
       )}
 
       {showMission && nearTask && nearTask.room === 'medbay' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <WalletVerificationMission
             confidentialMode={confidentialMode}
             onClose={() => setShowMission(false)}
             onComplete={() => { completeMission('medbay'); setShowMission(false); }}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'security' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <SecurityCameraMission
             onClose={() => { completeMission('security'); setShowMission(false); }}
             players={[
@@ -22982,14 +22964,11 @@ function MovementDemo() {
             // camera's view it happens to fall within.
             bodies={Object.entries(deadBodies).map(([id, b]) => ({ id, x: b.x, y: b.y, avatarId: b.avatarId, avatarVariantId: b.avatarVariantId || null }))}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'shields' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <ExchangeSwapMission
             wallet={wallet}
             stakePosition={stakePosition}
@@ -22997,27 +22976,21 @@ function MovementDemo() {
             onSwap={handleSwapComplete}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'reactor' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <ConfidentialVaultMission
             confidentialMode={confidentialMode}
             onActivate={handleActivateConfidential}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'upper_eng' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <StakeVaultMission
             wallet={wallet}
             stakePosition={stakePosition}
@@ -23026,28 +22999,22 @@ function MovementDemo() {
             onUnstake={handleUnstake}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'lower_eng' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <ClaimVaultMission
             wallet={wallet}
             stakePosition={stakePosition}
             onClaim={handleClaim}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'comms' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <MerchStoreMission
             wallet={wallet}
             onPurchase={(totalNear) => {
@@ -23056,14 +23023,11 @@ function MovementDemo() {
             }}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'electrical' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <ElectricalRepairMission
             onRepaired={() => {
               setPowerSabotaged(false);
@@ -23078,27 +23042,21 @@ function MovementDemo() {
             }}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'storage' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <NearAIChatMission
             confidentialMode={confidentialMode}
             onComplete={() => { completeMission('storage'); setLegionDone(d => d.nearAi ? d : { ...d, nearAi: true }); }}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'admin' && roomInfo?.gameMode === 'pool' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <LegionBonusMission
             bonusMission={bonusMission}
             walletAddress={loggedInPlayer?.verifiedWalletAddress || null}
@@ -23110,14 +23068,11 @@ function MovementDemo() {
             onAttempt={handleAttemptBonusMission}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'admin' && roomInfo?.gameMode !== 'pool' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <LegionHubMission
             sbtMinted={sbtMinted}
             onMinted={() => {
@@ -23130,14 +23085,11 @@ function MovementDemo() {
             onClaim={handleLegionClaim}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'navigation' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <CyberDefenseMission
             onResolved={() => {
               setHackerAttack(false);
@@ -23149,28 +23101,22 @@ function MovementDemo() {
             }}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'o2' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <IronClawMission
             wallet={wallet}
             onPlanSelected={(priceNear) => setWallet(w => ({ ...w, NEAR: w.NEAR - priceNear }))}
             onComplete={() => { completeMission('o2'); setShowMission(false); }}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room === 'weapons' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <MemeMarketMission
             wallet={wallet}
             memeWallet={memeWallet}
@@ -23179,14 +23125,11 @@ function MovementDemo() {
             onSwapBack={handleMemeSwapBack}
             onClose={() => setShowMission(false)}
           />
-        </div>
+        </MissionFloat>
       )}
 
       {showMission && nearTask && nearTask.room !== 'medbay' && nearTask.room !== 'security' && nearTask.room !== 'shields' && nearTask.room !== 'reactor' && nearTask.room !== 'upper_eng' && nearTask.room !== 'lower_eng' && nearTask.room !== 'comms' && nearTask.room !== 'electrical' && nearTask.room !== 'storage' && nearTask.room !== 'admin' && nearTask.room !== 'navigation' && nearTask.room !== 'o2' && nearTask.room !== 'weapons' && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, padding: 16,
-        }}>
+        <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <div style={{
             padding: '18px 18px 16px', background: 'linear-gradient(160deg, #11141a, #0a0a0f)',
             border: '1px solid rgba(110,255,192,0.25)', borderRadius: 16, maxWidth: 320, width: '100%',
@@ -23205,7 +23148,7 @@ function MovementDemo() {
               borderRadius: 10, padding: '9px 22px', fontSize: 13, fontWeight: 600,
             }}>Close</button>
           </div>
-        </div>
+        </MissionFloat>
       )}
 
       {/* [BUG FIX] "You are a ghost" badge removed - it was overlapping
@@ -23412,69 +23355,22 @@ function MovementDemo() {
         {/* Saboteur-only action panel — invisible to crewmates entirely.
             [MULTIPLAYER] Also hidden once dead (a ghost Saboteur can't
             sabotage anymore — see triggerSabotageAction's myAlive guard). */}
+        <style>{HUD_CSS}</style>
         {playerRole === 'saboteur' && myAlive && (
-          <button onClick={() => setShowSaboteurPanel(true)} aria-label="Saboteur actions" style={{
-            width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(255,85,85,0.45)',
-            background: 'rgba(30,8,8,0.88)', color: '#ff5c5c', fontSize: 18,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 10px rgba(255,85,85,0.25)', position: 'relative',
-          }}>
-            {isDesktopPointer && <KeyCap k="F" at={{ top: -7, left: -7 }} />}
-            <SaboteurIcon size={20} color="#ff5c5c" />
-            {sabotageCooldownSecLeft > 0 && (
-              <span style={{
-                position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8,
-                background: 'rgba(0,0,0,0.85)', color: '#ff5c5c', fontSize: 8.5, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
-                border: '1px solid rgba(255,85,85,0.5)',
-              }}>{sabotageCooldownSecLeft}</span>
-            )}
-            {disguiseActive && (
-              <span style={{
-                position: 'absolute', bottom: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8,
-                background: '#6effc0', color: '#06140d', fontSize: 8.5, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
-                border: '1px solid rgba(0,0,0,0.4)',
-              }}>{disguiseSecLeft}</span>
-            )}
-          </button>
+          <HudButton icon="sabotage" label="SABOTAGE" color="#ff5c5c" ariaLabel="Saboteur actions"
+            onClick={() => { markHudSeen('sabotage'); setShowSaboteurPanel(true); }}
+            glow={!hudSeen.sabotage && !meeting} tip="SABOTAGE TOOLS"
+            keycap={isDesktopPointer ? 'F' : null}
+            badge={sabotageCooldownSecLeft > 0 ? sabotageCooldownSecLeft : disguiseActive ? disguiseSecLeft : null}
+            badgeKind={sabotageCooldownSecLeft > 0 ? 'cd' : 'ok'} />
         )}
         {playerRole === 'crewmate' && (
-        <button onClick={() => setShowMissionTracker(true)} aria-label="Missions" style={{
-          width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(110,255,192,0.3)',
-          background: 'rgba(8,8,13,0.85)', color: '#6effc0', fontSize: 18,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.4)', position: 'relative',
-        }}>
-          📋
-          {myMissions.some(m => !m.done) && (
-            <span style={{
-              position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8,
-              background: '#ff6b6b', color: '#fff', fontSize: 9, fontWeight: 700,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
-            }}>{myMissions.filter(m => !m.done).length}</span>
-          )}
-        </button>
+          <HudButton icon="missions" label="MISSIONS" ariaLabel="Missions"
+            onClick={() => { markHudSeen('missions'); setShowMissionTracker(true); }}
+            glow={!hudSeen.missions && !meeting} tip="YOUR MISSIONS"
+            badge={myMissions.some(m => !m.done) ? myMissions.filter(m => !m.done).length : null} />
         )}
-        <button onClick={() => setShowWallet(true)} aria-label="Wallet" style={{
-          width: 44, height: 44, borderRadius: 12, border: '1px solid rgba(110,255,192,0.3)',
-          background: 'rgba(8,8,13,0.85)', color: '#6effc0', fontSize: 18,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-        }}>
-          <span style={{
-            position: 'relative', width: 22, height: 16, borderRadius: 4,
-            border: '1.6px solid #6effc0', boxSizing: 'border-box',
-          }}>
-            <span style={{
-              position: 'absolute', top: 4.5, left: 0, right: 0, height: 1.6, background: '#6effc0',
-            }} />
-            <span style={{
-              position: 'absolute', right: 2, bottom: 2, width: 5, height: 3.5, borderRadius: 1,
-              background: '#6effc0',
-            }} />
-          </span>
-        </button>
+        <HudButton icon="wallet" label="WALLET" color="#8fe3ff" ariaLabel="Wallet" onClick={() => setShowWallet(true)} />
       </div>
 
       {/* Saboteur action panel popup — 5 actions total: the original 4
@@ -23491,7 +23387,7 @@ function MovementDemo() {
           <div onClick={e => e.stopPropagation()} style={{
             padding: '16px 16px 14px', background: 'linear-gradient(160deg, #1c0808, #0a0404)',
             border: '1px solid rgba(255,85,85,0.35)', borderRadius: 16, maxWidth: 300, width: '100%',
-            boxShadow: '0 0 30px rgba(255,85,85,0.12)',
+            boxShadow: '0 0 30px rgba(255,85,85,0.12)', zoom: missionZoom,
           }}>
             <h2 style={{
               fontSize: 13, fontWeight: 800, color: '#ff5c5c', margin: '0 0 2px',
@@ -23506,21 +23402,21 @@ function MovementDemo() {
             </p>
             {postKillLockSecLeft > 0 && (
               <p style={{ fontSize: 11, color: '#ff8a3c', fontWeight: 700, margin: '0 0 4px' }}>
-                🔒 Post-kill lockdown: {postKillLockSecLeft}s (sabotage actions disabled)
+                Post-kill lockdown: {postKillLockSecLeft}s (sabotage actions disabled)
               </p>
             )}
             {sabotageCooldownSecLeft > 0 && (
               <p style={{ fontSize: 11, color: '#ff5c5c', fontWeight: 700, margin: '0 0 12px' }}>
-                ⏱ Cooldown: {sabotageCooldownSecLeft}s
+                Cooldown: {sabotageCooldownSecLeft}s
               </p>
             )}
             {sabotageCooldownSecLeft <= 0 && postKillLockSecLeft <= 0 && <div style={{ marginBottom: 12 }} />}
 
             {[
-              { key: 'power', icon: '⚡', label: 'Cut Electricity', active: powerSabotaged },
-              { key: 'hacker', icon: '🛡', label: 'Trigger Hacker Attack', active: hackerAttack },
-              { key: 'gateLeft', icon: '🔒', label: 'Lock Gates — Left', active: gateLock.group === 'A' },
-              { key: 'gateRight', icon: '🔒', label: 'Lock Gates — Right', active: gateLock.group === 'B' },
+              { key: 'power', icon: 'power', label: 'Cut Electricity', active: powerSabotaged },
+              { key: 'hacker', icon: 'shield', label: 'Trigger Hacker Attack', active: hackerAttack },
+              { key: 'gateLeft', icon: 'lock', label: 'Lock Gates — Left', active: gateLock.group === 'A' },
+              { key: 'gateRight', icon: 'lock', label: 'Lock Gates — Right', active: gateLock.group === 'B' },
             ].map(action => {
               const usesLeft = sabotageUsesLeft[action.key];
               const onCooldown = sabotageCooldownSecLeft > 0;
@@ -23540,7 +23436,7 @@ function MovementDemo() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                   }}
                 >
-                  <span>{action.icon} {action.active ? `${action.label} (active)` : action.label}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}><HudIcon name={action.icon} size={15} color="currentColor" />{action.active ? `${action.label} (active)` : action.label}</span>
                   <span style={{
                     fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 999,
                     background: 'rgba(0,0,0,0.3)', color: disabled ? '#5a5a5a' : '#ffb4b4',
@@ -23573,7 +23469,7 @@ function MovementDemo() {
                   }}
                 >
                   <span>
-                    🎭 {disguiseActive ? `Disguised — ${disguiseSecLeft}s left` : disguiseOnCooldown ? `Disguise — ${disguiseCooldownSecLeft}s` : 'Disguise (15s)'}
+                    <HudIcon name="mask" size={15} color="currentColor" style={{ verticalAlign: '-3px', marginRight: 6 }} />{disguiseActive ? `Disguised — ${disguiseSecLeft}s left` : disguiseOnCooldown ? `Disguise — ${disguiseCooldownSecLeft}s` : 'Disguise (15s)'}
                   </span>
                   <span style={{
                     fontSize: 9.5, fontWeight: 700, padding: '2px 6px', borderRadius: 999,
@@ -24321,7 +24217,7 @@ function MovementDemo() {
                   {!!bonusMission && (
                     <div style={rowStyle(bonusMissionDone)}>
                       <span style={{ display: 'flex', alignItems: 'center', fontSize: 11.5, color: '#ffd75e' }}>
-                        <span style={tickStyle(bonusMissionDone)}>✓</span>🎁 {bonusMission.label} (Bonus)
+                        <span style={tickStyle(bonusMissionDone)}>✓</span>{bonusMission.label} (Bonus)
                       </span>
                       <span style={{ fontSize: 12, fontWeight: 800, color: bonusMissionDone ? '#ffd75e' : '#9aa0ad' }}>
                         {bonusMissionDone ? `+${bonusMissionPoints}` : '?'}
@@ -24430,7 +24326,7 @@ function MovementDemo() {
           <div onClick={e => e.stopPropagation()} style={{
             padding: '18px 16px 14px', background: 'linear-gradient(160deg, #11141a, #0a0a0f)',
             border: '1px solid rgba(110,255,192,0.25)', borderRadius: 16, maxWidth: 320, width: '100%',
-            maxHeight: '78vh', display: 'flex', flexDirection: 'column',
+            maxHeight: `calc(78vh / ${missionZoom})`, display: 'flex', flexDirection: 'column', zoom: missionZoom,
             boxShadow: '0 0 30px rgba(110,255,192,0.08)',
           }}>
             {/* Progress summary — a ring showing fraction complete, plus
@@ -24491,20 +24387,20 @@ function MovementDemo() {
                       background: m.done ? 'rgba(110,255,192,0.18)' : 'rgba(255,255,255,0.06)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
                     }}>
-                      {m.done ? '✓' : (m.label || '').split(' ')[0]}
+                      <HudIcon name={m.done ? 'check' : (MISSION_ICON[m.room] || 'hand')} size={15} color={m.done ? '#6effc0' : '#cfd8d3'} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontSize: 12, fontWeight: 700, color: m.done ? '#7fd9b8' : '#e8eaf0',
                         textDecoration: m.done ? 'line-through' : 'none',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      }}>{(m.label || '').replace(/^\S+\s/, '')}</div>
+                      }}>{m.label || ''}</div>
                       <div style={{
                         fontSize: 9.5, color: m.done ? '#5f6b67' : '#6effc0', marginTop: 2,
                         fontWeight: m.done ? 400 : 600,
                         display: 'flex', alignItems: 'center', gap: 3,
                       }}>
-                        {!m.done && <span style={{ fontSize: 9 }}>📍</span>}
+                        {!m.done && <HudIcon name="pin" size={10} color="#6effc0" />}
                         {subtitle}
                       </div>
                     </div>
@@ -24579,7 +24475,7 @@ function MovementDemo() {
           <div onClick={e => e.stopPropagation()} style={{
             padding: '14px 14px 12px', background: 'linear-gradient(160deg, #11141a, #0a0a0f)',
             border: '1px solid rgba(110,255,192,0.25)', borderRadius: 16, maxWidth: 300, width: '100%',
-            maxHeight: '70vh', display: 'flex', flexDirection: 'column',
+            maxHeight: `calc(70vh / ${missionZoom})`, display: 'flex', flexDirection: 'column', zoom: missionZoom,
             boxShadow: '0 0 30px rgba(110,255,192,0.08)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, flexShrink: 0 }}>
@@ -24590,7 +24486,8 @@ function MovementDemo() {
                 <span style={{ position: 'absolute', top: 4.2, left: 0, right: 0, height: 1.6, background: '#6effc0' }} />
                 <span style={{ position: 'absolute', right: 2, bottom: 2, width: 4.5, height: 3.2, borderRadius: 1, background: '#6effc0' }} />
               </span>
-              <h2 style={{ fontSize: 13, fontWeight: 800, margin: 0, color: '#fff', letterSpacing: 0.2 }}>My Wallet</h2>
+              <h2 style={{ fontSize: 13, fontWeight: 800, margin: 0, color: '#fff', letterSpacing: 0.2 }}>Mission Wallet</h2>
+              <span style={{ marginLeft: 'auto', fontSize: 8.5, fontWeight: 800, letterSpacing: 0.8, padding: '3px 7px', borderRadius: 4, background: 'rgba(255,207,110,0.15)', color: '#ffcf6e', border: '1px solid rgba(255,207,110,0.4)' }}>PRACTICE · NOT REAL</span>
             </div>
 
             <div style={{
@@ -24598,7 +24495,7 @@ function MovementDemo() {
               background: 'linear-gradient(135deg, rgba(110,255,192,0.14), rgba(110,255,192,0.04))',
               border: '1px solid rgba(110,255,192,0.2)',
             }}>
-              <p style={{ fontSize: 9, color: '#7fd9b8', margin: '0 0 2px', letterSpacing: 0.4 }}>TOTAL BALANCE</p>
+              <p style={{ fontSize: 9, color: '#7fd9b8', margin: '0 0 2px', letterSpacing: 0.4 }}>PRACTICE BALANCE · PRETEND $</p>
               <p style={{ fontSize: 22, fontWeight: 800, color: '#6effc0', margin: 0 }}>
                 ${(SWAP_ASSETS.reduce((sum, a) => sum + (wallet[a.id] || 0) * a.usd, 0)
                   + memeHoldingsValueNear(memeWallet) * (SWAP_ASSETS.find(a => a.id === 'NEAR')?.usd || 0)
@@ -24659,6 +24556,9 @@ function MovementDemo() {
               })}
             </div>
 
+            <p style={{ fontSize: 10, color: '#9aa0ad', margin: '0 0 10px', lineHeight: 1.45, flexShrink: 0 }}>
+              Play money for missions only — these coins aren't real and can't be withdrawn. Every match starts fresh with 100 practice NEAR.
+            </p>
             <button onClick={() => setShowWallet(false)} style={{
               width: '100%', padding: '8px 0', borderRadius: 9, flexShrink: 0,
               background: 'transparent', color: '#6effc0', border: '1px solid rgba(110,255,192,0.3)',
@@ -24677,6 +24577,7 @@ function MovementDemo() {
           onClick={handleKillDummy}
           disabled={killCooldownSecLeft > 0}
           aria-label="Kill"
+          data-sfx="none"
           style={{
             position: 'absolute', bottom: 150, left: 16, zIndex: 16,
             zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
@@ -24694,7 +24595,7 @@ function MovementDemo() {
           {killCooldownSecLeft > 0 ? (
             <span style={{ fontSize: 20, fontWeight: 800, color: '#a05050' }}>{killCooldownSecLeft}</span>
           ) : (
-            <span style={{ fontSize: 26, lineHeight: 1, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>🔪</span>
+            <HudIcon name="knife" size={28} color="#fff" w={2} style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }} />
           )}
           <span style={{
             fontSize: 8.5, fontWeight: 800, letterSpacing: 0.5, marginTop: 2,
@@ -24717,6 +24618,7 @@ function MovementDemo() {
           below for their 15s post-kill lock. */}
       {canReportBody && !meeting && (
         <button
+          data-sfx="none"
           onClick={() => callMeeting('report', nearestReportableBody?.id)}
           style={{
             position: 'absolute', bottom: 200, left: '50%', transform: 'translateX(-50%)',
@@ -24728,7 +24630,7 @@ function MovementDemo() {
             boxShadow: '0 2px 16px rgba(255,40,40,0.3)', whiteSpace: 'nowrap',
             animation: 'reportPulse 1s ease-in-out infinite',
           }}
-        >{isDesktopPointer && <KeyCap k="R" />}🚩 Report Body</button>
+        >{isDesktopPointer && <KeyCap k="R" />}<HudIcon name="report" size={15} color="currentColor" /> Report Body</button>
       )}
       {/* [NEW FEATURE - SABOTEUR CAN NOW REPORT BODIES] A Saboteur who's
           standing near a body but still within their 15s post-kill lock
@@ -24747,7 +24649,7 @@ function MovementDemo() {
             padding: '9px 18px', fontSize: 13, fontWeight: 800, letterSpacing: 0.2,
             whiteSpace: 'nowrap',
           }}
-        >🚩 Report Body ({postKillReportLockSecLeft}s)</div>
+        ><HudIcon name="report" size={15} color="currentColor" /> Report Body ({postKillReportLockSecLeft}s)</div>
       )}
       <style>{`
         @keyframes reportPulse {
@@ -24799,7 +24701,7 @@ function MovementDemo() {
             filter: 'grayscale(0.3)',
           }}
         >
-          👻 Ghost Chat
+          <HudIcon name="ghost" size={15} color="currentColor" /> Ghost Chat
           {ghostTagged && <span title="Someone tagged you" style={{ minWidth: 17, height: 17, borderRadius: 999, background: '#ffd75e', color: '#241a00', fontSize: 10.5, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', filter: 'grayscale(0)' }}>@</span>}
           {/* [BUG FIX] Unread badge - a ghost messaging while another
               ghost was elsewhere on the game screen now actually shows. */}
@@ -24832,7 +24734,7 @@ function MovementDemo() {
             <style>{'@keyframes ghostDrawerIn { from { transform: translateX(30px); opacity: 0 } to { transform: none; opacity: 1 } }'}</style>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${CHAT_THEMES.ghost.line}`, flexShrink: 0 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 900, color: '#ececf4' }}>👻 Ghost Chat</div>
+                <div style={{ fontSize: 15, fontWeight: 900, color: '#ececf4', display: 'flex', alignItems: 'center', gap: 7 }}><HudIcon name="ghost" size={17} color="#ececf4" />Ghost Chat</div>
                 <div style={{ fontSize: 10.5, color: CHAT_THEMES.ghost.muted }}>Only other ghosts can see this</div>
               </div>
               <button onClick={() => setShowGhostChat(false)} title="Close" style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#e8e8f0', fontSize: 13, cursor: 'pointer' }}>✕</button>
@@ -24856,6 +24758,7 @@ function MovementDemo() {
           joystick/kill button/bottom action stack. */}
       {nearVent && !showMission && (
         <button
+          data-sfx="none"
           onClick={enterVent}
           style={{
             position: 'absolute', top: 64, left: '50%', transform: 'translateX(-50%)',

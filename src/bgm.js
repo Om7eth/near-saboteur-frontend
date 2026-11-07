@@ -325,6 +325,8 @@ export function createBgm() {
     else if (kind === 'blip') { tone('sine', 1250, 1250, 0.06, 0.18); tone('sine', 1870, 1870, 0.05, 0.06); }
     else if (kind === 'tick') { tone('square', 2600, 1800, 0.025, 0.05); tone('sine', 700, 500, 0.04, 0.12); }
     else if (kind === 'back') { tone('triangle', 800, 420, 0.09, 0.28); }
+    else if (kind === 'open') { tone('sine', 380, 760, 0.16, 0.18); tone('triangle', 760, 1140, 0.12, 0.12, 0.06); }
+    else if (kind === 'success') { [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, 0.22, 0.2, i * 0.08)); tone('sine', 2093, 2093, 0.35, 0.05, 0.32); }
     else if (kind === 'confirm') { tone('triangle', 660, 660, 0.12, 0.25); tone('triangle', 990, 990, 0.22, 0.25, 0.09); tone('sine', 1980, 1980, 0.2, 0.05, 0.09); }
   }
 
