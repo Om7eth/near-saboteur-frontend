@@ -1089,26 +1089,22 @@ function ActivityIcon({ size = 18 }) {
   );
 }
 
-// UTC date helpers - "Today / Yesterday / date" grouping + UTC time
-// formatting, matching the confirmed demo exactly.
+// [ACTIVITY FIX] Day grouping + times now use the player's OWN clock
+// (was UTC, so an Indian player saw 5:30h-off times and games after
+// 11:30pm landing under the wrong day).
 function activityUtcDayKey(iso) {
-  return new Date(iso).toISOString().slice(0, 10);
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 function activityDayLabel(iso) {
   const day = activityUtcDayKey(iso);
   const now = new Date();
-  const today = activityUtcDayKey(now.toISOString());
-  const yesterday = activityUtcDayKey(new Date(now.getTime() - 86400000).toISOString());
-  if (day === today) return 'Today';
-  if (day === yesterday) return 'Yesterday';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  if (day === activityUtcDayKey(now)) return 'Today';
+  if (day === activityUtcDayKey(new Date(now.getTime() - 86400000))) return 'Yesterday';
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function activityUtcTime(iso) {
-  const d = new Date(iso);
-  const h = d.getUTCHours(), m = d.getUTCMinutes();
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${period} UTC`;
+  return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
 // Win/loss sequence dots - reads a pattern/streak at a glance instead
@@ -1154,7 +1150,7 @@ function ActivityGameCard({ game, onClick }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 12.5, fontWeight: 800, color: '#eafff4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{game.displayName}</span>
-          {game.isPaid && <span style={{ fontSize: 8, fontWeight: 800, color: '#ffd75e', background: 'rgba(255,215,94,0.12)', border: '1px solid rgba(255,215,94,0.3)', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>PAID</span>}
+          {game.isPaid && <span style={{ fontSize: 8, fontWeight: 800, color: '#ffd75e', background: 'rgba(255,215,94,0.12)', border: '1px solid rgba(255,215,94,0.3)', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>{(game.mode && game.mode !== 'free' ? game.mode : 'paid').toUpperCase()}</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
           <span style={{ fontSize: 9.5, color: '#7fd9b8' }}>{activityUtcTime(game.earnedAtUtc)}</span>
@@ -1219,6 +1215,13 @@ function ActivityMatchRow({ match, index, isBest }) {
           <span style={{ fontSize: 13.5, fontWeight: 900, color: '#ffd75e' }}>+{match.points}</span>
         </div>
       </div>
+      {match.saboteur && match.saboteur.amount > 0 && (
+        <div style={{ fontSize: 9.5, color: '#8fe3ff', marginBottom: 7 }}>
+          +{match.saboteur.amount} $SABOTEUR{match.saboteur.rank ? ` · placed #${match.saboteur.rank}${match.saboteur.players ? ` of ${match.saboteur.players}` : ''}` : ''}
+          {match.saboteur.status !== 'sent' ? ' · sending…' : ''}
+          {match.saboteur.txUrl && <a href={match.saboteur.txUrl} target="_blank" rel="noreferrer" style={{ color: '#8fe3ff', marginLeft: 6 }}>tx ↗</a>}
+        </div>
+      )}
       {/* [NEW FEATURE] Explains any gap between what this match actually
           earned in-game (rawPoints) and what counted toward the
           player's real totals (points) - a daily bonus-points limit,
@@ -1318,7 +1321,7 @@ function ActivityGameDetailDrawer({ game, onClose }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 900, color: '#eafff4' }}>{game.displayName}</h3>
-              {game.isPaid && <span style={{ fontSize: 8.5, fontWeight: 800, color: '#ffd75e', background: 'rgba(255,215,94,0.12)', border: '1px solid rgba(255,215,94,0.3)', borderRadius: 4, padding: '1px 5px' }}>PAID</span>}
+              {game.isPaid && <span style={{ fontSize: 8.5, fontWeight: 800, color: '#ffd75e', background: 'rgba(255,215,94,0.12)', border: '1px solid rgba(255,215,94,0.3)', borderRadius: 4, padding: '1px 5px' }}>{(game.mode && game.mode !== 'free' ? game.mode : 'paid').toUpperCase()}</span>}
             </div>
             <span style={{ fontSize: 10.5, color: '#7fd9b8' }}>{activityDayLabel(game.earnedAtUtc)} · {activityUtcTime(game.earnedAtUtc)}</span>
           </div>
@@ -20182,10 +20185,10 @@ function MovementDemo() {
                     {summary && (
                       <div style={{ display: 'flex', gap: 7 }}>
                         {[
-                          { label: 'Points', value: summary.totalPoints, color: '#ffd75e' },
-                          { label: 'Played', value: summary.gamesPlayed, color: '#eafff4' },
-                          { label: 'Won', value: summary.gamesWon, color: '#6effc0' },
-                          { label: 'Win Rate', value: `${winRate}%`, color: '#6effc0' },
+                          { label: 'Pts this week', value: summary.weekPoints ?? summary.totalPoints, color: '#ffd75e' },
+                          { label: 'Matches', value: summary.matchesPlayed ?? summary.gamesPlayed, color: '#eafff4' },
+                          { label: 'Matches won', value: summary.matchesWon ?? summary.gamesWon, color: '#6effc0' },
+                          { label: 'Win rate', value: `${summary.winRate ?? winRate}%`, color: '#6effc0' },
                         ].map((tile) => (
                           <div key={tile.label} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9, padding: '7px 4px', textAlign: 'center' }}>
                             <div style={{ fontSize: 13.5, fontWeight: 900, color: tile.color }}>{tile.value}</div>
@@ -20212,7 +20215,7 @@ function MovementDemo() {
 
                     {games.length > 0 && (
                       <div style={{ fontSize: 9, color: '#4a5550', fontWeight: 700, letterSpacing: 0.5, margin: '2px 2px 0' }}>
-                        RECENT GAMES (LAST 20) · TIMES IN UTC
+                        YOUR LAST 20 GAMES · TAP ONE FOR DETAILS
                       </div>
                     )}
                     {groups.map((group, gi) => (
