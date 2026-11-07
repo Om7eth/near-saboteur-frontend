@@ -9893,7 +9893,7 @@ const DESK_HOME = {
   w: 1672, h: 941,
   leftQ: [[118, 207], [551, 218], [551, 494], [118, 513]],   // TL, TR, BR, BL
   rightQ: [[1224, 242], [1519, 236], [1519, 520], [1224, 507]],
-  ped: { x: 825, y: 600, r: 190 },
+  ped: { x: 845, y: 592, r: 190, rx: 172, ry: 46 }, // centre + glowing ring of the platform top
   safe: [80, 160, 1595, 935],
 };
 function isDesktopHomeLayout(d) {
@@ -9911,7 +9911,7 @@ function deskHomeLayout(W, H) {
   ox = cl(ox, W * 0.01 - sx0 * s, W * 0.99 - sx1 * s);
   oy = cl(oy, H * 0.01 - sy0 * s, H * 0.99 - sy1 * s);
   const Q = (q) => q.map(([x, y]) => [ox + x * s, oy + y * s]);
-  return { s, ox, oy, dw, dh, leftQ: Q(A.leftQ), rightQ: Q(A.rightQ), ped: { x: ox + A.ped.x * s, y: oy + A.ped.y * s, r: A.ped.r * s } };
+  return { s, ox, oy, dw, dh, leftQ: Q(A.leftQ), rightQ: Q(A.rightQ), ped: { x: ox + A.ped.x * s, y: oy + A.ped.y * s, r: A.ped.r * s, rx: A.ped.rx * s, ry: A.ped.ry * s } };
 }
 // CSS matrix3d that maps a w x h box onto 4 points (perspective).
 function quadMatrix3d(w, h, q) {
@@ -9981,8 +9981,19 @@ const DESK_HOME_CSS = `
 .dh-hx svg{width:2em;height:2em}.dh-hx img{width:2.9em;height:2.9em;object-fit:contain}
 .dh-ib:hover .dh-hx:before{background:linear-gradient(180deg,#6effc0,rgba(110,255,192,.3))}
 .dh-badge{position:absolute;top:-.2em;right:.6em;min-width:1.7em;height:1.7em;border-radius:999px;background:#ff5c5c;color:#fff;font-size:.95em;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:2}
-.dh-crew{position:absolute;transform:translate(-50%,-100%);pointer-events:none;filter:drop-shadow(0 .6em 1.2em rgba(0,0,0,.6));animation:dhBob 3.4s ease-in-out infinite}
-@keyframes dhBob{0%,100%{margin-top:0}50%{margin-top:-6px}}
+.dh-crew{position:absolute;transform:translate(-50%,-100%);pointer-events:none}
+.dh-crew>div{width:100%;height:100%;animation:dhBob 3.4s ease-in-out infinite;will-change:transform}
+.dh-crew img{display:block;width:100%;height:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 14px 18px rgba(0,0,0,.6))}
+.dh-fx{position:absolute;border-radius:50%;pointer-events:none;box-sizing:border-box}
+.dh-shade{background:radial-gradient(ellipse,rgba(0,0,0,.75),transparent 70%);animation:dhShade 3.4s ease-in-out infinite}
+.dh-flash{transform:translate(-50%,-50%);background:radial-gradient(ellipse,rgba(110,255,192,.26),transparent 62%);animation:dhFlash 3.4s ease-out infinite}
+.dh-ring{opacity:0;border:2px solid rgba(140,255,205,.9);box-shadow:0 0 14px rgba(110,255,192,.6),inset 0 0 10px rgba(110,255,192,.35);animation:dhRing 3.4s cubic-bezier(.2,.7,.3,1) infinite;will-change:transform,opacity}
+.dh-ring.b{border-width:1px;border-color:rgba(140,255,205,.6);box-shadow:none;animation-delay:.16s}
+@keyframes dhBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes dhShade{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.75}50%{transform:translate(-50%,-50%) scale(.9);opacity:.5}}
+@keyframes dhRing{0%{transform:translate(-50%,-50%) scale(.32);opacity:.95}42%{transform:translate(-50%,-50%) scale(1);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:0}}
+@keyframes dhFlash{0%{opacity:.85}30%{opacity:.25}100%{opacity:.25}}
+@keyframes dhIn{from{opacity:0;transform:translateX(var(--dh-dx,18px)) scale(.94)}to{opacity:1;transform:none}}
 .dh-skin{position:absolute;transform:translateX(-50%);display:flex;align-items:center;gap:1.1em;padding:.35em .9em;border-radius:.6em;background:rgba(5,10,9,.82);border:1px solid rgba(110,255,192,.3)}
 .dh-skin button{background:none;border:none;color:#6effc0;font-size:1.3em;cursor:pointer;padding:0 .2em}
 .dh-skin b{display:block;font-family:'Space Grotesk',sans-serif;letter-spacing:.2em;font-size:.95em;text-align:center;text-transform:uppercase}
@@ -19498,7 +19509,14 @@ function MovementDemo() {
                       )}
                     </DeskWallScreen>
 
-                    <img className="dh-crew" src={avatarImg} alt="" style={{ left: DL.ped.x, top: DL.ped.y + DL.ped.r * 0.05, height: avH }} />
+                    {/* platform effects (same 3.4s beat as the float, like the phone home) */}
+                    <span className="dh-fx dh-shade" style={{ left: DL.ped.x, top: DL.ped.y + DL.ped.ry * 0.12, width: avH * 0.62, height: DL.ped.ry * 0.62 }} />
+                    <span className="dh-fx dh-flash" style={{ left: DL.ped.x, top: DL.ped.y, width: DL.ped.rx * 2, height: DL.ped.ry * 2 }} />
+                    <span className="dh-fx dh-ring" style={{ left: DL.ped.x, top: DL.ped.y, width: DL.ped.rx * 2, height: DL.ped.ry * 2 }} />
+                    <span className="dh-fx dh-ring b" style={{ left: DL.ped.x, top: DL.ped.y, width: DL.ped.rx * 2, height: DL.ped.ry * 2 }} />
+                    <div className="dh-crew" style={{ left: DL.ped.x, top: DL.ped.y + DL.ped.ry * 0.15, width: avH * 0.72, height: avH }}>
+                      <div><img key={avatarAnimKey} src={avatarImg} alt="" style={{ '--dh-dx': avatarAnimDir === -1 ? '-18px' : '18px', animation: 'dhIn 0.28s ease-out' }} /></div>
+                    </div>
                     <div className="dh-skin" style={{ left: DL.ped.x, top: DL.ped.y + DL.ped.r * 0.38, fontSize: Math.max(10, DL.ped.r / 13) }}>
                       <button type="button" aria-label="Previous avatar" onClick={() => changeHomeAvatar(-1)}>‹</button>
                       <div><b style={{ color: premiumOn ? '#ffe39a' : undefined }}>{skinName}</b><span>{premiumOn ? 'PREMIUM SKIN' : 'CREW SKIN'} · {avIdx + 1}/{AVATARS.length}</span></div>
