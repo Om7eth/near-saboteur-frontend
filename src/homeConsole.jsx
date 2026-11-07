@@ -330,7 +330,7 @@ function DeskHead({ title, sub, children }) {
 /* ---------------- SHELL ---------------- */
 export const CONSOLE_NAV = [['activity', 'Activity'], ['wallet', 'Wallet'], ['ranks', 'Ranks'], ['inbox', 'Inbox'], ['friends', 'Friends'], ['news', 'News'], ['settings', 'Settings']];
 
-export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, bgImg, children, escBlocked }) {
+export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, bgImg, children, escBlocked, noRail, accent }) {
   useEffect(() => {
     if (mobile) return undefined;
     const onKey = (e) => {
@@ -348,8 +348,8 @@ export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, b
 
   if (mobile) {
     return (
-      <div className="hc hc-m">
-        <style>{CSS}</style>
+      <div className={`hc hc-m ${accent || ''}`}>
+        <style>{CSS + CSS2}</style>
         {bgImg && <div className="hc-bg" style={{ backgroundImage: `url(${bgImg})` }} />}
         {children}
       </div>
@@ -357,10 +357,10 @@ export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, b
   }
   return (
     <div className="hc hc-d">
-      <style>{CSS}</style>
+      <style>{CSS + CSS2}</style>
       {bgImg && <div className="hc-bg" style={{ backgroundImage: `url(${bgImg})` }} />}
-      <div className="hc-win">
-        <aside className="hc-rail">
+      <div className={`hc-win ${noRail ? 'solo' : ''} ${accent || ''}`}>
+        {noRail ? null : <aside className="hc-rail">
           <div className="hc-me">
             {me?.avatar && <img src={me.avatar} alt="" />}
             <div style={{ minWidth: 0 }}><b>{me?.name || 'Crewmate'}</b><span>{me?.handle || ''}</span></div>
@@ -372,7 +372,7 @@ export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, b
             </button>
           ))}
           <button type="button" className="hc-back" onClick={onClose}><Ico d={P.back} c="#7d8d86" />BACK TO HANGAR<kbd>ESC</kbd></button>
-        </aside>
+        </aside>}
         <section className="hc-main">{children}</section>
       </div>
     </div>
@@ -1011,4 +1011,451 @@ export function SettingsScreen({ mobile, onClose, me, soundOn, onSound, musicOn,
   );
   if (mobile) return <div className="hc-page"><MobileHead title="SETTINGS" onBack={onClose} /><div className="hc-mbody">{body}</div></div>;
   return <><DeskHead title="SETTINGS" sub="Profile, audio and account" /><div className="hc-pane">{body}</div></>;
+}
+
+/* ================================================================
+   PLAY PASS + FREE PLAY - full screens (no rail), same console look.
+   ================================================================ */
+const CSS2 = `
+.hc-win.solo{grid-template-columns:minmax(0,1fr)}
+.hc-win.gold{border-color:rgba(255,215,94,.3)}
+.hc-win.gold:before{background:#ffd75e;box-shadow:0 0 12px #ffd75e}
+.hc-closeb{display:flex !important;gap:9px;align-items:center;padding:9px 13px !important;border-radius:7px;border:1px solid var(--line) !important;font:500 11.5px var(--mono) !important;color:var(--dim) !important;letter-spacing:.08em;white-space:nowrap}
+.hc-closeb svg{width:15px;height:15px}.hc-closeb:hover{color:#dfe9e4 !important}
+.hc-closeb kbd{font:10px var(--mono);border:1px solid #333;border-radius:4px;padding:1px 5px}
+.hc-gold{--m:#ffd75e}
+.hc-pp{flex:1;display:grid;grid-template-columns:minmax(320px,400px) minmax(0,1fr);min-height:0;border-top:1px solid var(--line)}
+.hc-pp-l{padding:26px 28px 30px;border-right:1px solid var(--line);overflow:auto;display:flex;flex-direction:column;gap:16px;background:radial-gradient(120% 70% at 50% 0,rgba(255,215,94,.1),transparent 70%)}
+.hc-pp-r{padding:22px 26px 30px;overflow:auto;min-width:0}
+.hc-pp-hero{display:block;width:78%;max-width:300px;margin:4px auto 0;filter:drop-shadow(0 0 24px rgba(255,200,60,.35))}
+.hc-price{padding:18px;border:1px solid rgba(255,215,94,.35);background:rgba(255,215,94,.05);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));text-align:center}
+.hc-price .off{display:inline-block;font:700 11px var(--mono);letter-spacing:.12em;color:#fff;background:#e84a4a;padding:3px 10px;border-radius:99px;margin-bottom:8px}
+.hc-price b{display:block;font:700 36px var(--disp);color:#ffd75e;line-height:1.1}
+.hc-price s{font:500 14px var(--mono);color:var(--dim);margin-left:8px}
+.hc-price span{display:block;font:11px var(--mono);color:var(--dim);margin-top:6px;letter-spacing:.06em}
+.hc-buy{width:100%;display:flex !important;align-items:center;justify-content:center;gap:10px;padding:15px !important;background:linear-gradient(135deg,#ffe08f,#f2b84b 55%,#c98a1e) !important;color:#1c1203 !important;font:700 14px var(--disp) !important;letter-spacing:.2em;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+.hc-buy:disabled{opacity:.55;cursor:default}
+.hc-owned{padding:16px;border:1px solid rgba(110,255,192,.4);background:rgba(110,255,192,.06);text-align:center}
+.hc-owned b{display:block;font:700 17px var(--disp);color:#6effc0;letter-spacing:.06em}.hc-owned span{display:block;font:12px var(--mono);color:#9fb0a8;margin-top:6px;line-height:1.5}
+.hc-prog{height:6px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden;margin-top:12px}
+.hc-prog i{display:block;height:100%;background:linear-gradient(90deg,#f2b84b,#ffe08f);border-radius:99px}
+.hc-feats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.hc-feat{border:1px solid var(--line);background:rgba(255,255,255,.02);padding:16px;min-width:0}
+.hc-feat.wide{grid-column:span 2}
+.hc-feat h3{margin:0;font:700 13px var(--disp);letter-spacing:.16em;color:#ffd75e}
+.hc-feat p{margin:6px 0 12px;font-size:13px;color:#9fb0a8;line-height:1.5}
+.hc-skins{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.hc-skin{position:relative;border:1px solid var(--line);background:rgba(255,255,255,.03);padding:8px 6px 7px;text-align:center}
+.hc-skin.on{border-color:rgba(255,215,94,.5);background:rgba(255,215,94,.06)}
+.hc-skin img{width:100%;aspect-ratio:1/1.15;object-fit:contain;display:block}
+.hc-skin.off img{filter:grayscale(1) brightness(.5)}
+.hc-skin b{display:block;font:600 11px var(--disp);margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#cfd8d3}
+.hc-skin.off b{color:#6a7570}
+.hc-skin em{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:rgba(10,8,4,.85);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center}
+.hc-skin em svg{width:9px;height:9px}
+.hc-skin.req{border-style:dashed;border-color:rgba(255,215,94,.4);cursor:pointer}
+.hc-skin.req .q{aspect-ratio:1/1.15;display:flex;align-items:center;justify-content:center;font:700 26px var(--disp);color:rgba(255,215,94,.55);background:#050505}
+.hc-skin.req b{color:#ffd75e;white-space:normal;font-size:10px;line-height:1.25}
+.hc-demo{background:#0b1310;border:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:8px}
+.hc-bub{align-self:flex-start;max-width:85%;padding:7px 11px;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);font-size:12.5px;color:#e8e8f0}
+.hc-bub.gold{background:linear-gradient(135deg,#ffd75e,#e8a831);border-color:rgba(255,255,255,.4);box-shadow:0 0 12px rgba(255,215,94,.5);color:#241a00;font-weight:800}
+.hc-gif{align-self:flex-end;width:110px;height:70px;border-radius:8px;background:linear-gradient(135deg,#2a2440,#1a1830);border:1px solid rgba(110,255,192,.3);display:flex;align-items:center;justify-content:center;font:800 11px var(--mono);color:rgba(255,255,255,.45);position:relative}
+.hc-gif small{position:absolute;right:5px;bottom:3px;font-size:8px;opacity:.7}
+.hc-frame{width:56px;height:56px;flex-shrink:0;position:relative;background:#06140d;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.hc-frame:before{content:"";position:absolute;inset:2px;border-radius:8px;border:1.5px solid rgba(255,215,80,.85);box-shadow:0 0 9px rgba(255,215,80,.6),inset 0 0 6px rgba(255,215,80,.25)}
+.hc-frame img{width:64%;position:relative}
+.hc-mbuy{flex-shrink:0;display:flex;align-items:center;gap:12px;padding:12px 16px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(255,215,94,.25);background:rgba(8,6,2,.96)}
+.hc-mbuy .pr{min-width:0}.hc-mbuy .pr b{display:block;font:700 20px var(--disp);color:#ffd75e;white-space:nowrap}.hc-mbuy .pr span{font:10px var(--mono);color:var(--dim)}
+.hc-mbuy .hc-buy{flex:1;padding:13px !important;font-size:13px !important}
+.hc-m .hc-feats{grid-template-columns:1fr}.hc-m .hc-feat.wide{grid-column:auto}
+.hc-m .hc-skins{grid-template-columns:repeat(3,minmax(0,1fr))}
+/* free play */
+.hc-banner{position:relative;flex-shrink:0;height:clamp(140px,22vh,200px);overflow:hidden;border-bottom:1px solid var(--line);background:#030605}
+.hc-banner img{position:absolute;left:50%;top:0;transform:translateX(-50%);height:100%;width:auto;-webkit-mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent);mask-image:linear-gradient(90deg,transparent,#000 14%,#000 86%,transparent)}
+.hc-banner:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 70%,rgba(4,9,8,.9))}
+.hc-banner .bh{position:absolute;left:28px;bottom:14px;z-index:1}
+.hc-banner .bh p{margin:0;font:12px var(--mono);color:#cfe;letter-spacing:.08em}
+.hc-banner .bh p em{font-style:normal;color:var(--m)}
+.hc-banner .hc-closeb{position:absolute;right:20px;top:16px;z-index:1;background:rgba(4,9,8,.75) !important}
+.hc-fp{flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:0}
+.hc-fp>section{display:flex;flex-direction:column;min-height:0;overflow:auto;padding:20px 28px 26px}
+.hc-fp>section:first-child{border-right:1px solid var(--line)}
+.hc-fh{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.hc-fh h2{margin:0;font:700 17px var(--disp);letter-spacing:.2em}
+.hc-fh em{font:600 10.5px var(--mono);font-style:normal;padding:2px 7px;border-radius:3px;background:rgba(255,255,255,.08);color:#b8c4bf}
+.hc-fh .r{margin-left:auto}
+.hc-fl{display:flex;flex-direction:column;gap:7px;margin-bottom:15px}
+.hc-fl>label,.hc-fl>.lb{display:flex;justify-content:space-between;font:500 10.5px var(--mono);letter-spacing:.14em;color:var(--dim)}
+.hc-fl>label b,.hc-fl>.lb b{color:var(--m);font-weight:600}
+.hc-fl>label small,.hc-fl>.lb small{color:#46534e;font-size:10px;letter-spacing:.06em}
+.hc-in{width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);color:#f2f7f5;padding:11px 12px;font:15px var(--disp);outline:none;border-radius:6px;resize:none}
+.hc-in:focus{border-color:rgba(110,255,192,.55);box-shadow:0 0 0 3px rgba(110,255,192,.08)}
+.hc-in::placeholder{color:#4d5c56}
+.hc-sq{width:44px;flex-shrink:0;display:flex !important;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.1) !important;border-radius:6px;background:rgba(0,0,0,.4) !important}
+.hc-sq svg{width:17px;height:17px}
+.hc-tags{display:flex;gap:6px;flex-wrap:wrap}
+.hc-tags button{padding:6px 10px !important;border-radius:4px;border:1px solid rgba(255,255,255,.1) !important;font:500 10.5px var(--mono) !important;letter-spacing:.06em;color:#7d8d86 !important}
+.hc-tags button.on{border-color:rgba(110,255,192,.5) !important;background:rgba(110,255,192,.1) !important;color:var(--m) !important}
+.hc-step{flex:1;display:flex;border:1px solid rgba(110,255,192,.35);border-radius:6px;overflow:hidden;background:rgba(0,0,0,.4);height:46px}
+.hc-step.dim{border-color:rgba(255,255,255,.07);opacity:.45}
+.hc-step button{width:46px;display:flex !important;align-items:center;justify-content:center;font:600 18px var(--mono) !important;color:#cfd8d4 !important}
+.hc-step button:first-child{border-right:1px solid rgba(255,255,255,.07) !important}.hc-step button:last-child{border-left:1px solid rgba(255,255,255,.07) !important}
+.hc-step div{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font:700 20px var(--disp)}
+.hc-step div small{font:500 10px var(--mono);color:var(--dim);letter-spacing:.08em}
+.hc-nl{width:140px;display:flex !important;align-items:center;justify-content:center;gap:8px;border:1px solid rgba(255,255,255,.12) !important;border-radius:6px;font:700 12px var(--disp) !important;letter-spacing:.1em;color:#9aaaa3 !important;background:rgba(0,0,0,.4) !important}
+.hc-nl.on{border-color:rgba(110,255,192,.55) !important;background:rgba(110,255,192,.12) !important;color:var(--m) !important}
+.hc-acc{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hc-acc button{display:flex !important;align-items:center;justify-content:center;gap:8px;height:44px;border:1px solid rgba(255,255,255,.1) !important;border-radius:6px;font:700 12.5px var(--disp) !important;letter-spacing:.1em;color:#6f8079 !important}
+.hc-acc button svg{width:15px;height:15px}
+.hc-acc button.on{border-color:rgba(110,255,192,.5) !important;background:rgba(110,255,192,.1) !important;color:var(--m) !important}
+.hc-acc button.on.pv{border-color:rgba(255,207,110,.5) !important;background:rgba(255,207,110,.08) !important;color:#ffcf6e !important}
+.hc-hint{margin:2px 0 0;font-size:12px;color:#5d6d66;line-height:1.45}
+.hc-prev{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1px solid rgba(110,255,192,.25);background:#08100d;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.hc-prev img{width:34px;height:40px;object-fit:contain;flex-shrink:0}
+.hc-prev .t{flex:1;min-width:0}.hc-prev b{display:block;font:600 15px var(--disp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hc-prev span{display:block;font-size:12px;color:#7d8d86;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.hc-prev small{font:10.5px var(--mono);color:#6f8079;text-align:right;line-height:1.5;flex-shrink:0}
+.hc-create{margin-top:auto;width:100%;display:flex !important;align-items:center;justify-content:center;gap:10px;padding:16px !important;background:var(--m) !important;color:#04110b !important;font:700 15px var(--disp) !important;letter-spacing:.22em;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));flex-shrink:0}
+.hc-create:disabled{opacity:.5}
+.hc-code{display:flex;gap:8px}
+.hc-code .box{flex:1;display:flex;align-items:center;gap:10px;padding:0 12px;height:46px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:rgba(0,0,0,.4)}
+.hc-code .box span{font:500 10.5px var(--mono);letter-spacing:.14em;color:var(--dim)}
+.hc-code input{flex:1;min-width:0;border:none;background:transparent;color:#f2f7f5;font:600 16px var(--mono);letter-spacing:.3em;text-transform:uppercase;outline:none}
+.hc-code .go{padding:0 20px !important;background:rgba(143,227,255,.14) !important;color:#8fe3ff !important;font:700 13px var(--disp) !important;letter-spacing:.14em;border-radius:6px}
+.hc-rm{width:100%;display:flex !important;align-items:center;gap:12px;padding:11px 10px !important;border:1px solid var(--line) !important;margin-bottom:7px !important;background:rgba(255,255,255,.018) !important;text-align:left;border-radius:4px}
+.hc-rm:hover{border-color:rgba(110,255,192,.35) !important}
+.hc-rm img{width:30px;height:36px;object-fit:contain;flex-shrink:0}
+.hc-rm .t{flex:1;min-width:0}.hc-rm b{display:flex;align-items:baseline;gap:8px;font:600 14.5px var(--disp);white-space:nowrap;overflow:hidden}
+.hc-rm b small{font:500 10.5px var(--mono);color:#5d6d66}
+.hc-seats{display:flex;align-items:center;gap:8px;margin-top:6px}
+.hc-seats i{display:inline-block;width:6px;height:9px;background:rgba(255,255,255,.1);margin-right:2px}
+.hc-seats i.f{background:var(--m)}.hc-seats i.x{background:#ff9a8a}
+.hc-seats span{font:10.5px var(--mono);color:#6f8079}
+.hc-rdet h2{margin:4px 0 0;font:700 24px var(--disp);word-break:break-word}
+.hc-rdet .lab{font:600 10.5px var(--mono);letter-spacing:.16em;color:var(--m)}
+.hc-rcode{display:inline-flex;align-items:center;gap:6px;font:600 14px var(--mono);letter-spacing:.2em;background:rgba(255,255,255,.06);padding:6px 8px 6px 12px}
+.hc-rgrid{display:grid;grid-template-columns:1.3fr 1fr 1fr;border:1px solid var(--line);margin:14px 0}
+.hc-rgrid>div{padding:11px 13px;min-width:0}.hc-rgrid>div+div{border-left:1px solid var(--line)}
+.hc-rgrid small{display:block;font:500 9.5px var(--mono);letter-spacing:.12em;color:#5d6d66}
+.hc-rgrid b{display:flex;align-items:center;gap:5px;margin-top:4px;font:600 14px var(--disp);white-space:nowrap;overflow:hidden}
+.hc-crew{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px;margin:8px 0 18px}
+.hc-crew div{aspect-ratio:1/1.25;border-radius:6px 6px 2px 2px;border:1px solid rgba(255,255,255,.14);display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+.hc-crew div.f{border-color:rgba(110,255,192,.3);background:rgba(110,255,192,.05)}
+.hc-crew img{width:92%;height:92%;object-fit:contain}
+.hc-two{display:flex;gap:10px}
+.hc-two .bk2{flex:1;height:50px;border:1px solid rgba(255,255,255,.14) !important;border-radius:6px;font:700 13px var(--disp) !important;letter-spacing:.14em;color:#9aaaa3 !important}
+.hc-two .hc-create{flex:2;margin-top:0}
+.hc-m .hc-banner{height:auto;border:none}
+.hc-m .hc-banner img{position:static;transform:none;width:108%;margin-left:-4%;height:auto;display:block;-webkit-mask-image:none;mask-image:none}
+.hc-m .hc-banner:after{background:linear-gradient(180deg,rgba(4,7,6,.85) 0,rgba(4,7,6,0) 22%,rgba(4,7,6,0) 60%,#040706 100%)}
+.hc-m .hc-banner .bk{position:absolute;left:14px;top:calc(12px + env(safe-area-inset-top,0px));z-index:1;width:40px;height:40px;border-radius:10px;border:1px solid rgba(110,255,192,.3) !important;background:rgba(4,7,6,.75) !important;display:flex !important;align-items:center;justify-content:center}
+.hc-m .hc-banner .bk svg{width:18px;height:18px}
+.hc-mtabs{display:grid;grid-template-columns:1fr 1fr;margin:0 16px 4px;padding:3px;border:1px solid var(--line);border-radius:8px;background:rgba(0,0,0,.35);flex-shrink:0}
+.hc-mtabs button{height:38px;border-radius:6px;font:700 12.5px var(--disp) !important;letter-spacing:.14em;color:#6f8079 !important;display:flex !important;align-items:center;justify-content:center;gap:7px}
+.hc-mtabs button.on{background:rgba(110,255,192,.12) !important;color:var(--m) !important;box-shadow:inset 0 0 0 1px rgba(110,255,192,.35)}
+.hc-mtabs em{font:600 10px var(--mono);font-style:normal;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,.08);color:#b8c4bf}
+.hc-m .hc-fp-m{flex:1;overflow-y:auto;display:flex;flex-direction:column;padding:14px 16px calc(18px + env(safe-area-inset-bottom,0px));min-height:0}
+.hc-m .hc-crew{gap:4px}
+`;
+const LOCK_P = 'M6 11V8a6 6 0 0112 0v3M5 11h14v10H5z';
+const DICE_P = 'M4 4h16v16H4zM8.5 8.5h.01M15.5 15.5h.01M12 12h.01';
+const GLOBE_P = 'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18';
+
+function CloseBtn({ onClose }) {
+  return <button type="button" className="hc-closeb" onClick={onClose}><Ico d={P.back} c="#7d8d86" />BACK TO HANGAR<kbd>ESC</kbd></button>;
+}
+
+export function PlayPassScreen({ mobile, onClose, pp }) {
+  const owned = !!pp.owned;
+  const total = pp.skins.length;
+  const unlocked = owned ? Math.min(pp.status?.unlockedVariantCount ?? 0, total) : 0;
+  const next = owned && pp.status && unlocked < total ? pp.skins[unlocked] : null;
+  const NameTag = pp.NameTag;
+  const cfg = pp.config;
+  const buyArea = owned ? (
+    <div className="hc-owned">
+      <b>✓ YOU HAVE PLAY PASS</b>
+      <span>{unlocked}/{total} skins unlocked{next && pp.status ? ` · play ${pp.status.gamesUntilNextUnlock} more game${pp.status.gamesUntilNextUnlock === 1 ? '' : 's'} for ${next.name}` : unlocked >= total ? ' · all current skins unlocked' : ''}</span>
+      <div className="hc-prog"><i style={{ width: `${total ? (unlocked / total) * 100 : 0}%` }} /></div>
+      <span style={{ marginTop: 10 }}>Change your skin from the hangar with the arrows under your crewmate.</span>
+    </div>
+  ) : !cfg ? <div className="hc-note" style={{ textAlign: 'center' }}>Loading…</div>
+    : !cfg.enabled ? <div className="hc-note" style={{ textAlign: 'center' }}>Play Pass purchases are unavailable right now. Check back soon!</div>
+    : (
+      <>
+        <div className="hc-price">
+          {cfg.discountPercent > 0 && <span className="off">{cfg.discountPercent}% OFF</span>}
+          <b>{cfg.effectivePriceNear} NEAR{cfg.discountPercent > 0 && <s>{cfg.priceNear}</s>}</b>
+          <span>ONE-TIME PURCHASE · YOURS FOREVER</span>
+        </div>
+        {pp.error && <div className="hc-note hc-err" style={{ textAlign: 'center' }}>{pp.error}</div>}
+        <button type="button" className="hc-buy" disabled={pp.busy} onClick={pp.onBuy}>{pp.busy ? 'CONFIRMING…' : 'BUY PLAY PASS'}</button>
+      </>
+    );
+  const lockIco = <svg viewBox="0 0 24 24" fill="none"><path d={LOCK_P} stroke="#9aa0ad" strokeWidth="2.2" strokeLinejoin="round" /></svg>;
+  const feats = (
+    <div className="hc-feats">
+      <div className="hc-feat wide">
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h3>PREMIUM SKINS</h3>
+          {owned && pp.status && <span style={{ marginLeft: 'auto', font: '11px var(--mono)', color: 'var(--dim)' }}>{unlocked}/{total} UNLOCKED</span>}
+        </div>
+        <p>{owned ? 'A new skin unlocks as you keep playing.' : `Ironclaw unlocks the moment you buy, then a new skin every ${cfg?.unlockGamesGap || 2} games.`}</p>
+        <div className="hc-skins">
+          {pp.skins.map((v, i) => {
+            const on = owned && i < unlocked;
+            return (
+              <div key={v.id} className={`hc-skin ${on ? 'on' : 'off'}`}>
+                <img src={v.img} alt="" />
+                <b>{v.name}</b>
+                {!on && <em>{lockIco}</em>}
+              </div>
+            );
+          })}
+          <button type="button" className="hc-skin req" onClick={pp.onRequestCustom}>
+            <div className="q">+</div>
+            <b>Request your own character</b>
+          </button>
+        </div>
+      </div>
+      <div className="hc-feat">
+        <h3>GIFS IN CHAT</h3>
+        <p>Search and send GIFs in Lobby, Meeting and Ghost chat.</p>
+        <div className="hc-demo">
+          <span className="hc-bub">anyone see red near reactor?</span>
+          <span className="hc-gif">GIF<small>KLIPY</small></span>
+        </div>
+      </div>
+      <div className="hc-feat">
+        <h3>SHOUT HIGHLIGHT</h3>
+        <p>Type IN ALL CAPS and your message lights up gold, so nobody misses it.</p>
+        <div className="hc-demo">
+          <span className="hc-bub">i think it's red tbh</span>
+          <span className="hc-bub gold">IT'S RED, VOTE NOW</span>
+        </div>
+      </div>
+      <div className="hc-feat wide">
+        <h3>GOLD NAME TAG + PROFILE FRAME</h3>
+        <p>A gold sigil on your name everywhere — lobby, match, chat, votes, ranks — and a glowing frame on your profile picture.</p>
+        <div className="hc-demo" style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <div className="hc-frame">{pp.skins[0] && <img src={pp.skins[0].img} alt="" />}</div>
+          <div>
+            <div style={{ font: '10.5px var(--mono)', color: 'var(--dim)', marginBottom: 4 }}>YOUR NAME SHOWS AS</div>
+            <span style={{ fontSize: 16 }}>{NameTag ? <NameTag name={pp.name || 'YourName'} premium /> : pp.name}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+  if (mobile) {
+    return (
+      <div className="hc-page">
+        <MobileHead title="PLAY PASS" sub="One-time purchase · yours forever" onBack={onClose} />
+        <div className="hc-mbody">
+          <img className="hc-pp-hero" src={pp.passImg} alt="Play Pass" style={{ width: '70%', marginBottom: 16 }} />
+          {owned && <div style={{ marginBottom: 14 }}>{buyArea}</div>}
+          {feats}
+        </div>
+        {!owned && cfg && cfg.enabled && (
+          <div className="hc-mbuy">
+            <div className="pr"><b>{cfg.effectivePriceNear} NEAR</b><span>{cfg.discountPercent > 0 ? `${cfg.discountPercent}% OFF · was ${cfg.priceNear}` : 'one-time · forever'}</span></div>
+            <button type="button" className="hc-buy" disabled={pp.busy} onClick={pp.onBuy}>{pp.busy ? 'CONFIRMING…' : 'BUY PLAY PASS'}</button>
+          </div>
+        )}
+        {!owned && pp.error && <div className="hc-note hc-err" style={{ textAlign: 'center', padding: '0 16px 10px' }}>{pp.error}</div>}
+        {!owned && cfg && !cfg.enabled && <div className="hc-note" style={{ textAlign: 'center', padding: '0 16px 16px' }}>Play Pass purchases are unavailable right now.</div>}
+      </div>
+    );
+  }
+  return (
+    <>
+      <DeskHead title="PLAY PASS" sub="Premium skins, GIFs, gold name tag · one-time purchase">
+        <CloseBtn onClose={onClose} />
+      </DeskHead>
+      <div className="hc-pp">
+        <div className="hc-pp-l">
+          <img className="hc-pp-hero" src={pp.passImg} alt="Play Pass" />
+          {buyArea}
+          {!owned && <button type="button" className="hc-note" style={{ textAlign: 'center' }} onClick={onClose}>Not now</button>}
+        </div>
+        <div className="hc-pp-r">
+          <div className="hc-sec">WHAT YOU GET</div>
+          {feats}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export function FreePlayScreen({ mobile, onClose, f }) {
+  const [mOpen, setMOpen] = useState(false);
+  const matchesText = (lim) => (lim == null ? 'NO LIMIT' : `${lim} MATCH${lim > 1 ? 'ES' : ''}`);
+  const NameTag = f.NameTag, Badge = f.LegionBadge;
+  const nl = f.noLimit;
+  const host = (
+    <>
+      <div className="hc-fl">
+        <label htmlFor="hcFpName"><span><b>01</b> · ROOM NAME</span><small>OPTIONAL · {f.name.length}/24</small></label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input id="hcFpName" className="hc-in" maxLength={24} placeholder="Friday Night Saboteurs" value={f.name} onChange={(e) => f.setName(e.target.value)} />
+          <button type="button" className="hc-sq" title="Random name" aria-label="Random room name" onClick={f.randomName}><Ico d={DICE_P} c="#9aaaa3" w={1.5} /></button>
+        </div>
+      </div>
+      <div className="hc-fl">
+        <label htmlFor="hcFpBrief"><span><b>02</b> · BRIEFING</span><small>OPTIONAL · {f.briefing.length}/120</small></label>
+        <textarea id="hcFpBrief" className="hc-in" rows={2} maxLength={120} style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 13.5 }} placeholder="House rules, voice chat link, or a note for your crew" value={f.briefing} onChange={(e) => f.setBriefing(e.target.value)} />
+        <div className="hc-tags">
+          {f.allTags.map((t) => <button type="button" key={t} className={f.tags.includes(t) ? 'on' : ''} onClick={() => f.toggleTag(t)}>{t}</button>)}
+        </div>
+      </div>
+      <div className="hc-fl">
+        <div className="lb"><span><b>03</b> · MATCHES</span></div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div className={`hc-step ${nl ? 'dim' : ''}`}>
+            <button type="button" aria-label="Fewer matches" onClick={() => (nl ? f.setNoLimit(false) : f.setCount(Math.max(1, f.count - 1)))}>−</button>
+            <div>{f.count}<small>{f.count === 1 ? 'MATCH' : 'MATCHES'}</small></div>
+            <button type="button" aria-label="More matches" onClick={() => (nl ? f.setNoLimit(false) : f.setCount(Math.min(50, f.count + 1)))}>+</button>
+          </div>
+          <button type="button" className={`hc-nl ${nl ? 'on' : ''}`} aria-pressed={nl} onClick={() => f.setNoLimit(!nl)}>∞ NO LIMIT</button>
+        </div>
+      </div>
+      <div className="hc-fl">
+        <div className="lb"><span><b>04</b> · ACCESS</span></div>
+        <div className="hc-acc">
+          <button type="button" className={!f.isPrivate ? 'on' : ''} onClick={() => f.setPrivate(false)}><Ico d={GLOBE_P} c="currentColor" w={1.5} />PUBLIC</button>
+          <button type="button" className={f.isPrivate ? 'on pv' : ''} onClick={() => f.setPrivate(true)}><Ico d={LOCK_P} c="currentColor" w={1.6} />PRIVATE</button>
+        </div>
+        <p className="hc-hint">{f.isPrivate ? 'Hidden from the list — players join by code and you approve each one.' : 'Listed under Find a Room — anyone can take a seat.'}</p>
+      </div>
+      <div className="hc-fl">
+        <div className="lb"><span style={{ color: '#46534e' }}>PREVIEW · HOW YOUR CREW SEES IT</span></div>
+        <div className="hc-prev">
+          {f.myAvatar ? <img src={f.myAvatar} alt="" /> : null}
+          <div className="t">
+            <b style={{ color: f.name ? '#f2f7f5' : '#5d6d66' }}>{f.name || 'Untitled room'}</b>
+            <span>{f.briefing || (f.tags.length ? f.tags.join(' · ') : 'No briefing — players just jump in.')}</span>
+          </div>
+          <small>1/10<br />{matchesText(nl ? null : f.count)}<br />{f.isPrivate ? 'PRIVATE' : 'PUBLIC'}</small>
+        </div>
+      </div>
+      {f.createError && <div className="hc-note hc-err" style={{ textAlign: 'center', marginBottom: 10 }}>{f.createError}</div>}
+      <button type="button" className="hc-create" disabled={f.createBusy} onClick={f.onCreate}>{f.createBusy ? 'CREATING…' : 'CREATE ROOM »'}</button>
+    </>
+  );
+  const sel = f.selected;
+  const roomList = (
+    <>
+      <div className="hc-code">
+        <div className="box"><span>CODE</span>
+          <input maxLength={6} placeholder="– – – –" aria-label="Room code" value={f.code} onChange={(e) => f.setCode(e.target.value.toUpperCase())} onKeyDown={(e) => { if (e.key === 'Enter') f.onFindCode(); }} />
+        </div>
+        <button type="button" className="go" disabled={f.joinBusy} onClick={f.onFindCode}>{f.joinBusy && !sel ? '…' : 'FIND'}</button>
+      </div>
+      <p className="hc-hint" style={{ margin: '8px 0 14px' }}>Private rooms only show up by code. The host approves your request.</p>
+      {f.joinError && !sel && <div className="hc-note hc-err" style={{ marginBottom: 10 }}>{f.joinError}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+        <span className="hc-day" style={{ margin: 0, color: '#b8c4bf' }}>OPEN FREE ROOMS</span>
+        <button type="button" className={`hc-chip ${f.seatsOnly ? 'on' : ''}`} style={{ marginLeft: 'auto' }} onClick={() => f.setSeatsOnly(!f.seatsOnly)}>HAS SEATS</button>
+      </div>
+      {f.rooms.length > 0 ? f.rooms.map((r) => {
+        const n = r.playerCount || 0, full = n >= 10;
+        return (
+          <button type="button" key={r.code} className="hc-rm" onClick={() => { f.select(r.code); if (mobile) setMOpen(true); }}>
+            {f.hostImg(r) ? <img src={f.hostImg(r)} alt="" /> : <span style={{ width: 30 }} />}
+            <div className="t">
+              <b><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name || `Room ${r.code}`}</span><small>{r.code}</small></b>
+              <div className="hc-seats"><span style={{ display: 'flex' }}>{Array.from({ length: 10 }, (_, k) => <i key={k} className={k < n ? (full ? 'x' : 'f') : ''} />)}</span><span style={{ color: full ? '#ff9a8a' : undefined }}>{n}/10 · {matchesText(r.matchLimit)}</span></div>
+            </div>
+            <Ico d={P.chev} c="#5d6d66" s={16} />
+          </button>
+        );
+      }) : (
+        <div className="hc-empty">
+          {f.totalRooms ? 'Every open room is full right now.' : 'No free rooms are open right now.'}
+          {!mobile ? <><br />Host one on the left — it shows up here for everyone.</> : <><br /><button type="button" style={{ color: 'var(--m)', marginTop: 8, font: '700 12px var(--disp)', letterSpacing: '.1em' }} onClick={() => f.setTab('host')}>HOST ONE →</button></>}
+        </div>
+      )}
+    </>
+  );
+  const detail = sel && (
+    <div className="hc-rdet">
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <span className="lab">FREE PLAY · WAITING IN LOBBY</span>
+          <h2>{sel.name || `Room ${sel.code}`}</h2>
+        </div>
+        <span className="hc-rcode" style={{ marginLeft: 'auto' }}>{sel.code}{f.copyButton(sel.code)}</span>
+      </div>
+      <p className="hc-hint" style={{ fontSize: 13.5, color: sel.briefing ? '#9aaaa3' : '#5d6d66', margin: '12px 0 8px' }}>{sel.briefing || 'No briefing from the host — just jump in.'}</p>
+      {Array.isArray(sel.tags) && sel.tags.length > 0 && <div className="hc-tags">{sel.tags.map((t) => <button type="button" key={t} className="on" style={{ cursor: 'default' }}>{t}</button>)}</div>}
+      <div className="hc-rgrid">
+        <div><small>HOST</small><b><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{NameTag ? <NameTag name={sel.hostUsername ? `@${sel.hostUsername}` : sel.hostName} premium={sel.hostHasPlayPass} /> : sel.hostName}</span>{sel.hostHasLegionBadge && Badge ? <Badge size={12} /> : null}</b></div>
+        <div><small>MATCHES</small><b>{sel.matchLimit == null ? 'No limit' : `${sel.matchesPlayed || 0}/${sel.matchLimit}`}</b></div>
+        <div><small>ENTRY</small><b style={{ color: 'var(--m)' }}>Free</b></div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span className="hc-day" style={{ margin: 0 }}>CREW ON BOARD</span>
+        <span style={{ font: '10.5px var(--mono)', color: '#b8c4bf' }}>{sel.playerCount}/10 · {Math.max(0, 10 - (sel.playerCount || 0))} SEATS OPEN</span>
+      </div>
+      <div className="hc-crew">
+        {Array.from({ length: 10 }, (_, k) => { const seat = (sel.seats || [])[k]; return <div key={k} className={seat ? 'f' : ''}>{seat && seat.avatarId ? <img src={f.seatImg(seat)} alt="" /> : null}</div>; })}
+      </div>
+      {f.joinError && <div className="hc-note hc-err" style={{ textAlign: 'center', marginBottom: 10 }}>{f.joinError}</div>}
+      <div className="hc-two">
+        <button type="button" className="bk2" onClick={() => { f.select(null); setMOpen(false); }}>BACK</button>
+        <button type="button" className="hc-create" disabled={f.joinBusy || (sel.playerCount || 0) >= 10} onClick={f.onTakeSeat}>
+          {(sel.playerCount || 0) >= 10 ? 'ROOM FULL' : f.joinBusy ? 'JOINING…' : 'TAKE A SEAT'}
+        </button>
+      </div>
+    </div>
+  );
+  if (mobile) {
+    return (
+      <MobileWrap open={mOpen && !!sel}>
+        <div className="hc-page top">
+          <div className="hc-fp-m" style={{ padding: 0 }}>
+            <div className="hc-banner">
+              <img src={f.bannerImg} alt="Create Free Play" draggable={false} />
+              <button type="button" className="bk" onClick={onClose} aria-label="Back"><Ico d={P.back} c="#6effc0" /></button>
+            </div>
+            <div style={{ textAlign: 'center', font: '10.5px var(--mono)', letterSpacing: '.12em', color: '#8a9a93', margin: '-4px 0 10px' }}>ENTRY <span style={{ color: 'var(--m)' }}>FREE</span> · NO WALLET NEEDED</div>
+            <div className="hc-mtabs">
+              <button type="button" className={f.tab === 'host' ? 'on' : ''} onClick={() => f.setTab('host')}>HOST A ROOM</button>
+              <button type="button" className={f.tab === 'find' ? 'on' : ''} onClick={() => f.setTab('find')}>FIND A ROOM <em>{f.totalRooms}</em></button>
+            </div>
+            <div style={{ padding: '14px 16px calc(18px + env(safe-area-inset-bottom,0px))', display: 'flex', flexDirection: 'column', flex: 1 }}>
+              {f.tab === 'host' ? host : roomList}
+            </div>
+          </div>
+        </div>
+        <div className="hc-page sub">
+          <MobileHead title="ROOM" onBack={() => { setMOpen(false); f.select(null); }} />
+          <div className="hc-mbody">{detail}</div>
+        </div>
+      </MobileWrap>
+    );
+  }
+  return (
+    <>
+      <div className="hc-banner">
+        <img src={f.bannerImg} alt="Create Free Play" draggable={false} />
+        <div className="bh"><p>ENTRY <em>FREE</em> · NO WALLET NEEDED · UP TO 10 PLAYERS</p></div>
+        <CloseBtn onClose={onClose} />
+      </div>
+      <div className="hc-fp">
+        <section>
+          <div className="hc-fh"><h2>HOST A ROOM</h2></div>
+          {host}
+        </section>
+        <section>
+          {sel ? detail : (
+            <>
+              <div className="hc-fh"><h2>FIND A ROOM</h2><em>{f.totalRooms} OPEN</em></div>
+              {roomList}
+            </>
+          )}
+        </section>
+      </div>
+    </>
+  );
 }

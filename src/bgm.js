@@ -56,7 +56,8 @@ export function createBgm() {
 
   function unlock() {
     init();
-    if (ctx && ctx.state === 'suspended') ctx.resume();
+    // 'interrupted' = iPhone after a call / app switch; resume that too
+    if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {});
   }
 
   // ---------- instruments ----------
@@ -335,6 +336,6 @@ export function createBgm() {
     setMusicVolume(v) { musicVol = v; if (musicBus) musicBus.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     setSfxVolume(v) { sfxVol = v; if (sfxBus) sfxBus.gain.setTargetAtTime(v, ctx.currentTime, 0.05); },
     suspend() { if (ctx && ctx.state === 'running') ctx.suspend(); },
-    resume() { if (ctx && ctx.state === 'suspended') ctx.resume(); },
+    resume() { if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') ctx.resume().catch(() => {}); },
   };
 }
