@@ -16,6 +16,7 @@ import { setupIntearWallet } from '@near-wallet-selector/intear-wallet';
 import { KeyPair, actions, nearToYocto, yoctoToNear, teraToGas, viewFunction, viewAccount, signAndSendTransaction } from './nearLite';
 import { generateSeedPhrase, parseSeedPhrase } from 'near-seed-phrase';
 import { createBgm } from './bgm';
+import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen } from './homeConsole';
 
 // [BGM] one shared music + UI-click engine for the whole app (all synthesised, no audio files)
 const BGM = createBgm();
@@ -9981,7 +9982,7 @@ const DESK_HOME_CSS = `
 .dh-prof b{display:block;font-family:'Space Grotesk',sans-serif;font-size:1em;text-align:left}.dh-prof span{display:block;font-family:'IBM Plex Mono',monospace;font-size:.68em;color:#7d8d86;text-align:left}
 .dh-pts{display:flex;align-items:center;gap:.35em;font-family:'IBM Plex Mono',monospace;font-size:.8em;color:#cfd2da;padding:.35em .7em;border-radius:999px;background:rgba(5,10,9,.6);border:1px solid rgba(255,255,255,.08);cursor:pointer}
 .dh-pts img{width:1.2em}
-.dh-logo{margin:0 auto;font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:.3em;font-size:.9em;color:#9fb3aa}.dh-logo b{color:#6effc0}
+.dh-logo{margin:0 auto;height:3.9em;display:flex;align-items:center}.dh-logo img{height:100%;width:auto;display:block;filter:drop-shadow(0 0 .9em rgba(110,255,192,.28)) drop-shadow(0 .2em .4em rgba(0,0,0,.7))}
 .dh-pass{height:4.2em;cursor:pointer;filter:drop-shadow(0 0 .8em rgba(255,200,60,.35));margin-right:.3em;background:none;border:none;padding:0}
 .dh-pass img{height:100%;width:auto;display:block}
 .dh-ib{position:relative;display:flex;flex-direction:column;align-items:center;gap:.3em;min-width:6.4em;background:none;border:none;color:#b9cbc3;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:.62em;letter-spacing:.1em;padding:0;white-space:nowrap}
@@ -10366,6 +10367,7 @@ function MovementDemo() {
   // a separate admin dashboard tab (not mixed into ordinary inbox
   // traffic).
   const [showReportForm, setShowReportForm] = useState(false);
+  const [consoleReport, setConsoleReport] = useState(false); // [HOME CONSOLE] open Inbox straight on the report form
   const [reportType, setReportType] = useState('feedback'); // 'dispute' | 'feedback'
   const [reportSubject, setReportSubject] = useState('');
   const [reportBody, setReportBody] = useState('');
@@ -17853,6 +17855,41 @@ function MovementDemo() {
     return () => window.removeEventListener('keydown', onKey);
   }, [callMeeting, handleKillDummy]);
 
+  // [HOME CONSOLE] Every Home button (Activity, Wallet, Ranks, Inbox,
+  // Friends, News, Settings) opens one shared console: a wide desktop
+  // window with a left rail, or a full-screen page on phones. The same
+  // state flags as before decide which one is open.
+  const consoleKey = homeModal === 'activity' ? 'activity' : homeModal === 'wallet' ? 'wallet' : homeModal === 'leaderboard' ? 'ranks'
+    : homeModal === 'announcements' ? 'news' : showInbox ? 'inbox' : showReferrals ? 'friends' : showHomeSettings ? 'settings' : null;
+  const openConsole = (k) => {
+    setHomeModal({ activity: 'activity', wallet: 'wallet', ranks: 'leaderboard', news: 'announcements' }[k] || null);
+    setShowInbox(k === 'inbox'); setShowReferrals(k === 'friends'); setShowHomeSettings(k === 'settings');
+    if (k !== 'inbox') setConsoleReport(false);
+  };
+  const closeConsole = () => openConsole(null);
+  const consoleMobile = !isDesktopHomeLayout(desktopDims);
+  const consoleKit = {
+    avatarImg: (id, variant) => resolveAvatarImg(id, true, variant),
+    NameTag: PlayerNameTag, LegionBadge, pointCoin: POINT_COIN_IMG,
+  };
+  const consoleShell = (active) => ({
+    mobile: consoleMobile, active, onClose: closeConsole,
+    onNav: (k) => {
+      if (k === 'inbox' || k === 'friends') { openConsole(k); return; }
+      if (isGuestPlayer) closeConsole(); // the "sign up to use this" notice sits under the console
+      guestGuard(() => openConsole(k))();
+    },
+    bgImg: consoleMobile ? HOME_STAGE_BG_IMG : DESKTOP_HOME_ART_IMG,
+    badges: { inbox: inboxUnreadCount },
+    escBlocked: !!(selectedWalletTx || showWalletSettingsPanel || showSendModal || showReceiveModal || showSwapSheet || showViewSeedModal || showSabWallet),
+    me: {
+      avatar: resolveAvatarImg(playerAvatarId, loggedInPlayer?.hasPlayPass, loggedInPlayer?.activePremiumAvatarVariant),
+      name: isGuestPlayer ? 'Guest' : (loggedInPlayer?.name || playerName || 'Crewmate'),
+      handle: isGuestPlayer ? 'playing as guest' : `@${loggedInPlayer?.username || ''}`,
+      pass: !isGuestPlayer && !!loggedInPlayer?.hasPlayPass,
+    },
+  });
+
 
   return (
     <div style={{
@@ -19500,7 +19537,7 @@ function MovementDemo() {
                       <button type="button" className="dh-pts hm-btn" aria-label="Weekly points" onClick={() => { if (!isGuestPlayer) setShowPointsPopup(true); }}>
                         <img src={POINT_COIN_IMG} alt="" />{isGuestPlayer ? '—' : (loggedInPlayer?.currentSeasonPoints ?? 0)} · this week
                       </button>
-                      <div className="dh-logo">NEAR <b>SABOTEUR</b></div>
+                      <div className="dh-logo"><img src={SABOTEUR_BRAND_LOGO_IMG} alt="NEAR Saboteur" draggable={false} /></div>
                       <button type="button" className="dh-pass hm-btn" aria-label="Play Pass" onClick={() => { setShowPlayPassModal(true); setPlayPassTab('skins'); setPlayPassError(''); loadPlayPassConfig(); loadPlayPassStatus(); }}>
                         <img src={PLAY_PASS_IMG} alt="Play Pass" />
                       </button>
@@ -20079,160 +20116,15 @@ function MovementDemo() {
               announcements section" at a glance rather than looking
               like a flat, undesigned popup. */}
           {homeModal === 'announcements' && (
-            <div style={{
-              position: 'absolute', inset: 0, background: 'rgba(6,4,1,0.94)', zIndex: 45,
-              display: 'flex', flexDirection: 'column',
-            }}>
-              <div style={{
-                background: 'linear-gradient(160deg, rgba(255,180,60,0.16), rgba(10,8,2,0.4))',
-                borderBottom: '1px solid rgba(255,180,60,0.3)',
-                padding: 'calc(20px + env(safe-area-inset-top, 0px)) 18px 18px', flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: 12,
-              }}>
-                <div style={{
-                  width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                  background: 'linear-gradient(135deg,#ffd75e,#e8a831)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 14px rgba(255,180,60,0.4)',
-                }}>
-                  {/* Real SVG megaphone, not an emoji */}
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path d="M3 10v4a1 1 0 0 0 1 1h2l7 4V5L6 9H4a1 1 0 0 0-1 1Z" fill="#241a00" />
-                    <path d="M15 8.5a4 4 0 0 1 0 7" stroke="#241a00" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-                    <path d="M17.5 6a7.5 7.5 0 0 1 0 12" stroke="#241a00" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-                  </svg>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h2 style={{ fontSize: 16, fontWeight: 900, color: '#ffce7a', margin: 0 }}>Announcements</h2>
-                  <p style={{ fontSize: 10.5, color: 'rgba(255,206,122,0.6)', margin: '2px 0 0', fontWeight: 600 }}>
-                    {announcements.length > 0 ? `${announcements.length} update${announcements.length === 1 ? '' : 's'}` : 'Nothing posted yet'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setHomeModal(null)}
-                  style={{
-                    width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#ffce7a', fontSize: 14,
-                  }}
-                >✕</button>
-              </div>
-              <div style={{ flex: 1, overflowY: 'auto', touchAction: 'auto', padding: '16px 16px calc(32px + env(safe-area-inset-bottom, 0px))' }}>
-                {announcements.length === 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 60 }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" opacity="0.25">
-                      <path d="M3 10v4a1 1 0 0 0 1 1h2l7 4V5L6 9H4a1 1 0 0 0-1 1Z" fill="#ffce7a" />
-                    </svg>
-                    <p style={{ fontSize: 12, color: '#6a7570', margin: 0 }}>Nothing posted yet - check back soon.</p>
-                  </div>
-                ) : announcements.map((a, i) => (
-                  <div
-                    key={i}
-                    onClick={() => setExpandedMessage({ nameTag: a.nameTag || 'NEAR Saboteur', title: a.title, body: a.body, imageUrl: a.imageUrl, accent: '#ffce7a' })}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(255,180,60,0.1), rgba(255,180,60,0.03))',
-                      border: '1px solid rgba(255,180,60,0.25)',
-                      borderRadius: 12, padding: '12px 14px', marginBottom: 10, cursor: 'pointer',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <span style={{ width: 5, height: 5, borderRadius: 999, background: '#ffb84d', flexShrink: 0 }} />
-                      <span style={{ fontSize: 9, fontWeight: 800, color: '#ffb84d', letterSpacing: 0.3 }}>{a.nameTag || 'NEAR Saboteur'}</span>
-                      {a.createdAt && <span style={{ fontSize: 9, color: 'rgba(216,200,168,0.5)', marginLeft: 'auto' }}>{new Date(a.createdAt).toLocaleDateString()}</span>}
-                    </div>
-                    <p style={{ fontSize: 13.5, fontWeight: 800, color: '#ffce7a', margin: '0 0 4px' }}>{a.title}</p>
-                    {a.body && (
-                      <p style={{
-                        fontSize: 12, color: '#d8c8a8', margin: 0, lineHeight: 1.45,
-                        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                      }}>{a.body}</p>
-                    )}
-                    {a.imageUrl && <img src={a.imageUrl} alt="" style={{ width: '100%', borderRadius: 8, display: 'block', marginTop: 8 }} />}
-                    <span style={{ display: 'block', fontSize: 10, color: 'rgba(255,180,60,0.6)', marginTop: 6, fontWeight: 700 }}>Tap to read full details →</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <HomeConsole {...consoleShell('news')}>
+              <NewsScreen mobile={consoleMobile} onClose={closeConsole} items={Array.isArray(announcements) ? announcements : []} />
+            </HomeConsole>
           )}
 
           {homeModal === 'activity' && (
-            <HomeModal title="" onClose={() => setHomeModal(null)}>
-              {(() => {
-                const games = activityData?.games || [];
-                const summary = activityData?.summary;
-                const winRate = summary && summary.gamesPlayed > 0 ? Math.round((summary.gamesWon / summary.gamesPlayed) * 100) : 0;
-                // Day-grouped, most-recent first - matches the confirmed demo.
-                const groups = [];
-                let lastKey = null;
-                for (const g of games) {
-                  const key = activityUtcDayKey(g.earnedAtUtc);
-                  if (key !== lastKey) { groups.push({ label: activityDayLabel(g.earnedAtUtc), games: [] }); lastKey = key; }
-                  groups[groups.length - 1].games.push(g);
-                }
-                return (
-                  <div style={{
-                    background: 'linear-gradient(165deg, #0a1410 0%, #050806 60%)',
-                    border: '1px solid rgba(110,255,192,0.2)', borderRadius: 16,
-                    boxShadow: '0 0 40px -16px rgba(110,255,192,0.15)',
-                    padding: '14px 12px 16px', display: 'flex', flexDirection: 'column', gap: 10,
-                  }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <img src={SABOTEUR_BRAND_LOGO_IMG} alt="NEAR Saboteur" style={{ width: 80, height: 'auto', display: 'block', margin: '0 auto 6px', filter: 'drop-shadow(0 0 10px rgba(110,255,192,0.35))' }} />
-                      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: '#eafff4', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                        <ActivityIcon size={16} /> ACTIVITY
-                      </h2>
-                    </div>
-
-                    {summary && (
-                      <div style={{ display: 'flex', gap: 7 }}>
-                        {[
-                          { label: 'Pts this week', value: summary.weekPoints ?? summary.totalPoints, color: '#ffd75e' },
-                          { label: 'Matches', value: summary.matchesPlayed ?? summary.gamesPlayed, color: '#eafff4' },
-                          { label: 'Matches won', value: summary.matchesWon ?? summary.gamesWon, color: '#6effc0' },
-                          { label: 'Win rate', value: `${summary.winRate ?? winRate}%`, color: '#6effc0' },
-                        ].map((tile) => (
-                          <div key={tile.label} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 9, padding: '7px 4px', textAlign: 'center' }}>
-                            <div style={{ fontSize: 13.5, fontWeight: 900, color: tile.color }}>{tile.value}</div>
-                            <div style={{ fontSize: 7.5, color: '#7a8580', marginTop: 1 }}>{tile.label}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {activityLoading && !activityData && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0' }}>
-                        {[0, 1, 2, 3, 4].map((i) => (
-                          <div key={i} style={{ height: 58, borderRadius: 12, background: 'rgba(255,255,255,0.05)', animation: `lbSkeletonPulse 1.4s ease-in-out infinite ${0.1 * i}s` }} />
-                        ))}
-                        <style>{`@keyframes lbSkeletonPulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }`}</style>
-                      </div>
-                    )}
-                    {activityError && !activityData && (
-                      <p style={{ textAlign: 'center', fontSize: 11.5, color: '#ff8a8a', padding: '20px 0' }}>{activityError}</p>
-                    )}
-                    {activityData && games.length === 0 && (
-                      <p style={{ textAlign: 'center', fontSize: 11.5, color: '#9aa0ad', padding: '20px 0' }}>No games played yet - your history will show up here.</p>
-                    )}
-
-                    {games.length > 0 && (
-                      <div style={{ fontSize: 9, color: '#4a5550', fontWeight: 700, letterSpacing: 0.5, margin: '2px 2px 0' }}>
-                        YOUR LAST 20 GAMES · TAP ONE FOR DETAILS
-                      </div>
-                    )}
-                    {groups.map((group, gi) => (
-                      <div key={gi} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: gi === 0 ? 2 : 6 }}>
-                        <div style={{ fontSize: 10, color: '#6effc0', fontWeight: 800, letterSpacing: 0.3 }}>{group.label}</div>
-                        {group.games.map((g) => (
-                          <ActivityGameCard key={g.id} game={g} onClick={() => setExpandedActivityGame(g)} />
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-              {expandedActivityGame && (
-                <ActivityGameDetailDrawer game={expandedActivityGame} onClose={() => setExpandedActivityGame(null)} />
-              )}
-            </HomeModal>
+            <HomeConsole {...consoleShell('activity')}>
+              <ActivityScreen mobile={consoleMobile} onClose={closeConsole} kit={consoleKit} data={activityData} loading={activityLoading} error={activityError} />
+            </HomeConsole>
           )}
 
           {/* [REDESIGN - WALLET SCREEN] Fully code-drawn (no background
@@ -20302,275 +20194,31 @@ function MovementDemo() {
             const iconBtn = { width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(110,255,192,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, WebkitTapHighlightColor: 'transparent' };
             const miniBtn = { width: 30, height: 30, borderRadius: 8, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' };
             return (
-              <div
-                onClick={(e) => { if (e.target === e.currentTarget) setHomeModal(null); }}
-                style={{
-                  // [REDESIGN - WALLET AS POPUP] Opens as a card over Home (like the
-                  // other Home windows) instead of taking over the whole screen.
-                  position: 'fixed', inset: 0, zIndex: 400, background: 'rgba(2,4,3,0.82)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: 12, boxSizing: 'border-box',
-                  fontFamily: "'IBM Plex Sans', system-ui, -apple-system, sans-serif", color: '#e8eaf0',
-                }}
-              >
-                <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-                  @keyframes nsWalletScan { 0% { transform: translateY(-100%); } 100% { transform: translateY(260%); } }
-                  @keyframes nsWalletSpin { to { transform: rotate(360deg); } }
-                  .ns-wallet-scroll::-webkit-scrollbar { width: 4px; } .ns-wallet-scroll::-webkit-scrollbar-thumb { background: rgba(110,255,192,0.25); border-radius: 4px; }`}</style>
-                <div style={{
-                  position: 'relative', width: '100%', maxWidth: 440, height: 'min(100%, 860px)', overflow: 'hidden',
-                  borderRadius: 20, border: '1px solid rgba(110,255,192,0.22)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.85)',
-                  background: 'radial-gradient(420px 300px at 50% -40px, rgba(110,255,192,0.14), transparent 70%), radial-gradient(380px 320px at 110% 105%, rgba(143,227,255,0.07), transparent 70%), #05080a',
-                }}>
-                  <div style={{ position: 'absolute', inset: 0, opacity: 0.35, pointerEvents: 'none', backgroundImage: 'linear-gradient(rgba(110,255,192,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(110,255,192,0.05) 1px, transparent 1px)', backgroundSize: '26px 26px' }} />
-                  <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: '16px 16px 14px', boxSizing: 'border-box', gap: 14 }}>
-
-                    {/* Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div onClick={() => setHomeModal(null)} style={iconBtn} aria-label="Back">
-                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 3L5 9l6 6" stroke={W_MINT} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      </div>
-                      <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, letterSpacing: 4 }}>WALLET</span>
-                      <div onClick={() => setShowWalletSettingsPanel(true)} style={iconBtn} aria-label="Wallet settings">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M10.3 2.6h3.4l.5 2.6a7.6 7.6 0 012 1.1l2.5-.9 1.7 2.9-2 1.8a7.7 7.7 0 010 2.3l2 1.8-1.7 2.9-2.5-.9a7.6 7.6 0 01-2 1.1l-.5 2.6h-3.4l-.5-2.6a7.6 7.6 0 01-2-1.1l-2.5.9-1.7-2.9 2-1.8a7.7 7.7 0 010-2.3l-2-1.8 1.7-2.9 2.5.9a7.6 7.6 0 012-1.1z" stroke={W_MINT} strokeWidth="1.6" strokeLinejoin="round" /><circle cx="12" cy="12" r="3" stroke={W_MINT} strokeWidth="1.6" /></svg>
-                      </div>
-                    </div>
-
-                    {/* Balance vault card */}
-                    <div style={{
-                      position: 'relative', overflow: 'hidden', borderRadius: 20, padding: '20px 20px 16px', flexShrink: 0,
-                      background: 'linear-gradient(150deg, #0f2a21 0%, #0a1714 45%, #070c0b 100%)',
-                      border: '1px solid rgba(110,255,192,0.28)', boxShadow: '0 20px 50px -20px rgba(110,255,192,0.35), inset 0 1px 0 rgba(255,255,255,0.06)',
-                    }}>
-                      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '40%', background: 'linear-gradient(180deg, transparent, rgba(110,255,192,0.07), transparent)', animation: 'nsWalletScan 5s linear infinite', pointerEvents: 'none' }} />
-                      <img src={NEAR_LOGO_IMG} alt="" style={{ position: 'absolute', right: -14, top: -12, width: 120, height: 120, opacity: 0.1, mixBlendMode: 'screen', pointerEvents: 'none' }} />
-                      <span style={{ position: 'absolute', top: 8, left: 8, width: 12, height: 12, borderTop: `2px solid ${W_MINT}`, borderLeft: `2px solid ${W_MINT}`, borderTopLeftRadius: 4 }} />
-                      <span style={{ position: 'absolute', bottom: 8, right: 8, width: 12, height: 12, borderBottom: `2px solid ${W_MINT}`, borderRight: `2px solid ${W_MINT}`, borderBottomRightRadius: 4 }} />
-
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, letterSpacing: 1.6, color: '#8fa39a' }}>PORTFOLIO VALUE · IN NEAR</span>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <div onClick={() => setWalletBalanceHidden((v) => !v)} style={miniBtn} aria-label="Hide balance">
-                            <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" stroke="#8fa39a" strokeWidth="1.5" /><circle cx="10" cy="10" r="2.3" stroke="#8fa39a" strokeWidth="1.5" />{walletBalanceHidden && <path d="M3 17L17 3" stroke="#8fa39a" strokeWidth="1.5" strokeLinecap="round" />}</svg>
-                          </div>
-                          <div onClick={handleRefreshWalletBalance} style={miniBtn} aria-label="Refresh balance">
-                            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" style={{ animation: walletRefreshSpinning ? 'nsWalletSpin 0.6s linear infinite' : 'none' }}><path d="M16 8a6 6 0 10.6 4M16 3v5h-5" stroke="#8fa39a" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2, minHeight: 46 }}>
-                        {walletBalanceLoading && walletBalance === null ? (
-                          <span style={{ fontSize: 14, color: '#7fd9b8', alignSelf: 'center' }}>Loading…</span>
-                        ) : walletBalanceError ? (
-                          <span onClick={handleRefreshWalletBalance} style={{ fontSize: 13, color: '#ff8a8a', alignSelf: 'center', cursor: 'pointer' }}>Couldn't load balance — tap to retry</span>
-                        ) : (
-                          <>
-                            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 38, letterSpacing: -1, color: '#f2fff8', textShadow: '0 0 24px rgba(110,255,192,0.35)', lineHeight: 1.1 }}>
-                              {walletBalanceHidden ? '••••••' : portfolioTotalText}
-                            </span>
-                            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 16, color: W_MINT }}>NEAR</span>
-                          </>
-                        )}
-                      </div>
-
-                      <span style={{ position: 'relative', display: 'block', fontSize: 11.5, color: '#6c7a73', margin: '0 0 12px' }}>{portfolioSubline}</span>
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 8px 8px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.32)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <span style={{ width: 22, height: 22, borderRadius: 999, flexShrink: 0, background: `linear-gradient(135deg, ${W_MINT}, ${W_CYAN})` }} />
-                        <span style={{ flex: 1, minWidth: 0, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: '#c7d0cb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {loggedInPlayer?.walletAddress || 'No wallet set up yet.'}
-                        </span>
-                        {hasWallet && <CopyButton text={loggedInPlayer.walletAddress} />}
-                      </div>
-                    </div>
-
-                    {/* Receive / Send */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, flexShrink: 0 }}>
-                      {[
-                        { id: 'receive', label: 'Receive', c: W_MINT, rgb: '110,255,192', dark: '#05130d', d: 'M8 2v10M3.5 7.5L8 12l4.5-4.5', go: () => setShowReceiveModal(true) },
-                        { id: 'send', label: 'Send', c: W_CYAN, rgb: '143,227,255', dark: '#04121a', d: 'M8 14V4M3.5 8.5L8 4l4.5 4.5', go: () => { setSendAsset(null); setShowSendModal(true); setSendError(''); setSendSuccess(''); } },
-                        { id: 'swap', label: 'Swap', c: W_GOLD, rgb: '255,207,110', dark: '#1c1203', d: 'M3 5.5h9l-2.5-2.5M13 10.5H4l2.5 2.5', go: () => { setSwapFrom(null); setSwapTo(''); setSwapAmount(''); setShowSwapSheet(true); } },
-                      ].map((b) => (
-                        <div
-                          key={b.id}
-                          onClick={() => { if (hasWallet) b.go(); }}
-                          style={{
-                            height: 54, borderRadius: 14, border: `1px solid rgba(${b.rgb},0.35)`, flexDirection: 'column', gap: 4,
-                            background: `linear-gradient(180deg, rgba(${b.rgb},0.14), rgba(${b.rgb},0.04))`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: hasWallet ? 'pointer' : 'default', opacity: hasWallet ? 1 : 0.45, WebkitTapHighlightColor: 'transparent',
-                          }}
-                        >
-                          <span style={{ width: 24, height: 24, borderRadius: 7, background: b.c, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d={b.d} stroke={b.dark} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                          </span>
-                          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: 0.5 }}>{b.label}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* [REDESIGN - WALLET v2] Coins / NFTs / Activity tabs, underline style */}
-                    <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
-                      <span style={{ position: 'absolute', bottom: -1, height: 2, width: 'calc(100% / 3)', left: `calc(${walletTab === 'coins' ? 0 : walletTab === 'nfts' ? 1 : 2} * 100% / 3)`, background: W_MINT, boxShadow: `0 0 10px ${W_MINT}`, transition: 'left 0.25s cubic-bezier(.3,.7,.2,1)' }} />
-                      {[
-                        { id: 'coins', label: 'COINS', count: (hasWallet ? 1 + pfTokens.length : 0) + (sessionToken ? 1 : 0) }, // + $SABOTEUR
-                        { id: 'nfts', label: 'NFTs', count: pfNfts.length },
-                        { id: 'activity', label: 'ACTIVITY', count: walletTxHistory.length },
-                      ].map((t) => (
-                        <div
-                          key={t.id}
-                          onClick={() => setWalletTab(t.id)}
-                          style={{ height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: 1.2, color: walletTab === t.id ? W_MINT : '#6f8079' }}
-                        >
-                          {t.label}
-                          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, fontWeight: 500, letterSpacing: 0, padding: '1px 5px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', color: '#8fa39a' }}>{t.count}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="ns-wallet-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', margin: '-6px -16px 0', padding: '0 16px 12px', display: 'flex', flexDirection: 'column' }}>
-                      {walletTab === 'coins' && (
-                        <div>
-                          {sessionToken && (
-                            <SabCoinRow summary={sabSummary} loading={sabLoading} hidden={walletBalanceHidden}
-                              onShowHistory={() => { setWalletTab('activity'); setWalletTxFilter('sab'); }}
-                              onShowBots={() => setShowSabWallet(true)} />
-                          )}
-                          {hasWallet && (
-                            <div onClick={() => { setSendAsset(null); setSendAmount(''); setSendError(''); setSendSuccess(''); setShowSendModal(true); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 4px', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
-                              <img src={NEAR_LOGO_IMG} alt="" style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0 }} />
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700 }}>NEAR</span>
-                                  <span style={{ padding: '1px 5px', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: 0.6, background: 'rgba(110,255,192,0.12)', color: W_MINT }}>NATIVE</span>
-                                </div>
-                                <span style={{ fontSize: 11.5, color: '#6c7a73' }}>NEAR Protocol</span>
-                              </div>
-                              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, fontWeight: 600, color: '#f2fff8' }}>{walletBalanceHidden ? '••••' : (walletBalance ?? '—')}</div>
-                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: '#6c7a73' }}>≈ {walletBalanceHidden ? '••••' : (walletBalance ?? '—')} NEAR</div>
-                              </div>
-                            </div>
-                          )}
-                          {pfTokens.map((t) => (
-                            <div key={t.contractId} onClick={() => { setSendAsset(t.contractId); setSendAmount(''); setSendError(''); setSendSuccess(''); setShowSendModal(true); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 4px', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
-                              {t.icon
-                                ? <img src={t.icon} alt="" style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0, objectFit: 'cover', background: 'rgba(255,255,255,0.04)' }} />
-                                : <span style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0, background: 'rgba(143,227,255,0.12)', border: '1px solid rgba(143,227,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: W_CYAN }}>{(t.symbol || '?').slice(0, 1).toUpperCase()}</span>}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <span style={{ display: 'block', fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.symbol}</span>
-                                <span style={{ display: 'block', fontSize: 11.5, color: '#6c7a73', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</span>
-                              </div>
-                              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, fontWeight: 600, color: '#f2fff8' }}>{walletBalanceHidden ? '••••' : fmtAmt(Number(t.amount))}</div>
-                                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: '#6c7a73' }}>
-                                  {t.valueNear == null ? 'no market price' : `≈ ${walletBalanceHidden ? '••••' : Number(t.valueNear).toFixed(4)} NEAR`}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                          {walletPortfolioLoading && !pf && <p style={{ fontSize: 12, color: '#7fd9b8', textAlign: 'center', margin: '16px 0' }}>Loading tokens…</p>}
-                          {walletPortfolioError && !pf && <p onClick={() => fetchWalletPortfolio()} style={{ fontSize: 12, color: '#ff8a8a', textAlign: 'center', margin: '16px 0', cursor: 'pointer' }}>{walletPortfolioError} Tap to retry.</p>}
-                          {!hasWallet && <p style={{ fontSize: 12.5, color: '#6c7a73', textAlign: 'center', margin: '24px 0' }}>No wallet set up yet.</p>}
-                          {hasWallet && (
-                            <p style={{ margin: '12px 4px 0', fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, lineHeight: 1.6, color: '#46534e' }}>
-                              Tap any coin to send (withdraw) it. Token values converted to NEAR at the current market price; tokens without a market price are listed but not counted in the total.
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {walletTab === 'nfts' && (
-                        pfNfts.length > 0 ? (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, paddingTop: 12 }}>
-                            {pfNfts.map((n) => (
-                              <div key={`${n.contractId}:${n.tokenId}`} style={{ borderRadius: 14, overflow: 'hidden', background: 'rgba(255,255,255,0.03)', border: `1px solid ${n.isSbt ? 'rgba(255,207,110,0.35)' : 'rgba(255,255,255,0.08)'}` }}>
-                                <div style={{ position: 'relative', aspectRatio: '1 / 1', background: 'linear-gradient(135deg, #062019, #0f3a2e)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  {n.media
-                                    ? <img src={n.media} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                    : <svg width="28" height="28" viewBox="0 0 24 24" fill="none" opacity="0.5"><rect x="3" y="3" width="18" height="18" rx="4" stroke="#8fa39a" strokeWidth="1.5" /><circle cx="9" cy="9" r="2" stroke="#8fa39a" strokeWidth="1.5" /><path d="M4 17l5-5 4 4 3-3 4 4" stroke="#8fa39a" strokeWidth="1.5" strokeLinejoin="round" /></svg>}
-                                  {n.isSbt && <span style={{ position: 'absolute', top: 7, left: 7, padding: '3px 7px', borderRadius: 6, fontSize: 9, fontWeight: 800, letterSpacing: 0.6, background: 'rgba(5,8,10,0.75)', color: W_GOLD, border: '1px solid rgba(255,207,110,0.4)' }}>SBT</span>}
-                                </div>
-                                <div style={{ padding: '8px 10px 10px' }}>
-                                  <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</span>
-                                  <span style={{ display: 'block', fontSize: 10.5, color: '#6c7a73', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.collection}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{ flex: 1, minHeight: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, textAlign: 'center', marginTop: 12, border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 14, padding: 20, boxSizing: 'border-box' }}>
-                            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" opacity="0.5"><rect x="3" y="3" width="18" height="18" rx="4" stroke="#8fa39a" strokeWidth="1.5" /><circle cx="9" cy="9" r="2" stroke="#8fa39a" strokeWidth="1.5" /><path d="M4 17l5-5 4 4 3-3 4 4" stroke="#8fa39a" strokeWidth="1.5" strokeLinejoin="round" /></svg>
-                            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#c7d0cb' }}>{walletPortfolioLoading && !pf ? 'Loading NFTs…' : 'No NFTs yet'}</span>
-                            <span style={{ fontSize: 12, color: '#6c7a73', lineHeight: 1.5 }}>NFTs in this wallet will show up here.</span>
-                          </div>
-                        )
-                      )}
-
-                      {walletTab === 'activity' && (
-                        <>
-                          <div style={{ display: 'flex', gap: 6, padding: '12px 0 4px' }}>
-                            {[['all', 'All'], ['games', 'Games'], ['transfers', 'Transfers'], ['sab', '$SABOTEUR']].map(([id, label]) => (
-                              <div
-                                key={id}
-                                onClick={() => setWalletTxFilter(id)}
-                                style={{
-                                  height: 30, padding: '0 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', cursor: 'pointer',
-                                  border: walletTxFilter === id ? `1px solid ${W_MINT}` : '1px solid rgba(255,255,255,0.1)',
-                                  background: walletTxFilter === id ? 'rgba(110,255,192,0.12)' : 'transparent', color: walletTxFilter === id ? W_MINT : '#8fa39a',
-                                }}
-                              >{label}</div>
-                            ))}
-                          </div>
-                          {walletTxFilter === 'sab' ? <SabHistoryList summary={sabSummary} loading={sabLoading} signedIn={!!sessionToken} /> : (
-                          <div>
-                            {walletTxLoading && walletTxHistory.length === 0 && <p style={{ fontSize: 12.5, color: '#9aa0ad', textAlign: 'center', margin: '24px 0' }}>Loading…</p>}
-                            {walletTxError && <p style={{ fontSize: 12, color: '#ff8a8a', textAlign: 'center', margin: '16px 0' }}>{walletTxError}</p>}
-                            {!walletTxLoading && !walletTxError && txList.length === 0 && (
-                              <p style={{ fontSize: 12.5, color: '#6c7a73', textAlign: 'center', margin: '24px 0' }}>No transactions yet.</p>
-                            )}
-                            {groups.map((g) => (
-                              <div key={g.label}>
-                                <p style={{ margin: '8px 6px 6px', fontSize: 10, fontWeight: 600, letterSpacing: 1.4, color: '#5f6f68' }}>{g.label}</p>
-                                {g.items.map(({ tx, time }, i) => {
-                                  const ic = txKindIcon(tx);
-                                  const isZero = Number(tx.amountNear) === 0;
-                                  const amtColor = isZero ? '#6c7a73' : (tx.type === 'received' ? W_MINT : W_RED);
-                                  const won = tx.gameOutcome === 'won' || tx.gameOutcome === 'placed';
-                                  return (
-                                    <div
-                                      key={`${g.label}-${i}`}
-                                      onClick={() => setSelectedWalletTx(tx)}
-                                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px', borderRadius: 12, cursor: 'pointer' }}
-                                    >
-                                      <span style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${ic.c}14`, border: `1px solid ${ic.c}38` }}>
-                                        <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d={ic.d} stroke={ic.c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                      </span>
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                          <span style={{ fontSize: 13.5, fontWeight: 600, color: '#e8eaf0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{kindLabel(tx)}</span>
-                                          {won && <span style={{ padding: '2px 6px', borderRadius: 5, fontSize: 9, fontWeight: 800, letterSpacing: 0.6, background: 'rgba(255,207,110,0.15)', color: W_GOLD, flexShrink: 0 }}>{tx.gameOutcome === 'placed' ? (tx.poolRank === 1 ? '1ST' : tx.poolRank === 2 ? '2ND' : '3RD') : 'WON'}</span>}
-                                          {tx.gameOutcome === 'lost' && <span style={{ padding: '2px 6px', borderRadius: 5, fontSize: 9, fontWeight: 800, letterSpacing: 0.6, background: 'rgba(255,138,138,0.12)', color: '#ff8a8a', flexShrink: 0 }}>LOST</span>}
-                                        </div>
-                                        <span style={{ display: 'block', fontSize: 11, color: '#6c7a73', fontFamily: "'IBM Plex Mono', monospace", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tx.counterparty}</span>
-                                      </div>
-                                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600, color: amtColor }}>
-                                          {isZero ? '0' : `${tx.type === 'received' ? '+' : '−'}${tx.amountNear}`}
-                                        </div>
-                                        <div style={{ fontSize: 10.5, color: '#5f6f68' }}>{isZero ? 'gas only' : time}</div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ))}
-                          </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              <>
+                <HomeConsole {...consoleShell('wallet')}>
+                  <WalletScreen mobile={consoleMobile} onClose={closeConsole} w={{
+                    hasWallet, address: loggedInPlayer?.walletAddress || '', copyButton: hasWallet ? <CopyButton text={loggedInPlayer.walletAddress} /> : null,
+                    balance: walletBalance, totalText: portfolioTotalText, subline: portfolioSubline,
+                    loading: walletBalanceLoading, error: walletBalanceError, hidden: walletBalanceHidden,
+                    onToggleHidden: () => setWalletBalanceHidden((v) => !v), onRefresh: handleRefreshWalletBalance,
+                    onReceive: () => setShowReceiveModal(true),
+                    onSend: () => { setSendAsset(null); setShowSendModal(true); setSendError(''); setSendSuccess(''); },
+                    onSendAsset: (asset) => { setSendAsset(asset); setSendAmount(''); setSendError(''); setSendSuccess(''); setShowSendModal(true); },
+                    onSwap: () => { setSwapFrom(null); setSwapTo(''); setSwapAmount(''); setShowSwapSheet(true); },
+                    onSettings: () => setShowWalletSettingsPanel(true),
+                    tab: walletTab, setTab: setWalletTab, txFilter: walletTxFilter, setTxFilter: setWalletTxFilter,
+                    tokens: pfTokens, nfts: pfNfts, fmtAmt, nearLogo: NEAR_LOGO_IMG,
+                    portfolio: pf, portfolioLoading: walletPortfolioLoading, portfolioError: walletPortfolioError, onRetryPortfolio: () => fetchWalletPortfolio(),
+                    groups, kindLabel, txKindIcon, onSelectTx: setSelectedWalletTx,
+                    txLoading: walletTxLoading, txError: walletTxError, txCount: walletTxHistory.length,
+                    sabRow: sessionToken ? (
+                      <SabCoinRow summary={sabSummary} loading={sabLoading} hidden={walletBalanceHidden}
+                        onShowHistory={() => { setWalletTab('activity'); setWalletTxFilter('sab'); }}
+                        onShowBots={() => setShowSabWallet(true)} />
+                    ) : null,
+                    sabHistory: <SabHistoryList summary={sabSummary} loading={sabLoading} signedIn={!!sessionToken} />,
+                  }} />
+                </HomeConsole>
 
                 {/* Transaction detail - opened by tapping any row. */}
                 {selectedWalletTx && (
@@ -20696,7 +20344,7 @@ function MovementDemo() {
                     </div>
                   </div>
                 )}
-              </div>
+              </>
             );
           })()}
 
@@ -20868,111 +20516,11 @@ function MovementDemo() {
           })()}
 
           {homeModal === 'leaderboard' && (
-            <HomeModal title="" onClose={() => setHomeModal(null)}>
-              {(() => {
-                const activeData = leaderboardData[leaderboardTab];
-                const list = activeData?.leaderboard || [];
-                const top3 = list.slice(0, 3);
-                const rest = list.slice(3);
-                const myRank = activeData?.myRank || null;
-                const myRankVisible = myRank && list.some((p) => p.rank === myRank.rank);
-                return (
-                  <div style={{
-                    background: 'linear-gradient(165deg, #0a1410 0%, #050806 60%)',
-                    border: '1px solid rgba(110,255,192,0.2)', borderRadius: 16,
-                    boxShadow: '0 0 40px -16px rgba(110,255,192,0.15)',
-                    padding: '14px 12px 16px', display: 'flex', flexDirection: 'column', gap: 10,
-                  }}>
-                    {/* Header - brand logo + title, matches the confirmed demo */}
-                    <div style={{ textAlign: 'center' }}>
-                      <img src={SABOTEUR_BRAND_LOGO_IMG} alt="NEAR Saboteur" style={{
-                        width: 90, height: 'auto', display: 'block', margin: '0 auto 6px',
-                        filter: 'drop-shadow(0 0 10px rgba(110,255,192,0.35))',
-                      }} />
-                      <h2 style={{
-                        margin: 0, fontSize: 17, fontWeight: 900, color: '#eafff4',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      }}>🏆 LEADERBOARD</h2>
-                    </div>
-
-                    {/* Tabs */}
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {[{ id: 'weekly', label: 'Weekly' }, { id: 'monthly', label: 'Monthly' }].map((t) => (
-                        <button
-                          key={t.id}
-                          onClick={() => setLeaderboardTab(t.id)}
-                          style={{
-                            flex: 1, padding: '8px 4px', borderRadius: 7, fontSize: 11.5, fontWeight: 800,
-                            cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
-                            border: leaderboardTab === t.id ? '1px solid #6effc0' : '1px solid rgba(255,255,255,0.12)',
-                            background: leaderboardTab === t.id ? 'rgba(110,255,192,0.12)' : 'transparent',
-                            color: leaderboardTab === t.id ? '#6effc0' : '#8a9490',
-                            boxShadow: leaderboardTab === t.id ? '0 0 10px rgba(110,255,192,0.35)' : 'none',
-                          }}
-                        >{t.label}</button>
-                      ))}
-                    </div>
-
-                    {/* [NEW FEATURE] Live "Resets in Xd Yh" countdown,
-                        replacing the old static "Resets every Saturday"
-                        text - ticks every minute, driven by nextResetAt
-                        from whichever tab is active. */}
-                    {activeData?.nextResetAt && (
-                      <p style={{ textAlign: 'center', fontSize: 9.5, color: '#5a6560', margin: 0 }}>
-                        {formatResetCountdown(activeData.nextResetAt)}
-                      </p>
-                    )}
-
-                    {/* [NEW FEATURE] Loading skeleton - matches the real
-                        podium + row layout roughly, instead of a plain
-                        "Loading…" line, so the modal doesn't visually
-                        jump/resize once real data arrives. */}
-                    {leaderboardLoading && !activeData && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 10 }}>
-                          <div style={{ width: 56, height: 70, borderRadius: 10, background: 'rgba(255,255,255,0.06)', animation: 'lbSkeletonPulse 1.4s ease-in-out infinite' }} />
-                          <div style={{ width: 64, height: 92, borderRadius: 10, background: 'rgba(255,255,255,0.09)', animation: 'lbSkeletonPulse 1.4s ease-in-out infinite 0.15s' }} />
-                          <div style={{ width: 56, height: 60, borderRadius: 10, background: 'rgba(255,255,255,0.06)', animation: 'lbSkeletonPulse 1.4s ease-in-out infinite 0.3s' }} />
-                        </div>
-                        {[0, 1, 2, 3].map((i) => (
-                          <div key={i} style={{ height: 44, borderRadius: 10, background: 'rgba(255,255,255,0.05)', animation: `lbSkeletonPulse 1.4s ease-in-out infinite ${0.1 * i}s` }} />
-                        ))}
-                        <style>{`@keyframes lbSkeletonPulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }`}</style>
-                      </div>
-                    )}
-                    {leaderboardError && !activeData && (
-                      <p style={{ textAlign: 'center', fontSize: 11.5, color: '#ff8a8a', padding: '20px 0' }}>{leaderboardError}</p>
-                    )}
-                    {activeData && list.length === 0 && (
-                      <p style={{ textAlign: 'center', fontSize: 11.5, color: '#9aa0ad', padding: '20px 0' }}>
-                        {leaderboardTab === 'weekly' ? 'Nobody has scored any points this week yet.' : 'Nobody has scored any points this month yet.'}
-                      </p>
-                    )}
-
-                    {top3.length > 0 && <LeaderboardPodium players={top3} />}
-
-                    {rest.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                        {rest.map((p) => <LeaderboardRow key={p.rank} player={p} />)}
-                      </div>
-                    )}
-
-                    {activeData && (
-                      <>
-                        <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '2px 0' }} />
-                        {myRankVisible ? (
-                          <p style={{ textAlign: 'center', fontSize: 10.5, color: '#6effc0', margin: 0, fontWeight: 700 }}>You're on the board! 🎉</p>
-                        ) : myRank ? (
-                          <LeaderboardRow player={myRank} highlight />
-                        ) : (
-                          <p style={{ textAlign: 'center', fontSize: 10.5, color: '#6a7570', margin: 0 }}>Play a match to get on the board.</p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
-            </HomeModal>
+            <HomeConsole {...consoleShell('ranks')}>
+              <RanksScreen mobile={consoleMobile} onClose={closeConsole} kit={consoleKit} tab={leaderboardTab} onTab={setLeaderboardTab}
+                data={leaderboardData[leaderboardTab]} loading={leaderboardLoading} error={leaderboardError}
+                resetText={leaderboardData[leaderboardTab]?.nextResetAt ? formatResetCountdown(leaderboardData[leaderboardTab].nextResetAt) : ''} />
+            </HomeConsole>
           )}
 
           {homeModal === 'poolGames' && (
@@ -22289,102 +21837,11 @@ function MovementDemo() {
               logic as before: empty state, or a scrollable message list
               with "Mark all as read". */}
           {showInbox && (
-            <div
-              onClick={() => setShowInbox(false)}
-              style={{
-                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 60,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-              }}
-            >
-              <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 320, position: 'relative' }}>
-                {/* Decorative badge poking out of the card's top-left corner */}
-                <div style={{
-                  position: 'absolute', top: -22, left: 14, width: 52, height: 52, zIndex: 2,
-                  filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))',
-                }}>
-                  <img src={INBOX_ICON_IMG} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                </div>
-                <div style={{
-                  background: 'linear-gradient(180deg,#0d1a14,#081210)', border: '1px solid rgba(110,255,192,0.3)',
-                  borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-                }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 16px 12px 78px', borderBottom: '1px solid rgba(255,255,255,0.08)',
-                  }}>
-                    <span style={{ fontSize: 14.5, fontWeight: 900, color: '#e8fff4', letterSpacing: 0.4 }}>Inbox</span>
-                    <button onClick={() => setShowInbox(false)} style={{
-                      width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#e8e8f0', fontSize: 12, flexShrink: 0,
-                    }}>✕</button>
-                  </div>
-                  {inboxUnreadCount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px 0' }}>
-                      <button
-                        onClick={markAllInboxRead}
-                        style={{ background: 'rgba(110,255,192,0.12)', border: '1px solid rgba(110,255,192,0.3)', color: '#6effc0', borderRadius: 20, padding: '5px 11px', fontSize: 10.5, fontWeight: 700 }}
-                      >Mark all as read</button>
-                    </div>
-                  )}
-                  <div style={{ maxHeight: 340, minHeight: 220, overflowY: 'auto', padding: inboxMessages.length === 0 ? '16px' : '14px 16px 16px' }}>
-                    {inboxMessages.length === 0 ? (
-                      <div style={{ minHeight: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                        <img src={INBOX_ICON_IMG} alt="" style={{ width: 50, height: 50, objectFit: 'contain', opacity: 0.35 }} />
-                        <p style={{ fontSize: 12, color: '#5a655f', margin: 0 }}>Inbox is empty</p>
-                      </div>
-                    ) : inboxMessages.map((m) => (
-                      <div
-                        key={m._id}
-                        onClick={() => {
-                          if (!m.read) markInboxMessageRead(m._id);
-                          setExpandedMessage({ nameTag: m.nameTag || 'NEAR Saboteur', title: m.title, body: m.body, imageUrl: m.imageUrl, accent: '#6effc0' });
-                        }}
-                        style={{
-                          display: 'flex', gap: 10, padding: '11px 12px', borderRadius: 10, marginBottom: 8, cursor: 'pointer',
-                          background: m.read ? 'rgba(255,255,255,0.03)' : 'rgba(110,255,192,0.08)',
-                          border: `1px solid ${m.read ? 'rgba(255,255,255,0.07)' : 'rgba(110,255,192,0.25)'}`,
-                        }}
-                      >
-                        {!m.read && <span style={{ width: 7, height: 7, borderRadius: 999, background: '#6effc0', flexShrink: 0, marginTop: 5 }} />}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: 'block', fontSize: 9, fontWeight: 800, color: '#6effc0', letterSpacing: 0.3, marginBottom: 2 }}>{m.nameTag || 'NEAR Saboteur'}</span>
-                          <p style={{ fontSize: 12.5, fontWeight: 800, color: '#eafff4', margin: '0 0 2px' }}>{m.title}</p>
-                          {m.body && (
-                            <p style={{
-                              fontSize: 12, color: '#c8d8d0', margin: 0, lineHeight: 1.45,
-                              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                            }}>{m.body}</p>
-                          )}
-                          {m.imageUrl && <img src={m.imageUrl} alt="" style={{ width: '100%', borderRadius: 8, display: 'block', marginTop: 6 }} />}
-                        </div>
-                        {/* [NEW FEATURE - PLAYER-SIDE INBOX DELETE] Small X,
-                            stops propagation so tapping it doesn't also
-                            open the message / mark it read. */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteInboxMessage(m._id); }}
-                          style={{
-                            width: 20, height: 20, borderRadius: '50%', flexShrink: 0, alignSelf: 'flex-start',
-                            background: 'rgba(255,255,255,0.06)', border: 'none', color: '#7a857f', fontSize: 11,
-                          }}
-                        >✕</button>
-                      </div>
-                    ))}
-                  </div>
-                  {/* [NEW FEATURE - DISPUTE/FEEDBACK] Lets a player flag a
-                      problem or send feedback straight from the Inbox -
-                      shows up in the admin dashboard's own Reports tab,
-                      separate from ordinary inbox traffic. */}
-                  <div style={{ padding: '0 16px 14px' }}>
-                    <button
-                      onClick={() => { setShowInbox(false); setShowReportForm(true); }}
-                      style={{
-                        width: '100%', padding: '9px 0', borderRadius: 8, marginTop: 6,
-                        background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#9aa0ad', fontSize: 11.5, fontWeight: 700,
-                      }}
-                    >📝 Report an issue / Send feedback</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <HomeConsole {...consoleShell('inbox')}>
+              <InboxScreen mobile={consoleMobile} onClose={closeConsole} messages={inboxMessages} startInReport={consoleReport}
+                onRead={markInboxMessageRead} onMarkAll={markAllInboxRead} onDelete={deleteInboxMessage}
+                report={{ type: reportType, setType: setReportType, subject: reportSubject, setSubject: setReportSubject, body: reportBody, setBody: setReportBody, busy: reportBusy, status: reportStatus, submit: submitReport }} />
+            </HomeConsole>
           )}
 
           {/* [NEW FEATURE - DISPUTE/FEEDBACK FORM] */}
@@ -22467,78 +21924,20 @@ function MovementDemo() {
               generation + successful-referral tracking comes once
               Om7eth specs out the details. */}
           {showReferrals && (
-            <div
-              onClick={() => setShowReferrals(false)}
-              style={{
-                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 60,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-              }}
-            >
-              <div onClick={(e) => e.stopPropagation()} style={{
-                width: '100%', maxWidth: 300, background: 'linear-gradient(160deg,#0d1a14,#05100b)',
-                border: '1px solid rgba(110,255,192,0.35)', borderRadius: 16, padding: '22px 18px', textAlign: 'center',
-              }}>
-                <img src={REFERRAL_ICON_IMG} alt="" style={{ width: 44, height: 44, objectFit: 'contain', marginBottom: 8 }} />
-                <h3 style={{ fontSize: 15, fontWeight: 900, color: '#6effc0', margin: '0 0 6px' }}>Referrals</h3>
-                <p style={{ fontSize: 11.5, color: '#9aa0ad', margin: '0 0 16px', lineHeight: 1.5 }}>
-                  Coming soon - invite friends with your own link and track your successful referrals here.
-                </p>
-                <button onClick={() => setShowReferrals(false)} style={{
-                  width: '100%', padding: 11, borderRadius: 8, border: '1px solid rgba(110,255,192,0.3)',
-                  background: 'transparent', color: '#6effc0', fontWeight: 800, fontSize: 13,
-                }}>Got it</button>
-              </div>
-            </div>
+            <HomeConsole {...consoleShell('friends')}>
+              <FriendsScreen mobile={consoleMobile} onClose={closeConsole} img={REFERRAL_ICON_IMG} />
+            </HomeConsole>
           )}
 
           {showHomeSettings && (
-            <div
-              onClick={() => setShowHomeSettings(false)}
-              style={{
-                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 40,
-                display: 'flex', alignItems: 'flex-end',
-              }}
-            >
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: '100%', background: 'linear-gradient(160deg, #0d1a14, #05100b)',
-                  borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: '18px 18px 28px',
-                  border: '1px solid rgba(110,255,192,0.25)', borderBottom: 'none',
-                  maxHeight: '80vh', overflowY: 'auto', touchAction: 'auto',
-                }}
-              >
-                <h3 style={{ fontSize: 14, fontWeight: 800, color: '#fff', margin: '0 0 14px' }}>Profile</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <button
-                    onClick={() => { setShowHomeSettings(false); setScreen('profileEdit'); }}
-                    style={{
-                      width: '100%', background: 'rgba(255,255,255,0.06)', color: '#e8e8f0',
-                      border: '1px solid rgba(255,255,255,0.15)', borderRadius: 9, padding: '12px 0',
-                      fontSize: 13, fontWeight: 700,
-                    }}
-                  >Profile</button>
-                  <button
-                    onClick={() => { setShowHomeSettings(false); handleGoToResetPassword(); }}
-                    style={{
-                      width: '100%', background: 'rgba(255,255,255,0.06)', color: '#e8e8f0',
-                      border: '1px solid rgba(255,255,255,0.15)', borderRadius: 9, padding: '12px 0',
-                      fontSize: 13, fontWeight: 700,
-                    }}
-                  >Reset Password</button>
-                  {/* [DEV-BRANCH ONLY - PHASE 2] More settings buttons go
-                      here as later features land. */}
-                  <button
-                    onClick={handleLogout}
-                    style={{
-                      width: '100%', background: 'rgba(255,107,107,0.12)', color: '#ff8a8a',
-                      border: '1px solid rgba(255,107,107,0.3)', borderRadius: 9, padding: '12px 0',
-                      fontSize: 13, fontWeight: 800,
-                    }}
-                  >Log out</button>
-                </div>
-              </div>
-            </div>
+            <HomeConsole {...consoleShell('settings')}>
+              <SettingsScreen mobile={consoleMobile} onClose={closeConsole} me={consoleShell('settings').me}
+                soundOn={soundOn} onSound={() => setSoundOn((v) => !v)} musicOn={musicActive} onMusic={toggleMusic}
+                onProfile={() => { closeConsole(); setScreen('profileEdit'); }}
+                onResetPassword={() => { closeConsole(); handleGoToResetPassword(); }}
+                onReport={() => { setConsoleReport(true); setReportStatus(''); setShowHomeSettings(false); setShowInbox(true); }}
+                onLogout={() => { closeConsole(); handleLogout(); }} />
+            </HomeConsole>
           )}
           </div>
         </div>
