@@ -9362,7 +9362,7 @@ function useWideLayout(minW = 900, minH = 520) {
 // whoever they voted for, the moment the vote lands. One vote, no
 // changes: tap -> confirm (✓) -> locked.
 // layout 'tray' = phone strip above the composer; 'column' = desktop list.
-function VoteBoard({ layout, cards, liveVotes, myVote, canVote, votingOpen, pending, setPending, onVote, calledById, avatarForId, totalVotes, totalAlive }) {
+function VoteBoard({ layout, cards, liveVotes, myVote, canVote, votingOpen, pending, setPending, onVote, calledById, avatarForId, totalVotes, totalAlive, canBack, backOn, setBackOn, backPoints }) {
   const votersFor = (target) => Object.entries(liveVotes || {}).filter(([, c]) => c === target).map(([v]) => v);
   const tray = layout === 'tray';
   const options = [...cards.filter((c) => tray ? !c.isDead : true), { id: 'skip', isSkip: true, name: 'Skip' }];
@@ -9392,7 +9392,7 @@ function VoteBoard({ layout, cards, liveVotes, myVote, canVote, votingOpen, pend
       </div>
       <div style={tray
         ? { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }
-        : { display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: 1, minHeight: 0, paddingRight: 2 }}>
+        : { display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', flex: '0 1 auto', minHeight: 0, paddingRight: 2 }}>
         {options.map((c) => {
           const voters = votersFor(c.id);
           const mine = myVote === c.id;
@@ -9448,7 +9448,183 @@ function VoteBoard({ layout, cards, liveVotes, myVote, canVote, votingOpen, pend
           );
         })}
       </div>
+      {/* [$SABOTEUR] optional, shown once a player (not Skip) is picked */}
+      {canBack && pending && pending !== 'skip' && setBackOn && (
+        <BackVoteToggle on={!!backOn} onChange={setBackOn} targetName={(cards.find((c) => c.id === pending) || {}).name} points={backPoints || 5} />
+      )}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// [$SABOTEUR] Testnet token UI - "back your vote" switch, match rewards,
+// and the wallet window (my balance/history + every bot's wallet).
+// Rules live on the server (economy/rules.js); this only shows them.
+// ═══════════════════════════════════════════════════════════════════════
+const SAB_GOLD = '#ffd75e';
+function fmtSab(n) {
+  const v = Number(n) || 0;
+  return v >= 100 ? Math.round(v).toLocaleString() : (Math.round(v * 100) / 100).toLocaleString();
+}
+function SabChip({ children }) {
+  return <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.5, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,193,76,0.15)', color: '#ffc14c', border: '1px solid rgba(255,193,76,0.4)' }}>{children}</span>;
+}
+
+// Shown under the vote options once a target is picked (before ✓).
+function BackVoteToggle({ on, onChange, targetName, points = 5 }) {
+  return (
+    <div style={{
+      marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 12,
+      border: `1px solid ${on ? 'rgba(255,215,94,0.6)' : 'rgba(255,215,94,0.3)'}`, background: on ? 'rgba(255,215,94,0.1)' : 'rgba(255,215,94,0.04)',
+    }}>
+      <div style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: '#ffe9a8', lineHeight: 1.35 }}>
+        <b style={{ color: SAB_GOLD }}>Back this vote?</b> If {targetName || 'they'} is the Saboteur: <b style={{ color: '#6effc0' }}>+{points} pts</b>. If not: <b style={{ color: '#ff8a8a' }}>−{points} pts</b>. Settled when the match ends.
+      </div>
+      <button type="button" role="switch" aria-checked={on} onClick={() => onChange(!on)} title={on ? 'Backing this vote' : 'Not backing'} style={{
+        width: 42, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0,
+        background: on ? SAB_GOLD : '#3a3f48', transition: 'background .15s',
+      }}>
+        <span style={{ position: 'absolute', top: 3, left: on ? 21 : 3, width: 18, height: 18, borderRadius: '50%', background: on ? '#241a00' : '#9aa0ad', transition: 'left .15s' }} />
+      </button>
+    </div>
+  );
+}
+
+// Game-over: rank -> points (incl. backed votes) -> $SABOTEUR.
+function MatchRewardsCard({ data, myId, onOpenWallet }) {
+  if (!data || !Array.isArray(data.rows)) return null;
+  const tierText = data.humans >= 4 ? 'Full rewards - 4+ people played'
+    : data.humans >= 2 ? `${data.humans} people played - rewards ×0.1 (4+ for full)`
+      : 'Only you + bots - rewards ×0.01 (4+ people for full)';
+  const me = data.rows.find((r) => r.id === myId);
+  return (
+    <div style={{
+      width: '100%', maxWidth: 420, margin: '0 0 16px', background: 'rgba(10,12,18,0.92)', border: '1px solid rgba(255,215,94,0.35)',
+      borderRadius: 14, padding: '10px 12px', textAlign: 'left',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 900, color: SAB_GOLD }}>$SABOTEUR rewards</span>
+        <SabChip>TESTNET</SabChip>
+        {me && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: me.tokens > 0 ? SAB_GOLD : '#7d8a92' }}>{me.tokens > 0 ? `You +${fmtSab(me.tokens)}` : (me.guest ? 'Sign in to earn' : 'No reward')}</span>}
+      </div>
+      <div style={{ fontSize: 10.5, color: data.humans >= 4 ? '#bff5dc' : '#ffdc9a', marginBottom: 6 }}>{tierText}</div>
+      <div style={{ maxHeight: 170, overflowY: 'auto' }}>
+        {data.rows.map((r) => (
+          <div key={r.id} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: 12,
+            background: r.id === myId ? 'rgba(110,255,192,0.06)' : 'transparent', borderRadius: 6,
+          }}>
+            <span style={{ width: 18, color: r.rank <= 3 ? SAB_GOLD : '#7d8a92', fontWeight: 900 }}>{r.rank}</span>
+            <span style={{ flex: 1, minWidth: 0, color: '#e8eaf0', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <PlayerNameTag name={r.id === myId ? `${r.name} (you)` : r.name} isBot={r.isBot} />
+            </span>
+            <span style={{ color: '#aab0bb', width: 44, textAlign: 'right' }}>{r.points} pts</span>
+            <span style={{ width: 34, textAlign: 'right', fontWeight: 800, color: r.backDelta > 0 ? '#6effc0' : r.backDelta < 0 ? '#ff8a8a' : '#5a636b' }}
+              title={(r.backs || []).map((b) => `backed ${b.target}: ${b.correct ? 'right' : 'wrong'}`).join(', ') || 'no backed vote'}>
+              {r.backDelta > 0 ? `+${r.backDelta}` : r.backDelta < 0 ? `${r.backDelta}` : '—'}
+            </span>
+            <span style={{ width: 64, textAlign: 'right', fontWeight: 900, color: r.tokens > 0 ? SAB_GOLD : '#5a636b' }}>{r.tokens > 0 ? `+${fmtSab(r.tokens)}` : (r.guest ? 'guest' : '0')}</span>
+          </div>
+        ))}
+      </div>
+      {onOpenWallet && (
+        <button type="button" onClick={onOpenWallet} style={{ marginTop: 8, background: 'none', border: 'none', color: '#8fe3ff', fontSize: 11.5, fontWeight: 800, cursor: 'pointer', padding: 0 }}>
+          View wallets & bot track records →
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Wallet window: "Mine" (needs sign-in) and "Bot wallets" (public).
+function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'mine' }) {
+  const [tab, setTab] = useState(sessionToken ? initialTab : 'bots');
+  const [mine, setMine] = useState(null);
+  const [bots, setBots] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    setErr('');
+    if (tab === 'mine' && sessionToken && !mine) {
+      fetch(`${BACKEND_URL}/saboteur/me?sessionToken=${encodeURIComponent(sessionToken)}`).then((r) => r.json().then((d) => (r.ok ? setMine(d) : setErr(d.message || 'Could not load.')))).catch(() => setErr('Could not load right now.'));
+    }
+    if (tab === 'bots' && !bots) {
+      fetch(`${BACKEND_URL}/saboteur/bots`).then((r) => r.json().then((d) => (r.ok ? setBots(d) : setErr(d.message || 'Could not load.')))).catch(() => setErr('Could not load right now.'));
+    }
+  }, [tab]);
+  const tabBtn = (id, label) => (
+    <button key={id} type="button" onClick={() => setTab(id)} disabled={id === 'mine' && !sessionToken} style={{
+      padding: '6px 12px', borderRadius: 999, fontSize: 12, fontWeight: 800, cursor: 'pointer',
+      border: `1px solid ${tab === id ? 'rgba(255,215,94,0.6)' : 'rgba(255,255,255,0.12)'}`,
+      background: tab === id ? 'rgba(255,215,94,0.12)' : 'transparent', color: tab === id ? SAB_GOLD : '#aab0bb', opacity: id === 'mine' && !sessionToken ? 0.4 : 1,
+    }}>{label}</button>
+  );
+  const link = (href, text) => href ? <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#8fe3ff' }}>{text}</a> : null;
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 680, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', background: '#101218',
+        border: '1px solid rgba(255,215,94,0.3)', borderRadius: 18, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 14px 10px' }}>
+          <span style={{ fontSize: 16, fontWeight: 900, color: SAB_GOLD }}>$SABOTEUR</span><SabChip>TESTNET</SabChip>
+          <button type="button" onClick={onClose} title="Close" style={{ marginLeft: 'auto', width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.08)', color: '#cfd2da', cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, padding: '0 14px 10px' }}>{tabBtn('mine', 'My wallet')}{tabBtn('bots', 'Bot wallets')}</div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 14px 14px', color: '#e8eaf0' }}>
+          {err && <p style={{ fontSize: 12, color: '#ff8a8a' }}>{err}</p>}
+          {tab === 'mine' && !sessionToken && <p style={{ fontSize: 12.5, color: '#aab0bb' }}>Sign in to earn $SABOTEUR. Your wallet is made for you automatically - no seed phrase, no popups.</p>}
+          {tab === 'mine' && mine && (
+            <>
+              <div style={{ fontSize: 11, color: '#7d8a92', fontWeight: 800 }}>BALANCE</div>
+              <div style={{ fontSize: 30, fontWeight: 900, color: SAB_GOLD }}>{fmtSab(mine.balance)}</div>
+              <div style={{ fontSize: 11, color: '#7d8a92', marginBottom: 10 }}>
+                {mine.wallet ? <>{mine.wallet} · {link(mine.walletUrl, 'view on explorer')}</> : 'Your wallet appears after your first reward.'}
+                {mine.pending > 0 && <> · {fmtSab(mine.pending)} on the way</>}
+              </div>
+              {mine.history.length === 0 && <p style={{ fontSize: 12.5, color: '#aab0bb' }}>Finish a match to earn. 1st/2nd/3rd get the most; backing the right vote helps you climb.</p>}
+              {mine.history.map((h, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800 }}>#{h.rank} of {h.players}{h.humans === 1 ? ' · solo with bots' : ''}{h.reducedForDay ? ' · daily cap' : ''}</div>
+                    <div style={{ fontSize: 10.5, color: '#7d8a92' }}>
+                      {new Date(h.at).toLocaleString()} · {h.points} pts
+                      {(h.backs || []).map((b, j) => <span key={j}> · backed {b.target} {b.correct ? '✓' : '✗'}</span>)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 900, color: h.amount > 0 ? SAB_GOLD : '#7d8a92' }}>{h.amount > 0 ? `+${fmtSab(h.amount)}` : '0'}</div>
+                    <div style={{ fontSize: 10 }}>{h.txUrl ? link(h.txUrl, 'tx') : <span style={{ color: '#7d8a92' }}>{h.status === 'sent' ? 'sent' : h.status === 'skipped' ? '' : 'on the way'}</span>}</div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+          {tab === 'bots' && bots && (
+            <>
+              <p style={{ fontSize: 11.5, color: '#aab0bb', margin: '0 0 8px' }}>
+                Every AI bot has its own wallet and earns by rank, like people. A bot backs a vote only when its memory gives a real reason.
+                {' '}{link(bots.tokenUrl, 'Token on explorer')}{bots.treasuryBalance != null ? ` · treasury ${fmtSab(bots.treasuryBalance)}` : ''}
+              </p>
+              {bots.bots.map((b) => (
+                <div key={b.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800 }}><PlayerNameTag name={b.name} isBot /></div>
+                    <div style={{ fontSize: 10.5, color: '#7d8a92', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{link(b.walletUrl, b.wallet)}</div>
+                  </div>
+                  <div style={{ fontSize: 10.5, color: '#aab0bb', textAlign: 'right', width: 128, whiteSpace: 'nowrap' }}>
+                    {b.matches} matches · {b.firsts} wins<br />
+                    {b.backedVotes ? `backed ${b.backedRight}/${b.backedVotes} right` : 'no backed votes'}
+                  </div>
+                  <div style={{ width: 70, textAlign: 'right', fontWeight: 900, color: SAB_GOLD }}>{b.balance != null ? fmtSab(b.balance) : fmtSab(b.earned)}</div>
+                </div>
+              ))}
+            </>
+          )}
+          {((tab === 'mine' && sessionToken && !mine) || (tab === 'bots' && !bots)) && !err && <p style={{ fontSize: 12, color: '#7d8a92' }}>Loading…</p>}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -12797,6 +12973,8 @@ function MovementDemo() {
     // pause the same way they do for any other full-screen overlay
     // (meeting, kill cutscene, vent travel) via the existing pause-check
     // pattern, by checking gameResultRef in the rAF loop.
+    // [$SABOTEUR] rank -> points -> tokens for everyone in this match
+    socket.on('matchRewards', (data) => setMatchRewards(data));
     socket.on('gameOver', (data) => {
       // [NEW FEATURE - SABOTEUR REVEAL] Shows who the Saboteur(s) were
       // for 3s, THEN shows the actual win banner - without this, a game
@@ -13543,7 +13721,7 @@ function MovementDemo() {
     // picked, in real time, matching Among Us's own live voting screen.
     // totalVotes/totalAlive are also stored for the "X/Y voted" counter.
     socket.on('voteUpdate', (data) => {
-      if (data.voterName) setMatchChat((prev) => [...prev, { kind: 'sys', id: `vote-${data.voterId}-${Date.now()}`, text: `${data.voterName} voted`, voterId: data.voterId }]);
+      if (data.voterName) setMatchChat((prev) => [...prev, { kind: 'sys', id: `vote-${data.voterId}-${Date.now()}`, text: `${data.voterName} voted${data.backed ? ' · backed it' : ''}`, voterId: data.voterId }]);
       setMeeting((m) => m && {
         ...m,
         liveVotes: { ...m.liveVotes, [data.voterId]: data.choice },
@@ -14676,6 +14854,11 @@ function MovementDemo() {
   // voted" lines). Replaced by the server's copy at every meeting start /
   // reconnect, live lines appended in between.
   const [matchChat, setMatchChat] = useState([]);
+  // [$SABOTEUR] back-your-vote switch, end-of-match rewards, wallet window
+  const [backVoteOn, setBackVoteOn] = useState(false);
+  const [matchRewards, setMatchRewards] = useState(null);
+  const [showSabWallet, setShowSabWallet] = useState(false);
+  useEffect(() => { setBackVoteOn(false); }, [pendingVoteTarget]);
   const [botTyping, setBotTyping] = useState({}); // botId -> { name, until }
   const [meetingTab, setMeetingTab] = useState('meeting'); // ghosts: 'meeting' | 'ghost'
   const [ghostSeenCount, setGhostSeenCount] = useState(0);
@@ -15839,7 +16022,7 @@ function MovementDemo() {
   // still set immediately for instant UI feedback (locking in our own
   // vote button) — the actual elimination outcome comes later from
   // votingResult once everyone's voted or the timeout hits.
-  const castVote = useCallback((targetIdOrSkip) => {
+  const castVote = useCallback((targetIdOrSkip, back = false) => {
     // [BUG FIX] Using meetingRef.current here instead of the closure-
     // captured `meeting` state - a rapid double-tap (tapping a card,
     // then accidentally tapping a second one before React re-renders to
@@ -15860,7 +16043,7 @@ function MovementDemo() {
     // landing before React's next render+effect cycle would otherwise
     // have updated meetingRef.current.myVote.
     meetingRef.current = { ...meetingRef.current, myVote: targetIdOrSkip };
-    socketRef.current.emit('castVote', { targetId: targetIdOrSkip === 'skip' ? null : targetIdOrSkip });
+    socketRef.current.emit('castVote', { targetId: targetIdOrSkip === 'skip' ? null : targetIdOrSkip, back: !!back && targetIdOrSkip !== 'skip' });
     setMeeting(m => m && { ...m, myVote: targetIdOrSkip });
   }, [myAlive]);
 
@@ -19076,6 +19259,14 @@ function MovementDemo() {
                     }}>✕</button>
                   </div>
 
+                  {/* [$SABOTEUR] points turn into testnet tokens by rank */}
+                  <button type="button" onClick={() => setShowSabWallet(true)} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '9px 12px', borderRadius: 12, cursor: 'pointer',
+                    border: '1px solid rgba(255,215,94,0.45)', background: 'rgba(255,215,94,0.08)', color: '#ffd75e', fontSize: 12.5, fontWeight: 900,
+                  }}>
+                    $SABOTEUR wallet <SabChip>TESTNET</SabChip>
+                    <span style={{ marginLeft: 'auto', fontSize: 11, color: '#cfd2da', fontWeight: 700 }}>balance · history · bot wallets →</span>
+                  </button>
                   {pointsSummaryLoading && !pointsSummary && (
                     <p style={{ fontSize: 12, color: '#9aa0ad', textAlign: 'center', margin: '20px 0' }}>Loading your points…</p>
                   )}
@@ -24147,7 +24338,8 @@ function MovementDemo() {
           : `Emergency meeting${meeting.callerName ? ` by ${meeting.callerName}` : ''}`;
         const voteBoardProps = {
           cards: meetingCards, liveVotes: meeting.liveVotes || {}, myVote: meeting.myVote, canVote: myAlive,
-          votingOpen, pending: pendingVoteTarget, setPending: setPendingVoteTarget, onVote: castVote,
+          votingOpen, pending: pendingVoteTarget, setPending: setPendingVoteTarget, onVote: (id) => castVote(id, backVoteOn),
+          canBack: !roomInfo?.pool && myAlive && !meeting.myVote, backOn: backVoteOn, setBackOn: setBackVoteOn,
           calledById: meeting.calledByPlayerId, avatarForId: kit.avatarForId,
           totalVotes: meeting.totalVotesIn || Object.keys(meeting.liveVotes || {}).length,
           totalAlive: meeting.totalAliveForVote || meetingCards.filter((c) => !c.isDead).length,
@@ -24529,6 +24721,7 @@ function MovementDemo() {
               {gameResult.reason === 'missionsComplete' && 'Every crewmate finished their missions.'}
               {gameResult.reason === 'devForceEnd' && 'Ended manually via Dev Mode — no winner was decided.'}
             </p>
+            <MatchRewardsCard data={matchRewards} myId={socketRef.current?.id} onOpenWallet={() => setShowSabWallet(true)} />
           {/* [NEW FEATURE] Every player gets this button now, not just
               the host - pressing it sends THIS player's own screen back
               to the Lobby and resets the room's shared game-state on the
@@ -24549,6 +24742,7 @@ function MovementDemo() {
               // participant confirms with a plain in-app click - see
               // confirmFinalResult's own screen further below.
               socketRef.current?.emit('returnToLobby');
+              setMatchRewards(null); // [$SABOTEUR]
               // [BUG FIX] This button never called the local resetGame()
               // before - only the host's "Play Again" path did (via the
               // roomResetForNewGame listener). So a player who pressed
@@ -24574,6 +24768,8 @@ function MovementDemo() {
           </div>
         </div>
       )}
+
+      {showSabWallet && <SaboteurWalletModal sessionToken={sessionToken} onClose={() => setShowSabWallet(false)} />}
 
       {/* Mission-complete congrats toast — auto-dismisses after ~3s. */}
       {/* [POINTS SYSTEM STEP 3] Point popups - a coin + "+N" pops in near
