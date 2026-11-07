@@ -9540,18 +9540,87 @@ function MatchRewardsCard({ data, myId, onOpenWallet }) {
         ))}
       </div>
       <div style={{ marginTop: 8 }}><SabDisclaimer compact /></div>
-      {onOpenWallet && (
-        <button type="button" onClick={onOpenWallet} style={{ marginTop: 8, background: 'none', border: 'none', color: '#8fe3ff', fontSize: 11.5, fontWeight: 800, cursor: 'pointer', padding: 0 }}>
-          View wallets & bot track records →
-        </button>
-      )}
+      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11 }}>
+        <span style={{ color: '#8fa39a' }}>Your $SABOTEUR shows in <b style={{ color: '#e8eaf0' }}>Wallet → Coins</b>.</span>
+        {onOpenWallet && (
+          <button type="button" onClick={onOpenWallet} style={{ background: 'none', border: 'none', color: '#8fe3ff', fontSize: 11.5, fontWeight: 800, cursor: 'pointer', padding: 0 }}>
+            Bot wallets →
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-// Wallet window: "Mine" (needs sign-in) and "Bot wallets" (public).
-function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'mine' }) {
-  const [tab, setTab] = useState(sessionToken ? initialTab : 'bots');
+// [$SABOTEUR] Pinned row in the built-in Wallet's Coins tab. The token is
+// held for the player in a game-locked account (never their own wallet
+// key), so it shows here but has no Send - see rules.js playerTransfers.
+function SabCoinRow({ summary, loading, hidden, onShowHistory, onShowBots }) {
+  const [open, setOpen] = useState(false);
+  const bal = summary ? summary.balance : null;
+  return (
+    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div onClick={() => setOpen((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 4px', cursor: 'pointer' }}>
+        <span style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0, background: '#0b0d12', border: `2px solid ${SAB_GOLD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 900, color: '#6effc0' }}>S</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700 }}>SABOTEUR</span>
+            <span style={{ padding: '1px 5px', borderRadius: 4, fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, letterSpacing: 0.6, background: 'rgba(255,193,76,0.14)', color: '#ffc14c' }}>GAME · LOCKED</span>
+          </div>
+          <span style={{ fontSize: 11.5, color: '#6c7a73' }}>Earned in matches · testnet · can't be sent</span>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, fontWeight: 600, color: SAB_GOLD }}>{hidden ? '••••' : (bal == null ? (loading ? '…' : '0') : fmtSab(bal))}</div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: '#6c7a73' }}>{summary && summary.pending > 0 ? `+${fmtSab(summary.pending)} on the way` : 'no market price'}</div>
+        </div>
+      </div>
+      {open && (
+        <div style={{ padding: '0 4px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <SabDisclaimer compact />
+          <div style={{ fontSize: 11.5, color: '#8fa39a', lineHeight: 1.5 }}>
+            Finish matches to earn: 1st/2nd/3rd get the most, and backing the right vote helps you climb. Full rewards need 4+ people in the match.
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={onShowHistory} style={{ padding: '6px 12px', borderRadius: 999, border: '1px solid rgba(255,215,94,0.45)', background: 'rgba(255,215,94,0.08)', color: SAB_GOLD, fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>Reward history</button>
+            <button type="button" onClick={onShowBots} style={{ padding: '6px 12px', borderRadius: 999, border: '1px solid rgba(143,227,255,0.4)', background: 'rgba(143,227,255,0.06)', color: '#8fe3ff', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>Bot wallets</button>
+            {summary && summary.walletUrl && <a href={summary.walletUrl} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 4px', color: '#8fe3ff', fontSize: 11.5, fontWeight: 700 }}>View on explorer</a>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+// [$SABOTEUR] Activity tab -> "$SABOTEUR" filter: one row per match.
+function SabHistoryList({ summary, loading, signedIn }) {
+  if (!signedIn) return <p style={{ fontSize: 12.5, color: '#6c7a73', textAlign: 'center', margin: '24px 0' }}>Sign in to earn $SABOTEUR.</p>;
+  if (loading && !summary) return <p style={{ fontSize: 12.5, color: '#9aa0ad', textAlign: 'center', margin: '24px 0' }}>Loading…</p>;
+  const list = (summary && summary.history) || [];
+  if (!list.length) return <p style={{ fontSize: 12.5, color: '#6c7a73', textAlign: 'center', margin: '24px 0' }}>No rewards yet - finish a match to earn.</p>;
+  return (
+    <div>
+      {list.map((h, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12.5 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: '#e8eaf0' }}>Match reward · #{h.rank} of {h.players}{h.humans === 1 ? ' · solo with bots' : ''}{h.reducedForDay ? ' · daily cap' : ''}</div>
+            <div style={{ fontSize: 10.5, color: '#6c7a73' }}>
+              {new Date(h.at).toLocaleString()} · {h.points} pts
+              {(h.backs || []).map((b, j) => <span key={j}> · backed {b.target} {b.correct ? '✓' : '✗'}</span>)}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, color: h.amount > 0 ? SAB_GOLD : '#6c7a73' }}>{h.amount > 0 ? `+${fmtSab(h.amount)}` : '0'}</div>
+            <div style={{ fontSize: 10 }}>{h.txUrl ? <a href={h.txUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#8fe3ff' }}>tx</a> : <span style={{ color: '#6c7a73' }}>{h.status === 'sent' ? 'sent' : h.status === 'skipped' ? '' : 'on the way'}</span>}</div>
+          </div>
+        </div>
+      ))}
+      <div style={{ marginTop: 10 }}><SabDisclaimer compact /></div>
+    </div>
+  );
+}
+
+// Public list of every bot's wallet and track record (for players + judges).
+function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'bots' }) {
+  const [tab, setTab] = useState('bots');
   const [mine, setMine] = useState(null);
   const [bots, setBots] = useState(null);
   const [err, setErr] = useState('');
@@ -9583,7 +9652,7 @@ function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'mine' }) {
           <button type="button" onClick={onClose} title="Close" style={{ marginLeft: 'auto', width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.08)', color: '#cfd2da', cursor: 'pointer' }}>✕</button>
         </div>
         <div style={{ padding: '0 14px 10px' }}><SabDisclaimer /></div>
-        <div style={{ display: 'flex', gap: 6, padding: '0 14px 10px' }}>{tabBtn('mine', 'My wallet')}{tabBtn('bots', 'Bot wallets')}</div>
+        <div style={{ padding: '0 14px 8px', fontSize: 13, fontWeight: 900, color: '#e8eaf0' }}>Bot wallets</div>
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 14px 14px', color: '#e8eaf0' }}>
           {err && <p style={{ fontSize: 12, color: '#ff8a8a' }}>{err}</p>}
           {tab === 'mine' && !sessionToken && <p style={{ fontSize: 12.5, color: '#aab0bb' }}>Sign in to earn $SABOTEUR. Your wallet is made for you automatically - no seed phrase, no popups.</p>}
@@ -14871,7 +14940,9 @@ function MovementDemo() {
   // [$SABOTEUR] back-your-vote switch, end-of-match rewards, wallet window
   const [backVoteOn, setBackVoteOn] = useState(false);
   const [matchRewards, setMatchRewards] = useState(null);
-  const [showSabWallet, setShowSabWallet] = useState(false);
+  const [showSabWallet, setShowSabWallet] = useState(false); // public bot-wallets window
+  const [sabSummary, setSabSummary] = useState(null);         // my $SABOTEUR, shown in the built-in Wallet
+  const [sabLoading, setSabLoading] = useState(false);
   useEffect(() => { setBackVoteOn(false); }, [pendingVoteTarget]);
   const [botTyping, setBotTyping] = useState({}); // botId -> { name, until }
   const [meetingTab, setMeetingTab] = useState('meeting'); // ghosts: 'meeting' | 'ghost'
@@ -19274,12 +19345,12 @@ function MovementDemo() {
                   </div>
 
                   {/* [$SABOTEUR] points turn into testnet tokens by rank */}
-                  <button type="button" onClick={() => setShowSabWallet(true)} style={{
+                  <button type="button" onClick={() => { setShowPointsPopup(false); setWalletTab('coins'); setHomeModal('wallet'); }} style={{
                     width: '100%', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '9px 12px', borderRadius: 12, cursor: 'pointer',
                     border: '1px solid rgba(255,215,94,0.45)', background: 'rgba(255,215,94,0.08)', color: '#ffd75e', fontSize: 12.5, fontWeight: 900,
                   }}>
-                    $SABOTEUR wallet <SabChip>TESTNET</SabChip>
-                    <span style={{ marginLeft: 'auto', fontSize: 11, color: '#cfd2da', fontWeight: 700 }}>balance · history · bot wallets →</span>
+                    $SABOTEUR <SabChip>TESTNET</SabChip>
+                    <span style={{ marginLeft: 'auto', fontSize: 11, color: '#cfd2da', fontWeight: 700 }}>see it in Wallet →</span>
                   </button>
                   {pointsSummaryLoading && !pointsSummary && (
                     <p style={{ fontSize: 12, color: '#9aa0ad', textAlign: 'center', margin: '20px 0' }}>Loading your points…</p>
@@ -19705,6 +19776,15 @@ function MovementDemo() {
               ones the old image-based screen used. */}
           {homeModal === 'wallet' && (() => {
             const W_MINT = '#6effc0', W_CYAN = '#8fe3ff', W_GOLD = '#ffcf6e', W_RED = '#ff9a8a';
+            // [$SABOTEUR] load my balance/history the first time the Wallet opens
+            if (sessionToken && !sabSummary && !sabLoading) {
+              setTimeout(() => {
+                setSabLoading(true);
+                fetch(`${BACKEND_URL}/saboteur/me?sessionToken=${encodeURIComponent(sessionToken)}`)
+                  .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) setSabSummary(d); })
+                  .catch(() => {}).finally(() => setSabLoading(false));
+              }, 0);
+            }
             const GAME_KINDS = ['entry_fee', 'prize', 'refund', 'pool_created', 'cancel_pool'];
             const hasWallet = !!loggedInPlayer?.walletAddress;
             const txList = walletTxHistory.slice(0, 30).filter((tx) => {
@@ -19865,7 +19945,7 @@ function MovementDemo() {
                     <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
                       <span style={{ position: 'absolute', bottom: -1, height: 2, width: 'calc(100% / 3)', left: `calc(${walletTab === 'coins' ? 0 : walletTab === 'nfts' ? 1 : 2} * 100% / 3)`, background: W_MINT, boxShadow: `0 0 10px ${W_MINT}`, transition: 'left 0.25s cubic-bezier(.3,.7,.2,1)' }} />
                       {[
-                        { id: 'coins', label: 'COINS', count: hasWallet ? 1 + pfTokens.length : 0 },
+                        { id: 'coins', label: 'COINS', count: (hasWallet ? 1 + pfTokens.length : 0) + (sessionToken ? 1 : 0) }, // + $SABOTEUR
                         { id: 'nfts', label: 'NFTs', count: pfNfts.length },
                         { id: 'activity', label: 'ACTIVITY', count: walletTxHistory.length },
                       ].map((t) => (
@@ -19883,6 +19963,11 @@ function MovementDemo() {
                     <div className="ns-wallet-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', margin: '-6px -16px 0', padding: '0 16px 12px', display: 'flex', flexDirection: 'column' }}>
                       {walletTab === 'coins' && (
                         <div>
+                          {sessionToken && (
+                            <SabCoinRow summary={sabSummary} loading={sabLoading} hidden={walletBalanceHidden}
+                              onShowHistory={() => { setWalletTab('activity'); setWalletTxFilter('sab'); }}
+                              onShowBots={() => setShowSabWallet(true)} />
+                          )}
                           {hasWallet && (
                             <div onClick={() => { setSendAsset(null); setSendAmount(''); setSendError(''); setSendSuccess(''); setShowSendModal(true); }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 4px', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
                               <img src={NEAR_LOGO_IMG} alt="" style={{ width: 36, height: 36, borderRadius: 999, flexShrink: 0 }} />
@@ -19957,7 +20042,7 @@ function MovementDemo() {
                       {walletTab === 'activity' && (
                         <>
                           <div style={{ display: 'flex', gap: 6, padding: '12px 0 4px' }}>
-                            {[['all', 'All'], ['games', 'Games'], ['transfers', 'Transfers']].map(([id, label]) => (
+                            {[['all', 'All'], ['games', 'Games'], ['transfers', 'Transfers'], ['sab', '$SABOTEUR']].map(([id, label]) => (
                               <div
                                 key={id}
                                 onClick={() => setWalletTxFilter(id)}
@@ -19969,6 +20054,7 @@ function MovementDemo() {
                               >{label}</div>
                             ))}
                           </div>
+                          {walletTxFilter === 'sab' ? <SabHistoryList summary={sabSummary} loading={sabLoading} signedIn={!!sessionToken} /> : (
                           <div>
                             {walletTxLoading && walletTxHistory.length === 0 && <p style={{ fontSize: 12.5, color: '#9aa0ad', textAlign: 'center', margin: '24px 0' }}>Loading…</p>}
                             {walletTxError && <p style={{ fontSize: 12, color: '#ff8a8a', textAlign: 'center', margin: '16px 0' }}>{walletTxError}</p>}
@@ -20012,6 +20098,7 @@ function MovementDemo() {
                               </div>
                             ))}
                           </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -24756,7 +24843,7 @@ function MovementDemo() {
               // participant confirms with a plain in-app click - see
               // confirmFinalResult's own screen further below.
               socketRef.current?.emit('returnToLobby');
-              setMatchRewards(null); // [$SABOTEUR]
+              setMatchRewards(null); setSabSummary(null); // [$SABOTEUR] refetch the new balance next time Wallet opens
               // [BUG FIX] This button never called the local resetGame()
               // before - only the host's "Play Again" path did (via the
               // roomResetForNewGame listener). So a player who pressed
