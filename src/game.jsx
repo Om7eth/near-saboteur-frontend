@@ -9466,6 +9466,18 @@ function fmtSab(n) {
   const v = Number(n) || 0;
   return v >= 100 ? Math.round(v).toLocaleString() : (Math.round(v * 100) / 100).toLocaleString();
 }
+// Shown wherever $SABOTEUR amounts appear.
+const SAB_DISCLAIMER = "Testnet token with no real value. Any future conversion (e.g. to a mainnet token) can be at a different rate. $SABOTEUR can't be sent or transferred - it only comes from match rewards.";
+function SabDisclaimer({ compact }) {
+  return (
+    <div style={{
+      display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: compact ? 10 : 11, lineHeight: 1.4, color: '#ffdc9a',
+      background: 'rgba(255,193,76,0.07)', border: '1px solid rgba(255,193,76,0.3)', borderRadius: 9, padding: compact ? '5px 8px' : '7px 10px',
+    }}>
+      <span style={{ fontWeight: 900 }}>⚠</span><span>{SAB_DISCLAIMER}</span>
+    </div>
+  );
+}
 function SabChip({ children }) {
   return <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: 0.5, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,193,76,0.15)', color: '#ffc14c', border: '1px solid rgba(255,193,76,0.4)' }}>{children}</span>;
 }
@@ -9527,6 +9539,7 @@ function MatchRewardsCard({ data, myId, onOpenWallet }) {
           </div>
         ))}
       </div>
+      <div style={{ marginTop: 8 }}><SabDisclaimer compact /></div>
       {onOpenWallet && (
         <button type="button" onClick={onOpenWallet} style={{ marginTop: 8, background: 'none', border: 'none', color: '#8fe3ff', fontSize: 11.5, fontWeight: 800, cursor: 'pointer', padding: 0 }}>
           View wallets & bot track records →
@@ -9569,6 +9582,7 @@ function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'mine' }) {
           <span style={{ fontSize: 16, fontWeight: 900, color: SAB_GOLD }}>$SABOTEUR</span><SabChip>TESTNET</SabChip>
           <button type="button" onClick={onClose} title="Close" style={{ marginLeft: 'auto', width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.08)', color: '#cfd2da', cursor: 'pointer' }}>✕</button>
         </div>
+        <div style={{ padding: '0 14px 10px' }}><SabDisclaimer /></div>
         <div style={{ display: 'flex', gap: 6, padding: '0 14px 10px' }}>{tabBtn('mine', 'My wallet')}{tabBtn('bots', 'Bot wallets')}</div>
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 14px 14px', color: '#e8eaf0' }}>
           {err && <p style={{ fontSize: 12, color: '#ff8a8a' }}>{err}</p>}
@@ -9602,7 +9616,7 @@ function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'mine' }) {
           {tab === 'bots' && bots && (
             <>
               <p style={{ fontSize: 11.5, color: '#aab0bb', margin: '0 0 8px' }}>
-                Every AI bot has its own wallet and earns by rank, like people. A bot backs a vote only when its memory gives a real reason.
+                Every AI bot has its own wallet and earns by rank, like people. A bot backs a vote only when its memory gives a real reason. Past {fmtSab(bots.botCap || 50000)}, a bot's rewards go to the Bot Treasury.
                 {' '}{link(bots.tokenUrl, 'Token on explorer')}{bots.treasuryBalance != null ? ` · treasury ${fmtSab(bots.treasuryBalance)}` : ''}
               </p>
               {bots.bots.map((b) => (
