@@ -9871,6 +9871,144 @@ function OnbStepper({ step }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// [DESKTOP HOME] Om7eth's wide hangar art for landscape screens. The two
+// wall screens are slightly turned, so their content is laid out in a
+// flat box and bent onto the 4 measured corners with a CSS matrix3d (no
+// spill over the frame). Same cover + safe-zone rules as the sign-in art.
+// ═══════════════════════════════════════════════════════════════════════
+const DESKTOP_HOME_ART_IMG = new URL('./assets/desktop-home-art.webp', import.meta.url).href;
+const DESK_HOME = {
+  w: 1672, h: 941,
+  leftQ: [[118, 207], [551, 218], [551, 494], [118, 513]],   // TL, TR, BR, BL
+  rightQ: [[1224, 242], [1519, 236], [1519, 520], [1224, 507]],
+  ped: { x: 825, y: 600, r: 190 },
+  safe: [80, 160, 1595, 935],
+};
+function isDesktopHomeLayout(d) {
+  return !!d && d.w >= 900 && d.w / d.h >= 1.2;
+}
+function deskHomeLayout(W, H) {
+  const A = DESK_HOME;
+  const [sx0, sy0, sx1, sy1] = A.safe;
+  let s = Math.max(W / A.w, H / A.h);
+  s = Math.min(s, (W * 0.98) / (sx1 - sx0), (H * 0.98) / (sy1 - sy0));
+  const dw = A.w * s, dh = A.h * s;
+  const cl = (v, a, b) => Math.min(Math.max(v, a), b);
+  let ox = dw > W ? cl((W - dw) / 2, W - dw, 0) : (W - dw) / 2;
+  let oy = dh > H ? cl((H - dh) / 2, H - dh, 0) : (H - dh) / 2;
+  ox = cl(ox, W * 0.01 - sx0 * s, W * 0.99 - sx1 * s);
+  oy = cl(oy, H * 0.01 - sy0 * s, H * 0.99 - sy1 * s);
+  const Q = (q) => q.map(([x, y]) => [ox + x * s, oy + y * s]);
+  return { s, ox, oy, dw, dh, leftQ: Q(A.leftQ), rightQ: Q(A.rightQ), ped: { x: ox + A.ped.x * s, y: oy + A.ped.y * s, r: A.ped.r * s } };
+}
+// CSS matrix3d that maps a w x h box onto 4 points (perspective).
+function quadMatrix3d(w, h, q) {
+  const src = [[0, 0], [w, 0], [w, h], [0, h]], M = [], B = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = src[i], [u, v] = q[i];
+    M.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); B.push(u);
+    M.push([0, 0, 0, x, y, 1, -v * x, -v * y]); B.push(v);
+  }
+  for (let c = 0; c < 8; c++) {
+    let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]]; [B[c], B[p]] = [B[p], B[c]];
+    for (let r = 0; r < 8; r++) if (r !== c) { const f = M[r][c] / M[c][c]; for (let k = c; k < 8; k++) M[r][k] -= f * M[c][k]; B[r] -= f * B[c]; }
+  }
+  const [a, b, c, d, e, f, g, hh] = B.map((v, i) => v / M[i][i]);
+  return `matrix3d(${a},${d},0,${g},${b},${e},0,${hh},0,0,1,0,${c},${f},0,1)`;
+}
+// A wall screen: children are laid out in a flat w x h box, then bent on.
+function DeskWallScreen({ q, w, h, children }) {
+  return (
+    <div style={{ position: 'absolute', left: 0, top: 0, width: w, height: h, transformOrigin: '0 0', transform: quadMatrix3d(w, h, q), overflow: 'hidden', fontSize: h / 19 }}>
+      <div className="dh-scr">{children}</div>
+    </div>
+  );
+}
+const DESK_HOME_CSS = `
+.dh{position:fixed;inset:0;overflow:clip;background:#000;color:#e6ece9;font-family:'IBM Plex Sans',system-ui,sans-serif}
+.dh *{box-sizing:border-box}
+.dh-scr{padding:4% 4.5%;height:100%;display:flex;flex-direction:column}
+.dh-st{display:flex;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:.72em;letter-spacing:.18em;color:#6effc0;margin-bottom:.6em}
+.dh-st span{margin-left:auto;color:#7d8d86;letter-spacing:.05em}
+.dh-st i{width:.5em;height:.5em;border-radius:50%;background:#6effc0;box-shadow:0 0 .5em #6effc0;margin-right:.5em}
+.dh-room{display:flex;align-items:center;gap:.7em;padding:.5em .7em;border:1px solid rgba(110,255,192,.16);background:rgba(0,0,0,.35);border-radius:.45em;margin-bottom:.4em}
+.dh-room b{font-family:'IBM Plex Mono',monospace;font-size:.9em;color:#eafff4;letter-spacing:.08em}
+.dh-room .n{flex:1;min-width:0;font-size:.82em;color:#aab4af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dh-room .c{font-family:'IBM Plex Mono',monospace;font-size:.72em;color:#7d8d86}
+.dh-join{padding:.35em .9em;border-radius:.4em;border:none;background:#6effc0;color:#05130d;font-weight:800;font-size:.75em;cursor:pointer}
+.dh-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3em;color:#7d8d86;font-size:.85em;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:.45em;margin-bottom:.5em}
+.dh-foot{margin-top:auto;display:flex;gap:.5em}
+.dh-code{flex:1;display:flex;border:1px solid rgba(110,255,192,.25);border-radius:.45em;overflow:hidden;min-width:0}
+.dh-code input{flex:1;min-width:0;background:rgba(0,0,0,.4);border:none;color:#fff;padding:.55em .7em;font-family:'IBM Plex Mono',monospace;font-size:.85em;letter-spacing:.2em;outline:none;text-transform:uppercase}
+.dh-code button{background:rgba(110,255,192,.14);border:none;color:#6effc0;font-weight:800;padding:0 .9em;cursor:pointer}
+.dh-bots{padding:.55em .9em;border-radius:.45em;border:1px solid #8fe3ff;background:rgba(143,227,255,.08);color:#8fe3ff;font-weight:700;font-size:.82em;cursor:pointer;white-space:nowrap}
+.dh-err{font-size:.72em;color:#ff8a8a;margin-top:.3em}
+.dh-lb{display:flex;align-items:center;gap:.6em;padding:.35em .5em;border-bottom:1px solid rgba(255,255,255,.05);font-size:.85em}
+.dh-lb .r{width:1.4em;font-family:'IBM Plex Mono',monospace;color:#7d8d86}.dh-lb .r.g{color:#ffd75e}
+.dh-lb img{width:1.8em;height:1.8em;object-fit:cover;object-position:top;border-radius:50%;background:#0b1512}
+.dh-lb .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dh-lb .p{font-family:'IBM Plex Mono',monospace;font-size:.85em;color:#cfd2da}
+.dh-lb.me{background:rgba(110,255,192,.08);border:1px solid rgba(110,255,192,.3);border-radius:.4em;margin-top:.4em}
+.dh-news{margin-top:auto;display:flex;gap:.6em;align-items:center;padding:.45em .6em;border-radius:.4em;background:rgba(143,227,255,.06);border:1px solid rgba(143,227,255,.25);font-size:.76em;color:#cfe8f2;cursor:pointer;text-align:left}
+.dh-news b{font-family:'IBM Plex Mono',monospace;font-size:.85em;color:#8fe3ff;letter-spacing:.1em;flex-shrink:0}
+.dh-news span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dh-top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:.8em;padding:.7em 1.4em;background:linear-gradient(180deg,rgba(0,0,0,.82),rgba(0,0,0,0))}
+.dh-prof{display:flex;align-items:center;gap:.6em;padding:.3em .9em .3em .3em;border-radius:999px;background:rgba(5,10,9,.75);border:1px solid rgba(110,255,192,.25);color:inherit;cursor:pointer}
+.dh-prof img{width:2.4em;height:2.4em;border-radius:50%;background:#0b1512;object-fit:cover;object-position:top}
+.dh-prof b{display:block;font-family:'Space Grotesk',sans-serif;font-size:1em;text-align:left}.dh-prof span{display:block;font-family:'IBM Plex Mono',monospace;font-size:.68em;color:#7d8d86;text-align:left}
+.dh-pts{display:flex;align-items:center;gap:.35em;font-family:'IBM Plex Mono',monospace;font-size:.8em;color:#cfd2da;padding:.35em .7em;border-radius:999px;background:rgba(5,10,9,.6);border:1px solid rgba(255,255,255,.08);cursor:pointer}
+.dh-pts img{width:1.2em}
+.dh-logo{margin:0 auto;font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:.3em;font-size:.9em;color:#9fb3aa}.dh-logo b{color:#6effc0}
+.dh-pass{height:4.2em;cursor:pointer;filter:drop-shadow(0 0 .8em rgba(255,200,60,.35));margin-right:.3em;background:none;border:none;padding:0}
+.dh-pass img{height:100%;width:auto;display:block}
+.dh-ib{position:relative;display:flex;flex-direction:column;align-items:center;gap:.3em;min-width:6.4em;background:none;border:none;color:#b9cbc3;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:.62em;letter-spacing:.1em;padding:0;white-space:nowrap}
+.dh-hx{position:relative;width:5em;height:4.4em}
+.dh-hx:before{content:"";position:absolute;inset:0;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:linear-gradient(180deg,rgba(110,255,192,.6),rgba(110,255,192,.14))}
+.dh-hx:after{content:"";position:absolute;inset:2px;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:radial-gradient(circle at 50% 30%,#0f2620,#050b09 80%)}
+.dh-hx > *{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1}
+.dh-hx svg{width:2em;height:2em}.dh-hx img{width:2.9em;height:2.9em;object-fit:contain}
+.dh-ib:hover .dh-hx:before{background:linear-gradient(180deg,#6effc0,rgba(110,255,192,.3))}
+.dh-badge{position:absolute;top:-.2em;right:.6em;min-width:1.7em;height:1.7em;border-radius:999px;background:#ff5c5c;color:#fff;font-size:.95em;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:2}
+.dh-crew{position:absolute;transform:translate(-50%,-100%);pointer-events:none;filter:drop-shadow(0 .6em 1.2em rgba(0,0,0,.6));animation:dhBob 3.4s ease-in-out infinite}
+@keyframes dhBob{0%,100%{margin-top:0}50%{margin-top:-6px}}
+.dh-skin{position:absolute;transform:translateX(-50%);display:flex;align-items:center;gap:1.1em;padding:.35em .9em;border-radius:.6em;background:rgba(5,10,9,.82);border:1px solid rgba(110,255,192,.3)}
+.dh-skin button{background:none;border:none;color:#6effc0;font-size:1.3em;cursor:pointer;padding:0 .2em}
+.dh-skin b{display:block;font-family:'Space Grotesk',sans-serif;letter-spacing:.2em;font-size:.95em;text-align:center;text-transform:uppercase}
+.dh-skin span{display:block;font-family:'IBM Plex Mono',monospace;font-size:.62em;color:#7d8d86;text-align:center;letter-spacing:.1em}
+.dh-dock{position:absolute;transform:translateX(-50%)}
+.dh-modes{display:grid;grid-template-columns:repeat(3,1fr);padding:.25em;border-radius:.55em;background:rgba(4,8,7,.85);border:1px solid rgba(255,255,255,.08);margin-bottom:.6em}
+.dh-modes button{position:relative;padding:.6em 0;border:none;border-radius:.4em;background:none;color:#7d8d86;font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:.12em;font-size:.82em;cursor:pointer}
+.dh-modes button.on{background:rgba(110,255,192,.14);color:#6effc0;box-shadow:inset 0 0 0 1px rgba(110,255,192,.45)}
+.dh-modes em{font-style:normal;margin-left:.4em;font-family:'IBM Plex Mono',monospace;font-size:.75em;padding:0 .35em;border-radius:999px;background:#6effc0;color:#04110b}
+.dh-play{width:100%;display:flex;align-items:center;gap:1em;padding:1.15em 1.5em;border:none;cursor:pointer;clip-path:polygon(0 0,calc(100% - 1em) 0,100% 1em,100% 100%,1em 100%,0 calc(100% - 1em))}
+.dh-play b{display:block;font-family:'Space Grotesk',sans-serif;font-size:2em;letter-spacing:.18em;line-height:1;text-align:left}
+.dh-play span{display:block;font-family:'IBM Plex Mono',monospace;font-size:.7em;letter-spacing:.1em;opacity:.75;margin-top:.3em;text-align:left}
+.dh-play em{margin-left:auto;font-style:normal;font-size:1.8em}
+`;
+const DESK_ICON = {
+  WALLET: 'M4 7.5V18a2 2 0 002 2h13a1 1 0 001-1v-3M4 7.5A2 2 0 016 5.5h10.5M4 7.5h15a1 1 0 011 1V11M20 11h-4a2.5 2.5 0 000 5h4a1 1 0 001-1v-3a1 1 0 00-1-1z',
+  RANKS: 'M9 20V11h6v9M3 20v-5h6M15 20v-7h6v7M2 20h20M12 3.5l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z',
+  ACTIVITY: 'M3 12h4l2.5-6 4 12 2.5-6H21',
+  SOUND: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11',
+  MUTED: 'M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9.5l5 5M21 9.5l-5 5',
+  SETTINGS: 'M12 9a3 3 0 100 6 3 3 0 000-6zM19.4 13.5l1.6 1.2-1.8 3.1-1.9-.7a7 7 0 01-1.7 1l-.3 2H10.7l-.3-2a7 7 0 01-1.7-1l-1.9.7-1.8-3.1 1.6-1.2a7 7 0 010-2l-1.6-1.2 1.8-3.1 1.9.7a7 7 0 011.7-1l.3-2h3.6l.3 2a7 7 0 011.7 1l1.9-.7 1.8 3.1-1.6 1.2a7 7 0 010 2z',
+  NEWS: 'M4 5h13v14H6a2 2 0 01-2-2zM17 9h3v8a2 2 0 01-2 2M7.5 9h6M7.5 12.5h6M7.5 16h3.5',
+};
+// Hex button in the desktop home's top bar (module-level so it isn't
+// re-created on every render).
+function DeskTopButton({ label, onClick, children, badge }) {
+  return (
+    <button type="button" className="dh-ib hm-btn" aria-label={label} onClick={onClick}>
+      <span className="dh-hx">{children}</span>{label.toUpperCase()}
+      {badge > 0 && <span className="dh-badge">{badge > 9 ? '9+' : badge}</span>}
+    </button>
+  );
+}
+function DeskIcon({ d }) {
+  return <svg viewBox="0 0 24 24" fill="none"><path d={d} stroke="#7dffc8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
 function MovementDemo() {
   const cafe = ROOMS.find(r => r.id === 'cafeteria');
   // Spawn beside the central table (not on it — the table is now solid and would trap the player).
@@ -9998,6 +10136,7 @@ function MovementDemo() {
   // fails - separate from the in-modal liveRoomsWindowError so the two
   // surfaces never stomp on each other's error state.
   const [desktopJoinError, setDesktopJoinError] = useState('');
+  const [deskRoomCode, setDeskRoomCode] = useState(''); // [DESKTOP HOME] Live Rooms 'Enter code'
   // [NEW FEATURE - DESKTOP LOGIN RAILS] Signed-out visitor tapped Join on
   // the login screen's Live Rooms rail -> show the "create a profile to
   // join" gate. The code is remembered in a ref and auto-joined the
@@ -11868,6 +12007,10 @@ function MovementDemo() {
   useEffect(() => {
     if (homeModal === 'leaderboard') loadLeaderboard(leaderboardTab);
   }, [homeModal, leaderboardTab, leaderboardData]);
+  // [DESKTOP HOME] the right wall screen shows this week's top 5
+  useEffect(() => {
+    if (screen === 'home' && isDesktopHomeLayout(desktopDims) && !leaderboardData.weekly && !leaderboardLoading && !homeModal) loadLeaderboard('weekly');
+  }, [screen, desktopDims, leaderboardData.weekly, homeModal]);
 
   // [NEW FEATURE - LIVE RESET COUNTDOWN] "Resets in 2d 6h" instead of a
   // static "Resets every Saturday" line - ticks once a minute (a
@@ -18727,6 +18870,7 @@ function MovementDemo() {
         const frameWidthPx = Math.min(desktopDims.w, desktopDims.h * frameAspect);
         const sideWidth = Math.max(0, (desktopDims.w - frameWidthPx) / 2);
         if (sideWidth < 220) return null; // not enough room to show anything useful
+        if (isDesktopHomeLayout(desktopDims)) return null; // [DESKTOP HOME] the wide art replaces the side rails
         // [BUG FIX - RAILS CRAMPED ON SMALLER SCREENS] Rail content scales with the
         // space actually available (Mac vs big monitor), and always starts below the logo.
         const railK = Math.min(1.15, Math.max(0.78, sideWidth / 470));
@@ -19170,8 +19314,6 @@ function MovementDemo() {
                 { id: 'paid', short: 'PAID', cta: 'PAID GAMES', sub: livePaid > 0 ? `ENTRY FEE · ${roomsTxt(livePaid)}` : 'ENTRY FEE · TOP 3 SPLIT THE POT', count: livePaid,
                   icon: 'M3 7.5h14a1 1 0 011 1V17a1 1 0 01-1 1H3a1 1 0 01-1-1V8.5a1 1 0 011-1zM6 5h15a1 1 0 011 1v8.5M10 10.5c-.6-.6-1.3-.8-2-.8-1 0-1.8.5-1.8 1.3 0 1.8 3.8.9 3.8 2.7 0 .8-.8 1.3-1.9 1.3-.8 0-1.5-.3-2.1-.9M8 8.8v.9M8 15v.9',
                   c: '#ffcf6e', rgb: '255,207,110', fill: 'linear-gradient(100deg, #ffe08f, #f2b84b 55%, #c98a1e)', edge: 'linear-gradient(135deg, #fff3cf, #c98a1e)', text: '#1c1203', subC: 'rgba(28,18,3,0.72)', chipBg: 'rgba(28,18,3,0.16)', go: guestGuard(() => setHomeModal('paidGames')) },
-                { id: 'sponsor', short: 'SPONSOR', cta: 'COMING SOON', sub: 'SPONSOR GAMES · LOCKED FOR NOW', count: 0, locked: true, icon: LOCK,
-                  c: '#8a949c', rgb: '150,160,170', fill: 'linear-gradient(100deg, #161b1f, #0e1215)', edge: 'linear-gradient(135deg, rgba(150,160,170,0.35), rgba(150,160,170,0.08))', text: '#9aa3aa', subC: '#5d666d', chipBg: 'rgba(150,160,170,0.1)', go: null },
               ];
               const mIdx = Math.max(0, MODES.findIndex((m) => m.id === homeMode));
               const cur = MODES[mIdx];
@@ -19185,6 +19327,124 @@ function MovementDemo() {
               // nudged up just enough to never collide with the launch console.
               const plateTop = Math.min(hs.py + 111 * hs.scale, hs.h - 196);
               const avW = hs.avatarH * (88 / 126);
+              // [DESKTOP HOME] landscape screens get Om7eth's wide hangar art.
+              if (isDesktopHomeLayout(desktopDims)) {
+                const DL = deskHomeLayout(desktopDims.w, desktopDims.h);
+                const wk = leaderboardData.weekly;
+                const news = Array.isArray(announcements) && announcements[0];
+                const rooms = liveRoomsAll.slice(0, 3);
+                const avH = DL.ped.r * 1.55;
+                const resetIn = (() => {
+                  const t = wk?.nextResetAt ? new Date(wk.nextResetAt).getTime() - Date.now() : 0;
+                  if (t <= 0) return '';
+                  const d = Math.floor(t / 864e5), h = Math.floor((t % 864e5) / 36e5);
+                  return `resets in ${d}d ${h}h`;
+                })();
+                const joinCode = async (code) => {
+                  setDesktopJoinError('');
+                  try { await handleEnterCodeUnified(code); } catch (e) { setDesktopJoinError(e.message || "Couldn't join that room."); }
+                };
+                return (
+                  <div className="dh" style={{ fontSize: Math.max(11, DL.s * 15) }}>
+                    <style>{DESK_HOME_CSS}</style>
+                    <div style={{ position: 'absolute', inset: '-8%', backgroundImage: `url(${DESKTOP_HOME_ART_IMG})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(22px) brightness(0.5)' }} />
+                    <img src={DESKTOP_HOME_ART_IMG} alt="" draggable={false} style={{ position: 'absolute', left: DL.ox, top: DL.oy, width: DL.dw, height: DL.dh, pointerEvents: 'none', userSelect: 'none' }} />
+
+                    <div className="dh-top">
+                      <button type="button" className="dh-prof hm-btn" aria-label="Profile and settings" onClick={guestGuard(() => setShowHomeSettings(true))}>
+                        <img src={avatarImg} alt="" />
+                        <div><b>{isGuestPlayer ? 'Guest' : (loggedInPlayer?.name || playerName || 'Crewmate')}</b><span>{isGuestPlayer ? 'playing as guest' : `@${loggedInPlayer?.username || ''}`}</span></div>
+                      </button>
+                      <button type="button" className="dh-pts hm-btn" aria-label="Weekly points" onClick={() => { if (!isGuestPlayer) setShowPointsPopup(true); }}>
+                        <img src={POINT_COIN_IMG} alt="" />{isGuestPlayer ? '—' : (loggedInPlayer?.currentSeasonPoints ?? 0)} · this week
+                      </button>
+                      <div className="dh-logo">NEAR <b>SABOTEUR</b></div>
+                      <button type="button" className="dh-pass hm-btn" aria-label="Play Pass" onClick={() => { setShowPlayPassModal(true); setPlayPassTab('skins'); setPlayPassError(''); loadPlayPassConfig(); loadPlayPassStatus(); }}>
+                        <img src={PLAY_PASS_IMG} alt="Play Pass" />
+                      </button>
+                      <DeskTopButton label="Inbox" onClick={() => setShowInbox(true)} badge={inboxUnreadCount}><img src={INBOX_ICON_IMG} alt="" /></DeskTopButton>
+                      <DeskTopButton label="Friends" onClick={() => setShowReferrals(true)}><img src={REFERRAL_ICON_IMG} alt="" /></DeskTopButton>
+                      {RAIL.map((r) => <DeskTopButton key={r.label} label={r.label.charAt(0) + r.label.slice(1).toLowerCase()} onClick={r.go}><DeskIcon d={r.icon} /></DeskTopButton>)}
+                      <DeskTopButton label="News" onClick={guestGuard(() => setHomeModal('announcements'))}><DeskIcon d={DESK_ICON.NEWS} /></DeskTopButton>
+                      <DeskTopButton label="Sound" onClick={() => setSoundOn((v) => !v)}><DeskIcon d={soundOn ? DESK_ICON.SOUND : DESK_ICON.MUTED} /></DeskTopButton>
+                      <DeskTopButton label="Settings" onClick={guestGuard(() => setShowHomeSettings(true))}><DeskIcon d={DESK_ICON.SETTINGS} /></DeskTopButton>
+                    </div>
+
+                    <DeskWallScreen q={DL.leftQ} w={520} h={360}>
+                      <div className="dh-st"><i />LIVE ROOMS<span>{liveRoomsAll.length} open now</span></div>
+                      {rooms.length === 0 ? (
+                        <div className="dh-empty">No rooms open right now.<br />Start one, or play with AI bots.</div>
+                      ) : rooms.map((r) => (
+                        <div className="dh-room" key={r.code}>
+                          <b>{r.code}</b>
+                          <span className="n">{r.name || (r.category === 'paid' ? 'Paid room' : r.category === 'pool' ? 'Pool room' : 'Free room')}</span>
+                          <span className="c">{r.playerCount}/10</span>
+                          <button type="button" className="dh-join" onClick={() => joinCode(r.code)}>JOIN</button>
+                        </div>
+                      ))}
+                      {(desktopJoinError || firstMatchError) && <div className="dh-err">{desktopJoinError || firstMatchError}</div>}
+                      <div className="dh-foot">
+                        <form className="dh-code" onSubmit={(e) => { e.preventDefault(); if (deskRoomCode.trim()) joinCode(deskRoomCode.trim().toUpperCase()); }}>
+                          <input value={deskRoomCode} maxLength={8} placeholder="ENTER CODE" onChange={(e) => setDeskRoomCode(e.target.value.replace(/[^a-z0-9]/gi, ''))} />
+                          <button type="submit">GO</button>
+                        </form>
+                        <button type="button" className="dh-bots hm-btn" disabled={firstMatchBusy} onClick={startFirstMatchWithBots}>{firstMatchBusy ? 'Starting…' : '▶ Play with AI bots'}</button>
+                      </div>
+                    </DeskWallScreen>
+
+                    <DeskWallScreen q={DL.rightQ} w={360} h={340}>
+                      <div className="dh-st">THIS WEEK<span>{resetIn}</span></div>
+                      {!wk ? <div className="dh-empty">{leaderboardError || 'Loading…'}</div> : (wk.leaderboard || []).length === 0 ? (
+                        <div className="dh-empty">Nobody has points yet this week.<br />Finish a match to take #1.</div>
+                      ) : (wk.leaderboard || []).slice(0, 5).map((p, i) => (
+                        <div className="dh-lb" key={p.username || i}>
+                          <span className={`r ${i < 3 ? 'g' : ''}`}>{p.rank || i + 1}</span>
+                          <img src={resolveAvatarImg(p.avatarId, p.hasPlayPass, p.avatarVariantId)} alt="" />
+                          <span className="nm"><PlayerNameTag name={p.name || p.username} premium={p.hasPlayPass} /></span>
+                          <span className="p">{p.points}</span>
+                        </div>
+                      ))}
+                      {!isGuestPlayer && wk && (
+                        <div className="dh-lb me">
+                          <span className="r">{wk.myRank?.rank || '—'}</span>
+                          <img src={avatarImg} alt="" />
+                          <span className="nm">You</span>
+                          <span className="p">{wk.myRank?.points ?? 0}</span>
+                        </div>
+                      )}
+                      {news && (
+                        <button type="button" className="dh-news" onClick={guestGuard(() => setHomeModal('announcements'))}>
+                          <b>NEWS</b><span>{news.title || news.body}</span>
+                        </button>
+                      )}
+                    </DeskWallScreen>
+
+                    <img className="dh-crew" src={avatarImg} alt="" style={{ left: DL.ped.x, top: DL.ped.y + DL.ped.r * 0.05, height: avH }} />
+                    <div className="dh-skin" style={{ left: DL.ped.x, top: DL.ped.y + DL.ped.r * 0.38, fontSize: Math.max(10, DL.ped.r / 13) }}>
+                      <button type="button" aria-label="Previous avatar" onClick={() => changeHomeAvatar(-1)}>‹</button>
+                      <div><b style={{ color: premiumOn ? '#ffe39a' : undefined }}>{skinName}</b><span>{premiumOn ? 'PREMIUM SKIN' : 'CREW SKIN'} · {avIdx + 1}/{AVATARS.length}</span></div>
+                      <button type="button" aria-label="Next avatar" onClick={() => changeHomeAvatar(1)}>›</button>
+                      {canSwapSkin && <button type="button" aria-label="Premium skins" onClick={() => { setPremiumPickerOpen(true); loadPlayPassStatus(); }} style={{ color: '#ffd75e' }}>★</button>}
+                    </div>
+                    {/* a Home window is open (it opens in the centre column): dim the rest */}
+                    {!!(homeModal || showInbox || showReferrals || showHomeSettings || showPointsPopup || premiumPickerOpen) && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 5 }} />
+                    )}
+                    <div className="dh-dock" style={{ left: DL.ped.x, top: DL.ped.y + DL.ped.r * 0.75, width: DL.ped.r * 3.3, fontSize: Math.max(10, DL.ped.r / 11) }}>
+                      <div className="dh-modes">
+                        {MODES.map((m) => (
+                          <button type="button" key={m.id} className={m.id === cur.id ? 'on' : ''} onClick={() => setHomeMode(m.id)}>
+                            {m.short}{m.count > 0 && <em>{m.count > 99 ? '99+' : m.count}</em>}
+                          </button>
+                        ))}
+                      </div>
+                      <button type="button" className="dh-play hm-btn" onClick={() => { if (cur.go) cur.go(); }} style={{ background: cur.fill, color: cur.text, boxShadow: `0 0 2em rgba(${cur.rgb},0.4)` }}>
+                        <span><b>{cur.cta}</b><span>{cur.sub}</span></span><em>»</em>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <>
                   <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -19330,8 +19590,8 @@ function MovementDemo() {
 
                       {/* launch console: mode switch + one big play button */}
                       <div style={{ position: 'absolute', left: 14, right: 14, bottom: 'max(18px, env(safe-area-inset-bottom))', pointerEvents: 'auto' }}>
-                        <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', height: 40, marginBottom: 10, borderRadius: 8, background: 'rgba(4,8,7,0.82)', border: '1px solid rgba(255,255,255,0.08)', padding: 3, boxSizing: 'border-box' }}>
-                          <span style={{ position: 'absolute', top: 3, bottom: 3, left: `calc(3px + ${mIdx} * (100% - 6px) / 4)`, width: 'calc((100% - 6px) / 4)', borderRadius: 6, background: `rgba(${cur.rgb},0.14)`, border: `1px solid rgba(${cur.rgb},0.45)`, boxSizing: 'border-box', transition: 'left 0.28s cubic-bezier(.3,.7,.2,1), background-color 0.28s ease, border-color 0.28s ease' }} />
+                        <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${MODES.length}, 1fr)`, height: 40, marginBottom: 10, borderRadius: 8, background: 'rgba(4,8,7,0.82)', border: '1px solid rgba(255,255,255,0.08)', padding: 3, boxSizing: 'border-box' }}>
+                          <span style={{ position: 'absolute', top: 3, bottom: 3, left: `calc(3px + ${mIdx} * (100% - 6px) / ${MODES.length})`, width: `calc((100% - 6px) / ${MODES.length})`, borderRadius: 6, background: `rgba(${cur.rgb},0.14)`, border: `1px solid rgba(${cur.rgb},0.45)`, boxSizing: 'border-box', transition: 'left 0.28s cubic-bezier(.3,.7,.2,1), background-color 0.28s ease, border-color 0.28s ease' }} />
                           {MODES.map((m) => {
                             const on = m.id === cur.id;
                             const col = on ? m.c : (m.locked ? '#5d666d' : '#7d8d86');
@@ -21366,14 +21626,6 @@ function MovementDemo() {
           })()}
 
 
-          {homeModal === 'sponsorGames' && (
-            <HomeModal title="Sponsor Games" onClose={() => setHomeModal(null)}>
-              <p style={{ fontSize: 12, color: '#d8c8a8', lineHeight: 1.6 }}>
-                Community owners will be able to fund and run reward pools for their own members as an engagement tool.
-              </p>
-              <p style={{ fontSize: 11, color: '#6a7570', marginTop: 10 }}>Coming in a future update.</p>
-            </HomeModal>
-          )}
 
           {/* [DEV-BRANCH ONLY - PHASE 2] Guest-locked notice - shown by
               guestGuard() whenever a guest taps something that needs a
