@@ -6670,7 +6670,15 @@ function LobbyScreen({
   const showEditorRef = useRef(false);
   useEffect(() => { showEditorRef.current = showEditor; }, [showEditor]);
   useEffect(() => {
+    // [BUG FIX - LOBBY SPEED DIFFERS PER PHONE] Lobby movement was a fixed
+    // step per animation frame, so a 120Hz phone walked twice as fast as a
+    // 60Hz one and a struggling phone walked slower. Scale by real time like
+    // the match does (1.0 = one 60fps frame, capped after a pause).
+    let lastTick = 0;
     const tick = () => {
+      const tNow = performance.now();
+      const dtScale = lastTick ? Math.min(3, (tNow - lastTick) / (1000 / 60)) : 1;
+      lastTick = tNow;
       if (showEditorRef.current) {
         rafRef.current = requestAnimationFrame(tick);
         return;
@@ -6698,8 +6706,8 @@ function LobbyScreen({
         // feel (time to cross the room) now that the lobby can be bigger.
         const speedPctX = (MOVE_SPEED * LOBBY_SPEED_FACTOR * speedMultiplier / Math.min(w, 480)) * 100;
         const speedPctY = (MOVE_SPEED * LOBBY_SPEED_FACTOR * speedMultiplier / Math.min(h, 320)) * 100;
-        const sx = (dx / mag) * speedPctX;
-        const sy = (dy / mag) * speedPctY;
+        const sx = (dx / mag) * speedPctX * dtScale;
+        const sy = (dy / mag) * speedPctY * dtScale;
         const cur = posRef.current;
         let nx = cur.x, ny = cur.y;
         if (lobbyCanStand(cur.x + sx, cur.y)) nx = cur.x + sx;
@@ -6747,7 +6755,7 @@ function LobbyScreen({
       // with it. Now it scales proportionally around speed level 4
       // (100%) as the baseline, capped so it doesn't overshoot into
       // jitter at the very top of the range.
-      const lobbyLerpFactor = Math.min(0.6, 0.25 * (speedSliderToOldLevel(speedLevelRef.current || 1) / 4));
+      const lobbyLerpFactor = Math.min(0.6, 0.25 * (speedSliderToOldLevel(speedLevelRef.current || 1) / 4) * dtScale);
       const lobbyTargets = otherLobbyTargetRef.current;
       let lobbyNeedsUpdate = false;
       const lobbyInterpolated = {};
@@ -10061,6 +10069,12 @@ function MovementDemo() {
   // overlay from the very first frame whenever this device was inside a room, until
   // the server confirms (reconnected) or says the room is gone (reconnectError).
   const [rejoinPending, setRejoinPending] = useState(() => hasSavedRoomSession());
+  // [BUG FIX - TWO-TAB REJOIN LOOP] Set when the server moved this seat to
+  // another tab/device; this tab then stops auto-rejoining (which used to
+  // kick the other tab, which kicked this one back, forever).
+  const [movedElsewhere, setMovedElsewhere] = useState(false);
+  const movedElsewhereRef = useRef(false);
+  const disconnectGraceRef = useRef(null);
   const [rejoinSince, setRejoinSince] = useState(() => Date.now());
   const [rejoinTick, setRejoinTick] = useState(0);
   // [NEW FEATURE - REJOIN SAFETY NET] Whenever the player ends up on
@@ -12829,6 +12843,7 @@ function MovementDemo() {
 
     socket.off('connect');
     socket.off('disconnect');
+    socket.off('sessionMovedElsewhere');
     socket.off('roomCreated');
     socket.off('roomJoined');
     socket.off('joinError');
@@ -12906,16 +12921,27 @@ function MovementDemo() {
         const savedCode = localStorage.getItem('nearSaboteurRoomCode');
         const savedPoolId = localStorage.getItem('nearSaboteurPoolId');
         const savedToken = localStorage.getItem('nearSaboteurPlayerToken');
-        if (savedToken && (savedCode || savedPoolId)) {
+        // don't grab the seat back from the tab it moved to - only PLAY HERE does that
+        if (savedToken && (savedCode || savedPoolId) && !movedElsewhereRef.current) {
           socket.emit('reconnectToRoom', { code: savedCode || undefined, onChainPoolId: savedPoolId || undefined, playerToken: savedToken });
         }
       } catch (e) { /* localStorage unavailable */ }
     });
+    socket.on('sessionMovedElsewhere', () => {
+      movedElsewhereRef.current = true;
+      setMovedElsewhere(true);
+      setRejoinPending(false);
+    });
     socket.on('disconnect', () => {
       setConnStatus('disconnected'); setMyPing(null);
-      // Still inside a room? Lock the UI behind the rejoin overlay right away -
-      // the 'connect' handler above re-attaches us as soon as the socket is back.
-      if (hasSavedRoomSession()) { setRejoinPending(true); setRejoinSince(Date.now()); }
+      if (movedElsewhereRef.current) return;
+      // Still inside a room? Lock the UI behind the rejoin overlay - but only
+      // if we're still offline after a short grace, so a 1-2s mobile network
+      // blip (socket.io reconnects in ~0.5s) doesn't flash "Rejoining".
+      clearTimeout(disconnectGraceRef.current);
+      disconnectGraceRef.current = setTimeout(() => {
+        if (!socket.connected && !movedElsewhereRef.current && hasSavedRoomSession()) { setRejoinPending(true); setRejoinSince(Date.now()); }
+      }, 2500);
     });
 
     socket.on('roomCreated', (data) => {
@@ -14394,6 +14420,7 @@ function MovementDemo() {
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.visibilityState !== 'visible') return;
+      if (movedElsewhereRef.current) return; // the seat is in another tab now
       const socket = socketRef.current;
       if (!socket) return;
       if (socket.connected) {
@@ -14420,7 +14447,7 @@ function MovementDemo() {
   useEffect(() => {
     if (!rejoinPending) return undefined;
     const tryRejoin = () => {
-      if (!hasSavedRoomSession()) { setRejoinPending(false); return; }
+      if (!hasSavedRoomSession() || movedElsewhereRef.current) { setRejoinPending(false); return; }
       const socket = socketRef.current;
       if (!socket || !socket.connected) { connectSocket(); return; }
       try {
@@ -18095,6 +18122,29 @@ function MovementDemo() {
       {/* [RELIABILITY - INSTANT REJOIN] Full-screen, click-blocking overlay while a
           player who belongs to a room/match is being re-attached to it. Nothing
           behind it (Create/Join/Home buttons) can be tapped by mistake. */}
+      {movedElsewhere && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9001, display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', gap: 14, background: 'rgba(3,6,5,0.96)', padding: 24, textAlign: 'center',
+        }}>
+          <span style={{ fontSize: 16, color: '#eafff4', fontWeight: 800, letterSpacing: 0.5 }}>Playing in another tab</span>
+          <span style={{ fontSize: 12.5, color: '#8fa39a', maxWidth: 300, lineHeight: 1.5 }}>
+            Your match was opened in another tab or device, so it moved there. Close the other one, or play here instead.
+          </span>
+          <button type="button" onClick={() => {
+            movedElsewhereRef.current = false; setMovedElsewhere(false);
+            const sock = socketRef.current;
+            if (sock && sock.connected) {
+              try {
+                sock.emit('reconnectToRoom', { code: localStorage.getItem('nearSaboteurRoomCode') || undefined, onChainPoolId: localStorage.getItem('nearSaboteurPoolId') || undefined, playerToken: localStorage.getItem('nearSaboteurPlayerToken') });
+              } catch (e) { /* localStorage unavailable */ }
+            } else { connectSocket(); }
+            if (hasSavedRoomSession()) { setRejoinPending(true); setRejoinSince(Date.now()); }
+          }} style={{ padding: '12px 26px', borderRadius: 10, border: 'none', background: '#6effc0', color: '#04110c', fontWeight: 800, fontSize: 14, letterSpacing: 0.5, cursor: 'pointer' }}>
+            PLAY HERE
+          </button>
+        </div>
+      )}
       {rejoinPending && hasSavedRoomSession() && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', flexDirection: 'column', alignItems: 'center',

@@ -36,7 +36,7 @@ export function createBgm() {
     musicBus = ctx.createGain(); musicBus.gain.value = musicVol; musicBus.connect(comp);
     sfxBus = ctx.createGain(); sfxBus.gain.value = sfxVol; sfxBus.connect(comp);
 
-    const rev = ctx.createConvolver(); rev.buffer = impulse(3.4, 2.6);
+    const rev = ctx.createConvolver(); rev.buffer = impulse(2.4, 2.4); // shorter tail = lighter on phones
     const revOut = ctx.createGain(); revOut.gain.value = 0.6;
     reverbIn = rev; rev.connect(revOut); revOut.connect(musicBus);
 
