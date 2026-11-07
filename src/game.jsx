@@ -9504,7 +9504,21 @@ function BackVoteToggle({ on, onChange, targetName, points = 5 }) {
 
 // Game-over: rank -> points (incl. backed votes) -> $SABOTEUR.
 function MatchRewardsCard({ data, myId, onOpenWallet }) {
+  // [ONBOARDING REDESIGN] Rewards stay in the background: one small line,
+  // the full table only if the player taps "details".
+  const [open, setOpen] = useState(false);
   if (!data || !Array.isArray(data.rows)) return null;
+  const mine = data.rows.find((r) => r.id === myId);
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} style={{
+        margin: '0 0 14px', background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 999,
+        padding: '5px 12px', color: '#aab4af', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+      }}>
+        {mine ? `You finished #${mine.rank}` : 'Match results'}{mine && mine.tokens > 0 ? ` · +${fmtSab(mine.tokens)} $SABOTEUR` : ''} · details
+      </button>
+    );
+  }
   const tierText = data.humans >= 4 ? 'Full rewards - 4+ people played'
     : data.humans >= 2 ? `${data.humans} people played - rewards ×0.1 (4+ for full)`
       : 'Only you + bots - rewards ×0.01 (4+ people for full)';
@@ -9711,6 +9725,152 @@ function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'bots' }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// [ONBOARDING REDESIGN] Sign-in / create-account stage.
+// Desktop (landscape) uses Om7eth's wide art; tall screens use the phone
+// login art. The picture always covers the screen at its own shape (never
+// stretched) and is nudged so its "safe zone" (logo + panel) is never cut;
+// the form is pinned inside the panel drawn in the art and its text size
+// comes from the panel's real width, so it lines up on any screen.
+// ═══════════════════════════════════════════════════════════════════════
+const DESKTOP_LOGIN_ART_IMG = new URL('./assets/desktop-login-art.webp', import.meta.url).href;
+const AUTH_ARTS = {
+  desk: { src: DESKTOP_LOGIN_ART_IMG, w: 1672, h: 941, panel: [945, 330, 1500, 732], safe: [880, 30, 1560, 770] },
+  phone: { src: LOGIN_BG_IMG, w: 1024, h: 1536, panel: [228, 592, 800, 1145], safe: [170, 200, 860, 1200] },
+};
+function authStageLayout(W, H) {
+  const A = W / H < 1.2 ? AUTH_ARTS.phone : AUTH_ARTS.desk;
+  const [sx0, sy0, sx1, sy1] = A.safe;
+  let s = Math.max(W / A.w, H / A.h); // cover
+  s = Math.min(s, (W * 0.98) / (sx1 - sx0), (H * 0.98) / (sy1 - sy0)); // never cut the safe zone
+  const dw = A.w * s, dh = A.h * s;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  let ox = dw > W ? clamp((W - dw) / 2, W - dw, 0) : (W - dw) / 2;
+  let oy = dh > H ? clamp((H - dh) / 2, H - dh, 0) : (H - dh) / 2;
+  ox = clamp(ox, W * 0.01 - sx0 * s, W * 0.99 - sx1 * s);
+  oy = clamp(oy, H * 0.01 - sy0 * s, H * 0.99 - sy1 * s);
+  const [px0, py0, px1, py1] = A.panel;
+  return { A, isPhone: A === AUTH_ARTS.phone, ox, oy, dw, dh, panel: { x: ox + px0 * s, y: oy + py0 * s, w: (px1 - px0) * s, h: (py1 - py0) * s } };
+}
+// Screen size for the stage. On phones the on-screen keyboard shrinks the
+// height - keep the tallest height seen for this width so the art and the
+// form don't jump while typing.
+function useAuthStageSize() {
+  const read = () => ({ w: window.innerWidth, h: window.innerHeight });
+  const [size, setSize] = useState(read);
+  const tallest = useRef({ w: 0, h: 0 });
+  useEffect(() => {
+    // Only touch phones/tablets have an on-screen keyboard to ignore; on
+    // desktop always use the real window size.
+    const touch = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    const on = () => {
+      const r = read();
+      if (!touch) { setSize(r); return; }
+      if (r.w !== tallest.current.w) tallest.current = { w: r.w, h: r.h };
+      else tallest.current.h = Math.max(tallest.current.h, r.h);
+      setSize({ w: r.w, h: tallest.current.h });
+    };
+    on();
+    window.addEventListener('resize', on);
+    window.addEventListener('orientationchange', on);
+    return () => { window.removeEventListener('resize', on); window.removeEventListener('orientationchange', on); };
+  }, []);
+  return size;
+}
+const AUTH_STAGE_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+.nsa{--mint:#6effc0;--cyan:#8fe3ff;--mono:'IBM Plex Mono',ui-monospace,monospace;--grot:'Space Grotesk',sans-serif;--sans:'IBM Plex Sans',system-ui,sans-serif;font-family:var(--sans);color:#e8e8f0}
+.nsa *{box-sizing:border-box}
+.nsa-view{display:flex;flex-direction:column;height:100%;overflow-y:auto;scrollbar-width:none;animation:nsaIn .28s ease-out}
+.nsa-view::-webkit-scrollbar{display:none}
+@keyframes nsaIn{from{opacity:0;transform:translateY(.6em)}to{opacity:1;transform:none}}
+.nsa-glow{animation:nsaGlow 2.4s ease-in-out infinite;border-radius:.6em}
+@keyframes nsaGlow{0%,100%{box-shadow:inset 0 0 0 1px rgba(110,255,192,.12)}50%{box-shadow:inset 0 0 0 1px rgba(110,255,192,.4),inset 0 0 2em rgba(110,255,192,.07)}}
+.nsa-center{display:flex;flex-direction:column;justify-content:center;gap:.75em;min-height:100%}
+.nsa-wt{font-family:var(--grot);font-weight:700;font-size:1.6em;color:#f2fff8;text-align:center}
+.nsa-ws{font-size:.85em;color:#9fb0a8;text-align:center;margin:-.4em 0 .3em}
+.nsa-cta{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;padding:.85em .6em;border:none;border-radius:.55em;background:linear-gradient(135deg,#6effc0,#2bb88a);color:#05130d;font-family:var(--grot);font-weight:700;font-size:1.15em;letter-spacing:.06em;cursor:pointer;box-shadow:0 0 1.3em rgba(110,255,192,.45);-webkit-tap-highlight-color:transparent}
+.nsa-cta:disabled{opacity:.55;cursor:default}
+.nsa-cta small{font-family:var(--sans);font-weight:600;font-size:.6em;letter-spacing:0;opacity:.8;margin-top:.1em}
+.nsa-sec{display:block;width:100%;padding:.75em .6em;border-radius:.55em;border:1px solid var(--cyan);background:rgba(143,227,255,.07);color:var(--cyan);font-family:var(--sans);font-weight:700;font-size:.95em;cursor:pointer}
+.nsa-link{background:none;border:none;padding:0;color:var(--mint);font-size:.8em;text-decoration:underline;cursor:pointer;font-family:var(--sans)}
+.nsa-muted{color:#aab4af}
+.nsa-steps{display:grid;grid-template-columns:repeat(5,1fr);gap:.2em;margin-bottom:.6em}
+.nsa-steps div{display:flex;flex-direction:column;align-items:center;gap:.2em}
+.nsa-steps b{width:1.6em;height:1.6em;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.78em;font-weight:600;border:1px solid rgba(255,255,255,.2);color:#7d8d86;background:rgba(0,0,0,.45)}
+.nsa-steps span{font-family:var(--mono);font-size:.55em;letter-spacing:.06em;color:#6f8079;text-transform:uppercase}
+.nsa-steps .done b{background:rgba(110,255,192,.18);border-color:var(--mint);color:var(--mint)}
+.nsa-steps .now b{background:var(--mint);border-color:var(--mint);color:#05130d;box-shadow:0 0 .8em var(--mint)}
+.nsa-steps .now span{color:var(--mint)}
+.nsa-ttl{font-family:var(--grot);font-weight:700;font-size:1.25em;color:#f2fff8;margin-bottom:.1em}
+.nsa-hint{font-size:.78em;color:#9fb0a8;margin-bottom:.3em;line-height:1.4}
+.nsa label{display:block;font-family:var(--mono);font-size:.6em;letter-spacing:.12em;color:#7d8d86;margin:.45em 0 .2em;text-transform:uppercase}
+.nsa-in{width:100%;border:1px solid rgba(110,255,192,.25);background:rgba(5,10,9,.82);border-radius:.45em;padding:.55em .7em;font-size:.95em;color:#e8e8f0;outline:none;font-family:var(--sans)}
+.nsa-in:focus{border-color:var(--mint);box-shadow:0 0 0 2px rgba(110,255,192,.14)}
+.nsa-pw{position:relative}.nsa-pw .nsa-in{padding-right:2.4em}.nsa-pw span{position:absolute;right:.6em;top:50%;transform:translateY(-50%);cursor:pointer;display:flex}
+.nsa-two{display:grid;grid-template-columns:1fr 1fr;gap:.45em}
+.nsa-ok{font-family:var(--mono);font-size:.62em;color:var(--mint);margin-top:.25em;min-height:1.2em}
+.nsa-bad{font-family:var(--mono);font-size:.62em;color:#ff8a8a;margin-top:.25em;min-height:1.2em}
+.nsa-err{font-size:.78em;color:#ff8a8a;margin-top:.4em}
+.nsa-info{font-size:.78em;color:var(--mint);margin-top:.4em}
+.nsa-avs{display:grid;grid-template-columns:repeat(10,1fr);gap:.22em}
+.nsa-avs button{aspect-ratio:3/4;border-radius:.35em;border:1px solid rgba(255,255,255,.12);background:rgba(5,10,9,.7) center bottom/86% auto no-repeat;cursor:pointer;padding:0}
+.nsa-avs button.on{border:2px solid var(--mint);box-shadow:0 0 .6em rgba(110,255,192,.4)}
+.nsa-avs button:disabled{opacity:.25;cursor:default}
+.nsa-wal{margin-top:.3em;padding:.55em .7em;background:rgba(5,10,9,.82);border:1px solid rgba(110,255,192,.35);border-radius:.45em}
+.nsa-wal .k{font-family:var(--mono);font-size:.58em;letter-spacing:.12em;color:#7d8d86}
+.nsa-wal .v{font-family:var(--mono);font-size:.82em;color:var(--mint);margin-top:.12em;word-break:break-all}
+.nsa-check{font-size:.78em;color:#c7d0cb;margin-top:.3em;display:flex;gap:.45em}
+.nsa-check:before{content:"✓";color:var(--mint);font-weight:900}
+.nsa-how{font-size:.82em;color:#c7d0cb;line-height:1.45}
+.nsa-how div{display:flex;gap:.5em;margin:.25em 0}
+.nsa-how em{font-style:normal;font-family:var(--mono);color:var(--mint)}
+.nsa-nav{display:flex;gap:.45em;margin-top:auto;padding-top:.6em;position:sticky;bottom:0;background:linear-gradient(180deg,rgba(6,11,10,0),rgba(6,11,10,.92) 35%)}
+.nsa-nav .nsa-cta{padding:.65em;font-size:1em;box-shadow:none;flex:2}
+.nsa-back{flex:1;border-radius:.55em;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.45);color:#cfd2da;font-weight:700;font-size:.85em;cursor:pointer;font-family:var(--sans)}
+.nsa-tabs{display:grid;grid-template-columns:1fr 1fr;gap:.35em;margin-bottom:.4em}
+.nsa-tabs button{padding:.5em .3em;border-radius:.45em;font-size:.72em;font-weight:800;cursor:pointer;border:1px solid rgba(255,255,255,.15);background:transparent;color:#9aa0ad;font-family:var(--sans)}
+.nsa-tabs button.on{border-color:var(--cyan);background:rgba(143,227,255,.12);color:var(--cyan);box-shadow:0 0 .6em rgba(143,227,255,.4)}
+.nsa-spin{width:1em;height:1em;border-radius:50%;border:2px solid rgba(5,19,13,.3);border-top-color:#05130d;animation:nsaSpin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:.4em}
+@keyframes nsaSpin{to{transform:rotate(360deg)}}
+.nsa-gate{font-size:.78em;color:var(--cyan);text-align:center;background:rgba(143,227,255,.07);border:1px solid rgba(143,227,255,.35);border-radius:.45em;padding:.4em .5em}
+`;
+// The whole sign-in / onboarding screen. `children` is what goes inside the
+// art's panel.
+function AuthStage({ children, glow }) {
+  const size = useAuthStageSize();
+  const L = authStageLayout(size.w, size.h);
+  const fs = L.isPhone ? Math.max(13, Math.min(16.5, L.panel.w / 20)) : Math.max(12, L.panel.w / 28);
+  return (
+    // overflow: clip (not hidden) - focusing an input must never scroll the
+    // stage and shift the art; onScroll resets it on browsers without clip.
+    <div className="nsa" onScroll={(e) => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0; }}
+      style={{ position: 'fixed', inset: 0, overflow: 'clip', background: '#000', zIndex: 50 }}>
+      <style>{AUTH_STAGE_CSS}</style>
+      <div style={{ position: 'absolute', inset: '-8%', backgroundImage: `url(${L.A.src})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(22px) brightness(0.55)' }} />
+      <img src={L.A.src} alt="" draggable={false} style={{ position: 'absolute', left: L.ox, top: L.oy, width: L.dw, height: L.dh, userSelect: 'none', pointerEvents: 'none' }} />
+      <div className={glow ? 'nsa-glow' : ''} style={{
+        position: 'absolute', left: L.panel.x, top: L.panel.y, width: L.panel.w, height: L.panel.h,
+        fontSize: fs, padding: L.panel.w * 0.045, display: 'flex', flexDirection: 'column',
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+const ONB_STEPS = ['Account', 'Code', 'Crewmate', 'Wallet', 'Play'];
+function OnbStepper({ step }) {
+  return (
+    <div className="nsa-steps">
+      {ONB_STEPS.map((s, i) => (
+        <div key={s} className={i + 1 < step ? 'done' : i + 1 === step ? 'now' : ''}>
+          <b>{i + 1 < step ? '✓' : i + 1}</b><span>{s}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MovementDemo() {
   const cafe = ROOMS.find(r => r.id === 'cafeteria');
   // Spawn beside the central table (not on it — the table is now solid and would trap the player).
@@ -9754,6 +9914,14 @@ function MovementDemo() {
   // "Continue with Wallet" (new - sign a free message instead of a
   // password). Both are always visible/clickable; the active one glows.
   const [authTab, setAuthTab] = useState('email'); // 'email' | 'wallet'
+  // [ONBOARDING REDESIGN]
+  const [authView, setAuthView] = useState('welcome'); // 'welcome' (PLAY NOW / Sign in / guest) | 'form'
+  const [onboarding, setOnboarding] = useState(false); // a new player going through the 5 steps
+  const [usernameCheck, setUsernameCheck] = useState(''); // '' | 'checking' | 'ok' | 'taken' | 'format'
+  const [legacyWalletSetup, setLegacyWalletSetup] = useState(false);
+  const [onbWallet, setOnbWallet] = useState({ status: 'idle', accountId: null, error: '' });
+  const [firstMatchBusy, setFirstMatchBusy] = useState(false);
+  const [firstMatchError, setFirstMatchError] = useState('');
   const [walletSignInBusy, setWalletSignInBusy] = useState(false);
   const [walletSignInError, setWalletSignInError] = useState('');
   const [authEmail, setAuthEmail] = useState('');
@@ -10962,6 +11130,44 @@ function MovementDemo() {
     if (screen === 'walletChoice' && authPassword) setWalletCreatePassword(authPassword);
   }, [screen, authPassword]);
 
+  // [ONBOARDING REDESIGN] One-tap game wallet: same server calls as
+  // handleGenerateWallet + handleConfirmWalletCreated, named after the
+  // username (number added if taken), locked with the password the player
+  // just signed up with. The seed is never shown; the key can be revealed
+  // later in Wallet -> Settings (handleViewSeedPhrase).
+  async function autoCreateOnboardingWallet() {
+    if (onbWallet.status === 'busy' || !authPassword) return;
+    setOnbWallet({ status: 'busy', accountId: null, error: '' });
+    const base = (profileUsername || loggedInPlayer?.username || playerName || 'crew').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 28) || 'crew';
+    const names = [base, `${base}${Math.floor(10 + Math.random() * 90)}`, `${base}${Math.floor(100 + Math.random() * 900)}`];
+    try {
+      const { publicKey, secretKey } = generateSeedPhrase();
+      let accountId = null;
+      for (const name of names) {
+        try {
+          const data = await authFetch('/wallet/create-named-account', { sessionToken, publicKey, desiredName: name });
+          accountId = data.accountId; break;
+        } catch (e) {
+          const msg = String(e.message || '').toLowerCase();
+          if (msg.includes('already taken') || msg.includes('already in use')) continue;
+          console.warn('[WALLET] Named account creation failed, falling back to a raw address:', e.message);
+          accountId = Buffer.from(KeyPair.fromString(secretKey).getPublicKey().data).toString('hex');
+          break;
+        }
+      }
+      if (!accountId) throw new Error('Those wallet names are taken - try again.');
+      const { ciphertext, salt, iv } = await encryptPrivateKey(secretKey, authPassword);
+      const data = await authFetch('/wallet/create', {
+        sessionToken, email: authEmail, walletAddress: accountId,
+        keystoreCiphertext: ciphertext, keystoreSalt: salt, keystoreIv: iv, password: authPassword,
+      });
+      setLoggedInPlayer(data.player);
+      setOnbWallet({ status: 'done', accountId, error: '' });
+    } catch (err) {
+      setOnbWallet({ status: 'idle', accountId: null, error: err.message || 'Could not set up the wallet.' });
+    }
+  }
+
   async function handleConfirmWalletCreated() {
     if (!newWalletSeed) return;
     if (!walletCreatePassword) {
@@ -10993,6 +11199,26 @@ function MovementDemo() {
   // 'profileEdit') - see isEditingProfile below. THIS BLOCK MUST NEVER
   // BE MERGED TO THE LIVE/MAIN BRANCH.
   const [profileUsername, setProfileUsername] = useState('');
+  // [ONBOARDING REDESIGN] live "available / taken" while typing the username
+  useEffect(() => {
+    if (screen !== 'profileSetup') return undefined;
+    const u = profileUsername.trim();
+    if (!u) { setUsernameCheck(''); return undefined; }
+    if (!/^[a-z0-9_]{3,20}$/.test(u)) { setUsernameCheck('format'); return undefined; }
+    setUsernameCheck('checking');
+    const t = setTimeout(() => {
+      fetch(`${BACKEND_URL}/profile/username-available?username=${encodeURIComponent(u)}&sessionToken=${encodeURIComponent(sessionToken || '')}`)
+        .then((r) => r.json()).then((d) => setUsernameCheck(d.ok ? 'ok' : (d.reason === 'format' ? 'format' : 'taken')))
+        .catch(() => setUsernameCheck(''));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [screen, profileUsername]);
+  // New player: after the last setup screen, show step 5 instead of Home.
+  useEffect(() => {
+    if (screen === 'profileSetup' || (screen === 'walletChoice' && !legacyWalletSetup)) setOnboarding(true);
+    if (onboarding && screen === 'home') { setOnboarding(false); setScreen('onboardReady'); }
+    if (screen === 'auth') { setOnbWallet({ status: 'idle', accountId: null, error: '' }); setLegacyWalletSetup(false); }
+  }, [screen]);
   const [profileError, setProfileError] = useState('');
   // [NEW FEATURE] In-game wallet reset needs admin approval - request,
   // then wait, then (once approved) an actual remove becomes available.
@@ -14129,6 +14355,26 @@ function MovementDemo() {
       });
     }));
   }, [playerName, playerAvatarId, sessionToken]);
+
+  // [ONBOARDING REDESIGN] "PLAY FIRST MATCH": a private Free Play room
+  // with 4 AI bots, then the Lobby (the player presses Start).
+  async function startFirstMatchWithBots() {
+    if (firstMatchBusy) return;
+    setFirstMatchBusy(true); setFirstMatchError('');
+    try {
+      await handleCreateRoom(false, undefined, { name: `${playerName || 'My'} first match`, maxMatches: 'nolimit', briefing: '', tags: [] });
+      for (let i = 0; i < 4; i++) {
+        await new Promise((resolve) => {
+          const t = setTimeout(resolve, 3000);
+          socketRef.current?.emit('addBot', {}, () => { clearTimeout(t); resolve(); });
+        });
+      }
+      setScreen('lobby');
+    } catch (e) {
+      setFirstMatchError(e.message || 'Could not start the match - try again.');
+    }
+    setFirstMatchBusy(false);
+  }
 
   // [BUG FIX - LIVE POOLS AUTO-JOIN NOT WORKING] Now returns a Promise
   // that only resolves once the SERVER confirms the join actually
@@ -17691,429 +17937,242 @@ function MovementDemo() {
           Login" artboard on the Design canvas. Join here never joins
           directly - a signed-out visitor first sees a "create a profile"
           gate; the chosen room auto-joins once they reach Home. */}
-      {!sessionRestoring && !sessionRestoreFailed && screen === 'auth' && (() => {
-        const frameAspect = LOGIN_IMG_W / LOGIN_IMG_H;
-        const isDesktopWide = desktopDims.w >= 1000 && desktopDims.w > desktopDims.h;
-        if (!isDesktopWide) return null;
-        const frameWidthPx = Math.min(desktopDims.w, desktopDims.h * frameAspect);
-        const sideWidth = Math.max(0, (desktopDims.w - frameWidthPx) / 2);
-        if (sideWidth < 220) return null;
-        const railK = Math.min(1.15, Math.max(0.78, sideWidth / 470));
-        const railPad = Math.round(Math.min(64, Math.max(28, sideWidth * 0.1)));
-        const frameHeightPx = frameWidthPx / frameAspect;
-        const topOffset = (desktopDims.h - frameHeightPx) / 2;
-        const bezelPad = 14;
-        const goSignup = (tab) => {
-          setAuthTab(tab);
-          if (tab === 'email') setAuthMode('signup');
-          setAuthError(''); setWalletSignInError('');
-          setAuthGateRoom(null);
-          setAuthCardFlash(true);
-          setTimeout(() => setAuthCardFlash(false), 2500);
-        };
-        const check = (
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-            <path d="M3 8l3.5 3.5L13 5" stroke="#6effc0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        );
-        const lockIcon = (color) => (
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-            <rect x="3" y="7" width="10" height="7" rx="1.5" stroke={color} strokeWidth="1.8" />
-            <path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke={color} strokeWidth="1.8" />
-          </svg>
-        );
-        return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1, pointerEvents: 'none' }}>
-            <style>{`@keyframes nsAuthGlow { 0%,100% { box-shadow: 0 0 0 1px rgba(110,255,192,0.5), 0 0 22px rgba(110,255,192,0.35); } 50% { box-shadow: 0 0 0 1px rgba(110,255,192,0.95), 0 0 38px rgba(110,255,192,0.6); } }`}</style>
-            <div style={{
-              position: 'absolute', left: 0, top: 0, bottom: 0, width: sideWidth,
-              background: 'radial-gradient(700px 600px at 0% 0%, rgba(110,255,192,0.07), transparent 65%), #05080a',
-            }} />
-            <div style={{
-              position: 'absolute', right: 0, top: 0, bottom: 0, width: sideWidth,
-              background: 'radial-gradient(700px 600px at 100% 0%, rgba(143,227,255,0.05), transparent 65%), #05080a',
-            }} />
-            <div style={{
-              position: 'absolute', left: sideWidth - 1, top: Math.max(0, topOffset), width: frameWidthPx + 2, height: Math.min(desktopDims.h, frameHeightPx),
-              borderLeft: '1px solid rgba(110,255,192,0.22)', borderRight: '1px solid rgba(110,255,192,0.22)',
-              boxShadow: '-24px 0 48px -24px rgba(110,255,192,0.18), 24px 0 48px -24px rgba(110,255,192,0.18)', pointerEvents: 'none',
-            }} />
-            <div style={{ position: 'absolute', top: 24, left: 32 }}>
-              <img src={SABOTEUR_BRAND_LOGO_IMG} alt="" style={{ height: Math.round(32 * railK), width: 'auto', display: 'block' }} />
-            </div>
-
-            {/* LEFT RAIL */}
-            <div style={{
-              position: 'absolute', left: 0, top: 0, bottom: 0, width: sideWidth,
-              display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
-              padding: `112px ${railPad}px 48px`, boxSizing: 'border-box', pointerEvents: 'auto', overflowY: 'auto',
-            }}>
-              <div style={{ maxWidth: 360, color: '#e8eaf0', zoom: railK }}>
-                <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: 2, color: '#6effc0', margin: '0 0 16px', textTransform: 'uppercase' }}>
-                  Social deduction · Multiplayer
-                </p>
-                <h1 style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.14, margin: '0 0 18px', color: '#f2f4f1' }}>
-                  Your crew is waiting.<br />One of them is lying.
-                </h1>
-                <p style={{ fontSize: 13.5, color: '#9aa0ad', lineHeight: 1.7, margin: '0 0 26px' }}>
-                  Sign in to jump into a room, or create a profile in under a minute. Explorers do the tasks,
-                  Saboteurs blend in - you decide who to trust.
-                </p>
-                <p style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, color: '#6a7570', margin: '0 0 12px', textTransform: 'uppercase' }}>
-                  With a profile you get
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {['Points for every match you play', 'A spot on the weekly leaderboard', 'Your own avatar, skins and name tag'].map((t, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#c7d0cb' }}>{check}{t}</div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT RAIL */}
-            <div style={{
-              position: 'absolute', right: 0, top: 0, bottom: 0, width: sideWidth,
-              display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start',
-              padding: `112px ${railPad}px 48px`, boxSizing: 'border-box', pointerEvents: 'auto', overflowY: 'auto',
-            }}>
-              <div style={{ maxWidth: 360, width: '100%', display: 'flex', flexDirection: 'column', gap: 28, zoom: railK }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: 1.5, color: '#6effc0', textTransform: 'uppercase' }}>Live Rooms</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#6a7570' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: 999, background: liveRoomsAll.length > 0 ? '#6effc0' : '#5f6f68', display: 'inline-block' }} />
-                      {liveRoomsAll.length} open now
-                    </span>
-                  </div>
-
-                  {authGateRoom && (
-                    <div style={{ padding: 16, borderRadius: 12, marginBottom: 12, background: 'rgba(143,227,255,0.06)', border: '1px solid rgba(143,227,255,0.45)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        {lockIcon('#8fe3ff')}
-                        <span style={{ fontWeight: 800, fontSize: 14, color: '#f2f4f1' }}>Create a profile to join {authGateRoom}</span>
-                      </div>
-                      <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#8fa39a', lineHeight: 1.5 }}>
-                        Takes under a minute. Once you're in, we'll drop you straight into this room.
-                      </p>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button onClick={() => goSignup('email')} style={{ flex: 1, minHeight: 40, borderRadius: 8, border: 'none', background: '#6effc0', color: '#06140d', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Sign up with Email</button>
-                        <button onClick={() => goSignup('wallet')} style={{ flex: 1, minHeight: 40, borderRadius: 8, border: '1px solid #6effc0', background: 'transparent', color: '#6effc0', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>Use Wallet</button>
-                      </div>
-                      <button
-                        onClick={() => { setAuthGateRoom(null); pendingJoinCodeRef.current = null; }}
-                        style={{ marginTop: 8, background: 'none', border: 'none', color: '#6a7570', fontSize: 11.5, padding: '6px 0', cursor: 'pointer' }}
-                      >Not now</button>
-                    </div>
-                  )}
-
-                  {liveRoomsAll.length === 0 ? (
-                    <div style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-                      gap: 8, padding: '18px 8px', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 10,
-                    }}>
-                      <svg width="26" height="26" viewBox="0 0 16 16" fill="none" opacity="0.35">
-                        <circle cx="5.5" cy="5.5" r="2.2" stroke="#9aa0ad" strokeWidth="1.1" />
-                        <path d="M2 13c0-2.5 2.2-4 5-4s5 1.5 5 4" stroke="#9aa0ad" strokeWidth="1.1" />
-                      </svg>
-                      <p style={{ fontSize: 11.5, color: '#6a7570', margin: 0, lineHeight: 1.5 }}>No rooms open right now.<br />Sign in and host the first one.</p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {liveRoomsAll.slice(0, 3).map((r) => (
-                        <div key={r.code} style={{
-                          padding: '14px 16px', borderRadius: 12,
-                          background: 'rgba(255,255,255,0.025)',
-                          border: authGateRoom === r.code ? '1px solid rgba(143,227,255,0.6)' : '1px solid rgba(110,255,192,0.15)',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                            <span style={{ fontWeight: 900, fontSize: 15, letterSpacing: 1, color: '#eafff4' }}>{r.code}</span>
-                            <button
-                              onClick={() => { pendingJoinCodeRef.current = r.code; setAuthGateRoom(r.code); }}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 5,
-                                padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                                background: '#6effc0', color: '#06140d', fontWeight: 700, fontSize: 12, flexShrink: 0,
-                              }}
-                            >{lockIcon('#06140d')}Join</button>
-                          </div>
-                          <p style={{ margin: '0 0 6px', fontSize: 12.5, color: '#8fa39a', lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {r.name || (r.category === 'paid' ? 'Paid room' : r.category === 'pool' ? 'Pool room' : 'Free room')}
-                          </p>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11.5, color: '#6a7570' }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              Hosted by {r.hostUsername || r.hostName}
-                              {r.hostHasLegionBadge && <LegionBadge size={11} />}
-                            </span>
-                            <span>{r.playerCount}/10 players</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <p style={{ fontSize: 11, color: '#5f6f68', margin: '10px 0 0' }}>Sign in to join - rooms update live.</p>
-                </div>
-
-                <div>
-                  <p style={{ fontSize: 11, fontWeight: 900, letterSpacing: 1.5, color: '#6effc0', margin: '0 0 16px', textTransform: 'uppercase' }}>Get playing in 3 steps</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {[
-                      ['01', 'Sign in', 'Email or wallet - your pick.'],
-                      ['02', 'Pick a name and avatar', 'This is how your crew will see you.'],
-                      ['03', 'Join a live room', 'Or host your own and invite friends.'],
-                    ].map(([num, title, desc]) => (
-                      <div key={num} style={{ display: 'flex', gap: 14 }}>
-                        <span style={{ fontWeight: 900, fontSize: 13, color: '#6effc0', flexShrink: 0, width: 20 }}>{num}</span>
-                        <div>
-                          <p style={{ margin: '0 0 3px', fontSize: 13.5, fontWeight: 700, color: '#e8eaf0' }}>{title}</p>
-                          <p style={{ margin: 0, fontSize: 12.5, color: '#6a7570', lineHeight: 1.5 }}>{desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
+      {/* [ONBOARDING REDESIGN] Sign in / create account - one panel inside
+          the game's own art (desktop: Om7eth's wide picture, phones: the
+          login art). First view: one big PLAY NOW, then Sign in, then guest.
+          Create account shows 5 named steps (Account, Code, Crewmate,
+          Wallet, Play). See AuthStage for how any screen size is handled. */}
       {!sessionRestoring && !sessionRestoreFailed && screen === 'auth' && (
-        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#000' }}>
-        {/* [REDESIGN] Om7eth's own reference image is the login screen
-            background, full opacity, no dimming overlay - the "NEAR
-            SABOTEUR / TRUST NO AGENT" title art is already drawn into
-            it. The login form is a code-drawn card placed inside the
-            empty screen panel the art leaves for it, using the same
-            locked-aspect-ratio frame technique as Home so it lines up
-            on any device. */}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'relative', width: `min(100vw, calc(100vh * ${LOGIN_IMG_W} / ${LOGIN_IMG_H}))`, height: `min(100vh, calc(100vw * ${LOGIN_IMG_H} / ${LOGIN_IMG_W}))` }}>
-            <img src={LOGIN_BG_IMG} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', display: 'block' }} />
-
-            <div style={{
-              ...loginRect(214, 578, 812, 1159), display: 'flex', flexDirection: 'column',
-              justifyContent: 'flex-start', padding: '10px 0px', gap: '1.3%', overflowY: 'auto', touchAction: 'auto',
-              borderRadius: 10, animation: authCardFlash ? 'nsAuthGlow 0.8s ease-in-out 3' : 'none',
-            }}>
-              {/* [NEW FEATURE - EMAIL/WALLET TABS] Replaces the old
-                  static "Log in to your account" header - both tabs are
-                  always clickable, the active one glows. Only shown for
-                  the top-level login/signup choice; the OTP/forgot/reset
-                  sub-flows keep their own single-line header below,
-                  since switching tabs mid-flow doesn't make sense. */}
-              {(authMode === 'login' || authMode === 'signup') && (
-                <div style={{ display: 'flex', gap: 8, marginBottom: '1%' }}>
-                  {[{ id: 'email', label: 'Continue with Email' }, { id: 'wallet', label: 'Continue with Wallet' }].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => { setAuthTab(tab.id); setAuthError(''); setWalletSignInError(''); }}
-                      style={{
-                        flex: 1, padding: '9px 4px', borderRadius: 7, fontSize: 11, fontWeight: 800,
-                        cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
-                        border: authTab === tab.id ? '1px solid #8fe3ff' : '1px solid rgba(255,255,255,0.15)',
-                        background: authTab === tab.id ? 'rgba(143,227,255,0.12)' : 'transparent',
-                        color: authTab === tab.id ? '#8fe3ff' : '#9aa0ad',
-                        boxShadow: authTab === tab.id ? '0 0 10px rgba(143,227,255,0.5)' : 'none',
-                      }}
-                    >{tab.label}</button>
-                  ))}
-                </div>
-              )}
-
-              {(authMode === 'verifyOtp' || authMode === 'forgot' || authMode === 'resetOtp') && (
-                <p style={{ fontSize: 11.5, color: '#8fe3ff', margin: '0 0 1%', textAlign: 'center', fontWeight: 700, letterSpacing: 0.3 }}>
-                  {authMode === 'verifyOtp' && `Enter the code sent to ${authEmail}`}
-                  {authMode === 'forgot' && 'Enter your email to reset your password'}
-                  {authMode === 'resetOtp' && `Enter the code sent to ${authEmail}, and a new password`}
-                </p>
-              )}
-
-              {/* [NEW FEATURE - WALLET SIGN-IN] Only shown on the Wallet
-                  tab, for login/signup (the OTP/forgot/reset sub-flows
-                  only ever belong to the Email tab). */}
-              {(authMode === 'login' || authMode === 'signup') && authTab === 'wallet' && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11.5, color: '#9aa0ad', textAlign: 'center' }}>
-                      Sign in or create an account using your NEAR wallet
-                    </span>
-                    <InfoButton>
-                      This only asks your wallet to sign a free message proving you own it - no transaction, no gas fee, and nothing ever moves out of your wallet. Your private key never leaves your wallet app.
-                    </InfoButton>
-                  </div>
-
-                  {walletSignInError && <p style={{ color: '#ff6b6b', fontSize: 11, margin: 0, textAlign: 'center' }}>{walletSignInError}</p>}
-
-                  <button
-                    disabled={walletSignInBusy}
-                    onClick={handleWalletSignIn}
-                    style={{
-                      width: '100%', background: walletSignInBusy ? 'rgba(110,255,192,0.3)' : '#6effc0', color: '#05130d',
-                      border: 'none', borderRadius: 7, padding: '10px 0', fontSize: 13, fontWeight: 800,
-                    }}
-                  >{walletSignInBusy ? 'Waiting for signature…' : 'Connect Wallet'}</button>
-                </div>
-              )}
-
-              {authTab === 'email' && (
-              <>
-              {(authMode === 'login' || authMode === 'signup' || authMode === 'forgot') && (
-                <input
-                  type="email" placeholder="Email" value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  style={{
-                    background: 'rgba(5,15,12,0.55)', border: '1px solid rgba(110,255,192,0.35)',
-                    borderRadius: 7, padding: '9px 11px', color: '#e8e8f0', fontSize: 13, width: '100%', boxSizing: 'border-box',
-                  }}
-                />
-              )}
-
-              {(authMode === 'login' || authMode === 'signup') && (
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showAuthPassword ? 'text' : 'password'} placeholder="Password" value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    style={{
-                      width: '100%', boxSizing: 'border-box', background: 'rgba(5,15,12,0.55)', border: '1px solid rgba(110,255,192,0.35)',
-                      borderRadius: 7, padding: '9px 38px 9px 11px', color: '#e8e8f0', fontSize: 13,
-                    }}
-                  />
-                  <span
-                    onClick={() => setShowAuthPassword((v) => !v)}
-                    style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', display: 'flex' }}
-                  ><EyeIcon open={showAuthPassword} size={14} /></span>
-                </div>
-              )}
-
-              {(authMode === 'verifyOtp' || authMode === 'resetOtp') && (
-                <input
-                  type="text" inputMode="numeric" placeholder="6-digit code" value={authOtp}
-                  onChange={(e) => setAuthOtp(e.target.value)}
-                  style={{
-                    background: 'rgba(5,15,12,0.55)', border: '1px solid rgba(110,255,192,0.35)',
-                    borderRadius: 7, padding: '9px 11px', color: '#e8e8f0', fontSize: 13, letterSpacing: 3, width: '100%', boxSizing: 'border-box',
-                  }}
-                />
-              )}
-
-              {authMode === 'resetOtp' && (
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showAuthNewPassword ? 'text' : 'password'} placeholder="New password" value={authNewPassword}
-                    onChange={(e) => setAuthNewPassword(e.target.value)}
-                    style={{
-                      width: '100%', boxSizing: 'border-box', background: 'rgba(5,15,12,0.55)', border: '1px solid rgba(110,255,192,0.35)',
-                      borderRadius: 7, padding: '9px 38px 9px 11px', color: '#e8e8f0', fontSize: 13,
-                    }}
-                  />
-                  <span
-                    onClick={() => setShowAuthNewPassword((v) => !v)}
-                    style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', display: 'flex' }}
-                  ><EyeIcon open={showAuthNewPassword} size={14} /></span>
-                </div>
-              )}
-
-              {authError && <p style={{ color: '#ff6b6b', fontSize: 11, margin: 0 }}>{authError}</p>}
-              {authInfo && !authError && <p style={{ color: '#6effc0', fontSize: 11, margin: 0 }}>{authInfo}</p>}
-
-              <button
-                disabled={authLoading}
-                onClick={() => {
-                  if (authMode === 'login') handleLogin();
-                  else if (authMode === 'signup') handleSignup();
-                  else if (authMode === 'verifyOtp') handleVerifyOtp();
-                  else if (authMode === 'forgot') handleForgotPassword();
-                  else if (authMode === 'resetOtp') handleResetPassword();
-                }}
-                style={{
-                  background: authLoading ? 'rgba(110,255,192,0.3)' : '#6effc0', color: '#05130d',
-                  border: 'none', borderRadius: 7, padding: '10px 0', fontSize: 13, fontWeight: 800, width: '100%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}
-              >
-                {authLoading && (
-                  <>
-                    <style>{`@keyframes nsBtnSpin { to { transform: rotate(360deg); } }`}</style>
-                    <span style={{
-                      width: 13, height: 13, borderRadius: '50%', border: '2px solid rgba(5,19,13,0.3)',
-                      borderTopColor: '#05130d', animation: 'nsBtnSpin 0.7s linear infinite', display: 'inline-block',
-                    }} />
-                  </>
-                )}
-                {authLoading ? 'Please wait…' : (
-                  authMode === 'login' ? 'Log In' :
-                  authMode === 'signup' ? 'Sign Up' :
-                  authMode === 'verifyOtp' ? 'Verify' :
-                  authMode === 'forgot' ? 'Send Reset Code' : 'Reset Password'
-                )}
-              </button>
-              {/* [BUG FIX] Login "feeling stuck" was almost always a
-                  Render free-tier cold start with zero feedback - this
-                  explains what's actually happening once it's taking a
-                  while, instead of looking frozen. */}
-              {authLoadingSlow && (
-                <p style={{ fontSize: 10, color: '#9aa0ad', textAlign: 'center', margin: '2px 0 0' }}>
-                  Still connecting… the server may be waking up, this can take up to a minute
-                </p>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', marginTop: '0.5%' }}>
-                {authMode === 'login' && (
-                  <>
-                    <span
-                      onClick={() => { setAuthMode('signup'); setAuthError(''); setAuthInfo(''); }}
-                      style={{ fontSize: 11, color: '#8fe3ff', cursor: 'pointer' }}
-                    >Don't have an account? Sign up</span>
-                    <span
-                      onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthInfo(''); }}
-                      style={{ fontSize: 11, color: '#9aa0ad', cursor: 'pointer' }}
-                    >Forgot password?</span>
-                  </>
-                )}
-                {authMode === 'signup' && (
-                  <span
-                    onClick={() => { setAuthMode('login'); setAuthError(''); setAuthInfo(''); }}
-                    style={{ fontSize: 11, color: '#8fe3ff', cursor: 'pointer' }}
-                  >Already have an account? Log in</span>
-                )}
-                {(authMode === 'forgot' || authMode === 'verifyOtp' || authMode === 'resetOtp') && (
-                  <span
-                    onClick={() => { setAuthMode('login'); setAuthError(''); setAuthInfo(''); }}
-                    style={{ fontSize: 11, color: '#9aa0ad', cursor: 'pointer' }}
-                  >Back to login</span>
-                )}
+        <AuthStage glow={authView === 'welcome' && authMode === 'login'}>
+          {authView === 'welcome' && authMode === 'login' ? (
+            <div className="nsa-view" key="welcome">
+              <div className="nsa-center">
+                {authGateRoom && <div className="nsa-gate">Create a free account to join room {authGateRoom}</div>}
+                <div className="nsa-wt">Ready to play?</div>
+                <div className="nsa-ws">Free · takes under a minute</div>
+                <button className="nsa-cta" onClick={() => { setAuthTab('email'); setAuthMode('signup'); setAuthView('form'); setAuthError(''); setAuthInfo(''); }}>
+                  PLAY NOW<small>Create a free account</small>
+                </button>
+                <button className="nsa-sec" onClick={() => { setAuthTab('email'); setAuthMode('login'); setAuthView('form'); setAuthError(''); setAuthInfo(''); }}>
+                  I have an account · Sign in
+                </button>
+                <button className="nsa-link nsa-muted" style={{ alignSelf: 'center' }} onClick={handlePlayAsGuest}>or jump in as a guest</button>
               </div>
-              </>
-              )}
+            </div>
+          ) : (() => {
+            const goWelcome = () => { setAuthMode('login'); setAuthView('welcome'); setAuthError(''); setAuthInfo(''); setWalletSignInError(''); };
+            const submit = () => {
+              if (authLoading) return;
+              if (authMode === 'login') handleLogin();
+              else if (authMode === 'signup') handleSignup();
+              else if (authMode === 'verifyOtp') handleVerifyOtp();
+              else if (authMode === 'forgot') handleForgotPassword();
+              else if (authMode === 'resetOtp') handleResetPassword();
+            };
+            const back = () => {
+              setAuthError(''); setAuthInfo('');
+              if (authMode === 'verifyOtp') setAuthMode('signup');
+              else if (authMode === 'forgot' || authMode === 'resetOtp') setAuthMode('login');
+              else goWelcome();
+            };
+            const title = { login: 'Welcome back', signup: 'Create your account', verifyOtp: 'Check your email', forgot: 'Reset your password', resetOtp: 'Set a new password' }[authMode];
+            const hint = {
+              login: 'Your crewmate and your friends are waiting.',
+              signup: "Email and a password - that's it for now.",
+              verifyOtp: `Enter the 6-digit code sent to ${authEmail}.`,
+              forgot: "Enter your email and we'll send a reset code.",
+              resetOtp: `Enter the code sent to ${authEmail} and a new password.`,
+            }[authMode];
+            const primary = { login: 'SIGN IN', signup: 'SEND CODE', verifyOtp: 'VERIFY', forgot: 'SEND RESET CODE', resetOtp: 'RESET PASSWORD' }[authMode];
+            const isEntry = authMode === 'login' || authMode === 'signup';
+            const passwordOk = authPassword.length >= 8;
+            return (
+              <form className="nsa-view" key={`${authMode}-${authTab}`} onSubmit={(e) => { e.preventDefault(); submit(); }}>
+                {(authMode === 'signup' || authMode === 'verifyOtp') && <OnbStepper step={authMode === 'signup' ? 1 : 2} />}
+                <div className="nsa-ttl">{title}</div>
+                <div className="nsa-hint">{hint}</div>
+                {isEntry && (
+                  <button type="button" className="nsa-link" style={{ alignSelf: 'flex-start', fontSize: '0.72em', marginBottom: '0.1em' }}
+                    onClick={() => { setAuthTab(authTab === 'wallet' ? 'email' : 'wallet'); setAuthError(''); setWalletSignInError(''); }}>
+                    {authTab === 'wallet' ? 'Use email instead' : 'Use a NEAR wallet instead'}
+                  </button>
+                )}
+                {isEntry && authTab === 'wallet' ? (
+                  <>
+                    <div className="nsa-hint" style={{ display: 'flex', alignItems: 'center', gap: '0.4em' }}>
+                      Sign in or sign up by signing a free message with your NEAR wallet.
+                      <InfoButton>This only asks your wallet to sign a free message proving you own it - no transaction, no gas fee, and nothing ever moves out of your wallet. Your private key never leaves your wallet app.</InfoButton>
+                    </div>
+                    {walletSignInError && <div className="nsa-err">{walletSignInError}</div>}
+                    <div className="nsa-nav">
+                      <button type="button" className="nsa-back" onClick={back}>Back</button>
+                      <button type="button" className="nsa-cta" disabled={walletSignInBusy} onClick={handleWalletSignIn}>
+                        {walletSignInBusy ? 'WAITING…' : 'CONNECT WALLET'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {(authMode === 'login' || authMode === 'signup' || authMode === 'forgot') && (
+                      <>
+                        <label htmlFor="nsa-email">Email</label>
+                        <input id="nsa-email" className="nsa-in" type="email" autoComplete="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="you@example.com" />
+                      </>
+                    )}
+                    {isEntry && (
+                      <>
+                        <label htmlFor="nsa-pw">Password</label>
+                        <div className="nsa-pw">
+                          <input id="nsa-pw" className="nsa-in" type={showAuthPassword ? 'text' : 'password'} autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                            value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} placeholder={authMode === 'signup' ? 'At least 8 characters' : 'Your password'} />
+                          <span onClick={() => setShowAuthPassword((v) => !v)}><EyeIcon open={showAuthPassword} size={14} /></span>
+                        </div>
+                        {authMode === 'signup' && <div className={passwordOk || !authPassword ? 'nsa-ok' : 'nsa-bad'}>{authPassword ? (passwordOk ? '✓ 8+ characters' : 'Use at least 8 characters') : ''}</div>}
+                      </>
+                    )}
+                    {(authMode === 'verifyOtp' || authMode === 'resetOtp') && (
+                      <>
+                        <label htmlFor="nsa-otp">6-digit code</label>
+                        <input id="nsa-otp" className="nsa-in" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={authOtp}
+                          onChange={(e) => setAuthOtp(e.target.value.replace(/\D/g, ''))} placeholder="••••••" style={{ letterSpacing: '0.5em', fontFamily: "'IBM Plex Mono', monospace", fontSize: '1.15em', textAlign: 'center' }} />
+                      </>
+                    )}
+                    {authMode === 'resetOtp' && (
+                      <>
+                        <label htmlFor="nsa-newpw">New password</label>
+                        <div className="nsa-pw">
+                          <input id="nsa-newpw" className="nsa-in" type={showAuthNewPassword ? 'text' : 'password'} autoComplete="new-password" value={authNewPassword} onChange={(e) => setAuthNewPassword(e.target.value)} />
+                          <span onClick={() => setShowAuthNewPassword((v) => !v)}><EyeIcon open={showAuthNewPassword} size={14} /></span>
+                        </div>
+                      </>
+                    )}
+                    {authError && <div className="nsa-err">{authError}</div>}
+                    {authInfo && !authError && <div className="nsa-info">{authInfo}</div>}
+                    {authLoadingSlow && <div className="nsa-hint" style={{ marginTop: '0.4em' }}>Still connecting… the server may be waking up, this can take up to a minute.</div>}
+                    {authMode === 'login' && (
+                      <button type="button" className="nsa-link nsa-muted" style={{ alignSelf: 'flex-start', marginTop: '0.5em' }} onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthInfo(''); }}>Forgot password?</button>
+                    )}
+                    {authMode === 'verifyOtp' && (
+                      <button type="button" className="nsa-link" style={{ alignSelf: 'flex-start', marginTop: '0.5em' }} onClick={() => { setAuthMode('signup'); setAuthOtp(''); setAuthError(''); setAuthInfo(''); }}>Wrong email? Change it</button>
+                    )}
+                    <div className="nsa-nav">
+                      <button type="button" className="nsa-back" onClick={back}>Back</button>
+                      <button type="submit" className="nsa-cta" disabled={authLoading}>
+                        {authLoading ? <span><span className="nsa-spin" />WAIT…</span> : primary}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </form>
+            );
+          })()}
+        </AuthStage>
+      )}
 
-              {/* [DEV-BRANCH ONLY - PHASE 2] Play as Guest - a small,
-                  secondary pill (not full-width, not a primary-looking
-                  button) so it reads as the lightweight opt-out it is.
-                  Skips account/wallet/profile entirely and drops
-                  straight onto Home. Guests can only use Free Play;
-                  every other Home button shows a "create a profile"
-                  notice instead (see guestGuard()), and guests never
-                  earn points. */}
-              {(authMode === 'login' || authMode === 'signup') && (
-                <button
-                  onClick={handlePlayAsGuest}
-                  style={{
-                    background: 'transparent', color: '#8a9199', border: '1px solid rgba(154,160,173,0.35)',
-                    borderRadius: 20, padding: '5px 16px', fontSize: 10, fontWeight: 700,
-                    alignSelf: 'center', marginTop: '1%', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
-                  }}
-                >Play as Guest</button>
-              )}
+      {/* [ONBOARDING REDESIGN] Step 3 - Crewmate (first-time profile). The
+          Profile screen's own editor (profileEdit) is unchanged. */}
+      {screen === 'profileSetup' && (
+        <AuthStage>
+          <form className="nsa-view" onSubmit={(e) => { e.preventDefault(); if (!profileLoading) handleSaveProfile(); }}>
+            <OnbStepper step={3} />
+            <div className="nsa-ttl">Make your crewmate</div>
+            <div className="nsa-hint">This is how everyone sees you on the station.</div>
+            <div className="nsa-two">
+              <div>
+                <label htmlFor="nsa-name">Name</label>
+                <input id="nsa-name" className="nsa-in" value={playerName} maxLength={16} onChange={(e) => setPlayerName(e.target.value)} placeholder="Your name" />
+              </div>
+              <div>
+                <label htmlFor="nsa-user">Username</label>
+                <input id="nsa-user" className="nsa-in" value={profileUsername} maxLength={20} autoCapitalize="none"
+                  onChange={(e) => setProfileUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} placeholder="e.g. saboteur_99" />
+              </div>
+            </div>
+            <div className={usernameCheck === 'taken' || usernameCheck === 'format' ? 'nsa-bad' : 'nsa-ok'}>
+              {usernameCheck === 'ok' ? `✓ @${profileUsername} is available` : usernameCheck === 'taken' ? `@${profileUsername} is taken - try another` : usernameCheck === 'format' ? '3-20 letters, numbers or _' : usernameCheck === 'checking' ? 'checking…' : ''}
+            </div>
+            <label>Avatar</label>
+            <div className="nsa-avs">
+              {AVATARS.map((a) => (
+                <button type="button" key={a.id} title={a.name} className={playerAvatarId === a.id ? 'on' : ''}
+                  style={{ backgroundImage: `url(${a.img})` }} onClick={() => setPlayerAvatarId(a.id)} />
+              ))}
+            </div>
+            {profileError && <div className="nsa-err">{profileError}</div>}
+            <div className="nsa-nav">
+              <button type="button" className="nsa-back" onClick={() => { clearSession(); setLoggedInPlayer(null); setAuthView('welcome'); setAuthMode('login'); setScreen('auth'); }}>Log out</button>
+              <button type="submit" className="nsa-cta" disabled={profileLoading || usernameCheck === 'taken' || usernameCheck === 'format'}>
+                {profileLoading ? <span><span className="nsa-spin" />WAIT…</span> : 'NEXT'}
+              </button>
+            </div>
+          </form>
+        </AuthStage>
+      )}
+
+      {/* [ONBOARDING REDESIGN] Step 4 - Wallet, in one tap: made from the
+          username, secured with the account password the player just typed.
+          No seed phrase on screen (it can be viewed later in Wallet →
+          Settings). Without the password in memory (e.g. the page was
+          reloaded) - or for "I already have a NEAR wallet" - the original
+          wallet screen below is used instead. */}
+      {screen === 'walletChoice' && !legacyWalletSetup && !!authPassword && (
+        <AuthStage>
+          <div className="nsa-view">
+            <OnbStepper step={4} />
+            <div className="nsa-ttl">{onbWallet.status === 'done' ? 'Your game wallet is ready' : 'Your game wallet'}</div>
+            <div className="nsa-hint">{onbWallet.status === 'done' ? 'Made for you - no seed phrase, no popups.' : 'Made for you in one tap. No seed phrase, no popups.'}</div>
+            {onbWallet.status === 'done' ? (
+              <>
+                <div className="nsa-wal"><div className="k">TESTNET · YOURS</div><div className="v">{onbWallet.accountId}</div></div>
+                <div className="nsa-check">Only needed for Pool / Paid rooms - skip it for now</div>
+                <div className="nsa-check">Back it up anytime in Wallet → Settings</div>
+                <div className="nsa-nav"><button type="button" className="nsa-cta" onClick={() => setScreen(nextScreenForPlayer(loggedInPlayer || {}))}>CONTINUE</button></div>
+              </>
+            ) : (
+              <>
+                <div className="nsa-wal"><div className="k">YOUR WALLET NAME</div><div className="v">{(profileUsername || loggedInPlayer?.username || 'you')}.{'…'}.testnet</div></div>
+                <div className="nsa-check">Pays Pool / Paid entries and receives prizes</div>
+                <div className="nsa-check">Locked with your account password</div>
+                {onbWallet.error && <div className="nsa-err">{onbWallet.error}</div>}
+                <button type="button" className="nsa-link" style={{ alignSelf: 'flex-start', marginTop: '0.5em' }} onClick={() => setLegacyWalletSetup(true)}>I already have a NEAR wallet</button>
+                <div className="nsa-nav">
+                  <button type="button" className="nsa-cta" disabled={onbWallet.status === 'busy'} onClick={autoCreateOnboardingWallet}>
+                    {onbWallet.status === 'busy' ? <span><span className="nsa-spin" />SETTING UP…</span> : (onbWallet.error ? 'TRY AGAIN' : 'CREATE MY WALLET')}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </AuthStage>
+      )}
+
+      {/* [ONBOARDING REDESIGN] Step 5 - Ready: a round in 3 lines, then
+          straight into a first Free Play match with AI bots, or skip home. */}
+      {screen === 'onboardReady' && (
+        <AuthStage>
+          <div className="nsa-view">
+            <OnbStepper step={5} />
+            <div className="nsa-ttl">You're on the crew{playerName ? `, ${playerName}` : ''}!</div>
+            <div className="nsa-how">
+              <div><em>01</em><span>Do missions. Someone on your crew is the Saboteur.</span></div>
+              <div><em>02</em><span>Call a meeting, argue, vote them out.</span></div>
+              <div><em>03</em><span>Or be the Saboteur - and fool everyone.</span></div>
+            </div>
+            {firstMatchError && <div className="nsa-err">{firstMatchError}</div>}
+            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5em', paddingTop: '0.5em' }}>
+              <button type="button" className="nsa-cta" disabled={firstMatchBusy} onClick={startFirstMatchWithBots}>
+                {firstMatchBusy ? <span><span className="nsa-spin" />GETTING READY…</span> : <>PLAY FIRST MATCH<small>Free Play with AI bots</small></>}
+              </button>
+              <button type="button" className="nsa-link nsa-muted" style={{ alignSelf: 'center' }} onClick={() => setScreen('home')}>Skip - take me home</button>
             </div>
           </div>
-        </div>
-        </div>
+        </AuthStage>
       )}
 
       {/* [DEV-BRANCH ONLY - PHASE 2] Wallet Choice screen - real NEAR
           wallet (testnet), web-version only. THIS BLOCK MUST NEVER BE
           MERGED TO THE LIVE/MAIN BRANCH. */}
-      {screen === 'walletChoice' && (
+      {screen === 'walletChoice' && (legacyWalletSetup || !authPassword) && ( // [ONBOARDING REDESIGN] fallback / 'I already have a NEAR wallet'
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14, overflow: 'auto',
@@ -18312,7 +18371,7 @@ function MovementDemo() {
           (Delete Profile + wallet copy button + Back only show in edit
           mode). THIS BLOCK MUST NEVER BE MERGED TO THE LIVE/MAIN
           BRANCH. */}
-      {(screen === 'profileSetup' || screen === 'profileEdit') && (() => {
+      {screen === 'profileEdit' && (() => { // [ONBOARDING REDESIGN] first-time setup uses the new stage
         const isEditingProfile = screen === 'profileEdit';
         return (
         // [REDESIGN - PROFILE AS POPUP] Edit Profile now opens as a card over
@@ -19346,12 +19405,9 @@ function MovementDemo() {
 
                   {/* [$SABOTEUR] points turn into testnet tokens by rank */}
                   <button type="button" onClick={() => { setShowPointsPopup(false); setWalletTab('coins'); setHomeModal('wallet'); }} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '9px 12px', borderRadius: 12, cursor: 'pointer',
-                    border: '1px solid rgba(255,215,94,0.45)', background: 'rgba(255,215,94,0.08)', color: '#ffd75e', fontSize: 12.5, fontWeight: 900,
-                  }}>
-                    $SABOTEUR <SabChip>TESTNET</SabChip>
-                    <span style={{ marginLeft: 'auto', fontSize: 11, color: '#cfd2da', fontWeight: 700 }}>see it in Wallet →</span>
-                  </button>
+                    display: 'block', margin: '0 0 10px auto', background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    color: '#8a9490', fontSize: 10.5, fontWeight: 700, textDecoration: 'underline',
+                  }}>$SABOTEUR (testnet) in Wallet →</button>
                   {pointsSummaryLoading && !pointsSummary && (
                     <p style={{ fontSize: 12, color: '#9aa0ad', textAlign: 'center', margin: '20px 0' }}>Loading your points…</p>
                   )}
