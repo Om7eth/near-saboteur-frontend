@@ -394,6 +394,7 @@ const LOWERENG_IMG = new URL('./assets/img/lowereng.jpg', import.meta.url).href;
 const STAKING_IMG = new URL('./assets/img/staking.jpg', import.meta.url).href;
 const VAULT_IMG = new URL('./assets/img/vault.jpg', import.meta.url).href;
 const WIN_SCREEN_IMG = new URL('./assets/img/win-screen.jpg', import.meta.url).href;
+const WIN_SCREEN_DESKTOP_IMG = new URL('./assets/img/win-screen-desktop.webp', import.meta.url).href; // wide version for PC / laptop
 const SECURITY_IMG = new URL('./assets/img/security.jpg', import.meta.url).href;
 const MEDBAY_IMG = new URL('./assets/img/medbay.jpg', import.meta.url).href;
 const ASSEMBLY_HALL_IMG = new URL('./assets/img/assembly-hall.jpg', import.meta.url).href; // now drawn fully in code (see AssemblyHallFloor)
@@ -24111,68 +24112,11 @@ function MovementDemo() {
           <div style={{ fontSize: 14, color: '#9aa0ad', maxWidth: 420, lineHeight: 1.6 }}>{roomInfo.pool.poolName || 'Your pool'} · {roomInfo.players.filter((p) => !p.spectator).length} players. You'll be back in the lobby when it ends{roomInfo.pool.mode === 'manual' ? ', and the winners with their wallets show up in Pool Games → History.' : '.'}</div>
         </div>
       )}
-      {gameResult && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 90, background: '#05050a',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: 0,
-          overflow: 'hidden',
-        }}>
-          {/* [NEW FEATURE] Win-screen background image - the same group
-              photo for every outcome, with bold text overlaid on top
-              naming the winning side (rendered in code below, not baked
-              into the image itself, so it works for either outcome).
-              [BUG FIX] object-fit: contain (not cover) - shows the WHOLE
-              image with every avatar visible, never cropped/zoomed in,
-              exactly as requested. */}
-          <img src={WIN_SCREEN_IMG} alt="" style={{
-            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain',
-          }} />
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'linear-gradient(to bottom, rgba(5,5,10,0.15) 0%, rgba(5,5,10,0.55) 55%, rgba(5,5,10,0.92) 100%)',
-          }} />
-          <div style={{
-            position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', width: '100%', padding: '0 24px 30px',
-          }}>
-            <h1 style={{
-              fontSize: 30, fontWeight: 900, margin: '0 0 10px', textAlign: 'center',
-              fontFamily: '"Arial Black", "Helvetica Neue", sans-serif', letterSpacing: 0.8,
-              textShadow: '0 3px 10px rgba(0,0,0,0.8)', lineHeight: 1.15,
-            }}>
-              {/* [DEV-BRANCH ONLY TEST FEATURE] devEnded is the neutral
-                  result from the host's Force End Round button - not a
-                  real win, so it gets its own message instead of falling
-                  into the Crewmates-Won branch. */}
-              {gameResult.winner === 'saboteur' ? (
-                <span style={{ color: '#fff' }}>The <span style={{ color: '#ff3b3b' }}>Saboteur</span> Won</span>
-              ) : gameResult.winner === 'devEnded' ? (
-                <span style={{ color: '#ff9f5a' }}>🛠 Dev Round Ended</span>
-              ) : (
-                <span style={{ color: '#fff' }}>The Crewmates Won</span>
-              )}
-            </h1>
-            <p style={{ fontSize: 13, color: '#cfd2da', margin: '0 0 28px', textAlign: 'center', maxWidth: 300 }}>
-              {gameResult.reason === 'elimination' && 'Too few crewmates remain — the Saboteur has taken control of the ship.'}
-              {gameResult.reason === 'saboteurEjected' && 'The Saboteur was voted out and ejected.'}
-              {gameResult.reason === 'missionsComplete' && 'Every crewmate finished their missions.'}
-              {gameResult.reason === 'devForceEnd' && 'Ended manually via Dev Mode — no winner was decided.'}
-            </p>
-            <MatchRewardsCard data={matchRewards} myId={socketRef.current?.id} onOpenWallet={() => setShowSabWallet(true)} />
-          {/* [NEW FEATURE] Every player gets this button now, not just
-              the host - pressing it sends THIS player's own screen back
-              to the Lobby and resets the room's shared game-state on the
-              server (the first press does the actual reset; later
-              presses from other players are harmless no-ops against an
-              already-reset room). Crucially, this never forces anyone
-              ELSE's screen to change - other players stay on their own
-              win-screen until they personally press this too. The
-              server tracks who's actually back in the Lobby
-              (inLobbyView) so the room-list panel shows who's ready,
-              and migrates host status after 1 minute if the original
-              host specifically doesn't come back. */}
-          <button
-            onClick={async () => {
+      {gameResult && (() => {
+        // [WIN SCREEN] PC / laptop gets its own wide layout + the wide image;
+        // phones keep the tall image.
+        const winWide = desktopDims.w >= 1000 && desktopDims.w > desktopDims.h;
+        const backToLobby = async () => {
               // [NEW POOL SYSTEM] No more per-match wallet signature -
               // every match is entirely off-chain now. The final pool
               // leaderboard (once every match is played) is what each
@@ -24195,16 +24139,90 @@ function MovementDemo() {
               resetGameRef.current?.();
               setGameResult(null);
               setScreen('lobby');
-            }}
-            style={{
-              padding: '13px 32px', borderRadius: 999, border: 'none',
-              background: 'linear-gradient(135deg,#6effc0,#2bb88a)', color: '#06140d',
-              fontWeight: 800, fontSize: 14,
-            }}
-          >Return to Lobby</button>
+            };
+        const sabWon = gameResult.winner === 'saboteur';
+        const devEnd = gameResult.winner === 'devEnded';
+        const sideColor = sabWon ? '#ff3b4e' : '#6ec8ff';
+        const myTeamWon = !devEnd && (playerRole === 'saboteur' ? sabWon : playerRole === 'crewmate' ? !sabWon : null);
+        const reasonText = {
+          elimination: 'Too few crewmates remain — the Saboteur has taken control of the ship.',
+          saboteurEjected: 'The Saboteur was voted out and ejected.',
+          missionsComplete: 'Every crewmate finished their missions.',
+          devForceEnd: 'Ended manually via Dev Mode — no winner was decided.',
+        }[gameResult.reason] || '';
+        const title = sabWon
+          ? <>THE <span style={{ color: '#ff3b4e', textShadow: '0 0 34px rgba(255,59,78,0.6)' }}>SABOTEUR</span> WINS</>
+          : devEnd ? <span style={{ color: '#ff9f5a' }}>DEV ROUND ENDED</span>
+            : <>THE <span style={{ color: '#6ec8ff', textShadow: '0 0 34px rgba(110,200,255,0.5)' }}>CREWMATES</span> WIN</>;
+        const teamChip = myTeamWon == null ? null : (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: winWide ? 18 : 2, marginBottom: winWide ? 0 : 14, padding: '6px 12px',
+            font: "700 12px 'IBM Plex Mono', monospace", letterSpacing: 2,
+            ...(myTeamWon ? { background: '#6effc0', color: '#04120b' } : { border: '1px solid rgba(255,59,78,0.55)', color: '#ffb3bc', background: 'rgba(5,5,6,0.6)' }),
+          }}>{myTeamWon ? '✓ YOUR TEAM WON' : '✕ YOUR TEAM LOST'}</div>
+        );
+        const lobbyBtn = (
+          <button type="button" onClick={backToLobby} style={winWide ? {
+            padding: '15px 34px', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+            background: '#6effc0', color: '#04120b', font: "700 15px 'Space Grotesk', sans-serif", letterSpacing: 1.5,
+            clipPath: 'polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px))',
+          } : {
+            padding: '13px 32px', borderRadius: 999, border: 'none',
+            background: 'linear-gradient(135deg,#6effc0,#2bb88a)', color: '#06140d',
+            fontWeight: 800, fontSize: 14,
+          }}>{winWide ? 'BACK TO LOBBY' : 'Return to Lobby'}</button>
+        );
+        if (winWide) {
+          return (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 90, background: '#030405', overflow: 'hidden' }}>
+              <img src={WIN_SCREEN_DESKTOP_IMG} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 40%' }} />
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(3,4,5,0) 52%, rgba(3,4,5,0.7) 74%, rgba(3,4,5,0.95) 100%), radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(3,4,5,0.55) 100%)' }} />
+              <div style={{ position: 'absolute', left: 'clamp(28px, 5vw, 90px)', bottom: 'clamp(20px, 4.5vh, 70px)', maxWidth: 'min(620px, 48vw)', animation: 'winRise .6s .1s both' }}>
+                <div style={{ font: "600 12px 'IBM Plex Mono', monospace", letterSpacing: 4, color: sideColor }}>
+                  {roomInfo?.pool ? `MATCH ${Math.max(1, roomInfo.pool.matchesPlayed || 0)} OF ${roomInfo.pool.maxMatches} · OVER` : 'MATCH OVER'}
+                </div>
+                <h1 style={{ margin: '10px 0 10px', font: "700 clamp(36px, min(5.4vw, 7.5vh), 86px) 'Space Grotesk', sans-serif", letterSpacing: 3, lineHeight: 0.95, color: '#fff', textShadow: '0 4px 24px rgba(0,0,0,0.7)' }}>{title}</h1>
+                <p style={{ margin: 0, font: "500 16px 'Space Grotesk', sans-serif", color: '#c9d3ce', lineHeight: 1.5, maxWidth: 480 }}>{reasonText}</p>
+                {teamChip}
+              </div>
+              <div style={{ position: 'absolute', right: 'clamp(28px, 5vw, 90px)', bottom: 'clamp(20px, 4.5vh, 70px)', width: 'min(400px, 34vw)', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', animation: 'winRise .6s .3s both' }}>
+                <MatchRewardsCard data={matchRewards} myId={socketRef.current?.id} onOpenWallet={() => setShowSabWallet(true)} />
+                {lobbyBtn}
+              </div>
+              <style>{`@keyframes winRise { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }`}</style>
+            </div>
+          );
+        }
+        return (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 90, background: '#05050a',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: 0,
+          overflow: 'hidden',
+        }}>
+          <img src={WIN_SCREEN_IMG} alt="" style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain',
+          }} />
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(to bottom, rgba(5,5,10,0.15) 0%, rgba(5,5,10,0.55) 55%, rgba(5,5,10,0.92) 100%)',
+          }} />
+          <div style={{
+            position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', width: '100%', padding: '0 24px 30px',
+          }}>
+            <h1 style={{
+              fontSize: 30, fontWeight: 900, margin: '0 0 10px', textAlign: 'center',
+              fontFamily: '"Arial Black", "Helvetica Neue", sans-serif', letterSpacing: 0.8,
+              textShadow: '0 3px 10px rgba(0,0,0,0.8)', lineHeight: 1.15, color: '#fff',
+            }}>{title}</h1>
+            <p style={{ fontSize: 13, color: '#cfd2da', margin: '0 0 14px', textAlign: 'center', maxWidth: 300 }}>{reasonText}</p>
+            {teamChip}
+            <MatchRewardsCard data={matchRewards} myId={socketRef.current?.id} onOpenWallet={() => setShowSabWallet(true)} />
+            {lobbyBtn}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showSabWallet && <SaboteurWalletModal sessionToken={sessionToken} onClose={() => setShowSabWallet(false)} />}
 
