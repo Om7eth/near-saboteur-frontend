@@ -13630,7 +13630,7 @@ function MovementDemo() {
       setPlayerRole(data.role);
       setCurrentMatchId(data.matchId || null);
       setCurrentOnChainPoolId(data.onChainPoolId || null);
-      setMyMissions(data.role !== 'crewmate' ? [] : pickRandomMissions(MISSIONS_ASSIGNED_COUNT, roomInfoRef.current?.gameMode === 'pool' ? ['admin'] : []));
+      setMyMissions(data.role !== 'crewmate' ? [] : pickRandomMissions(MISSIONS_ASSIGNED_COUNT, []));
       // [NEW FEATURE - POOL GAMES: LEGION HUB BONUS MISSION] Fresh every
       // match - server tells us which mission (if any) is active this
       // match; attempt state always starts un-done for a brand new match.
@@ -17316,7 +17316,7 @@ function MovementDemo() {
       SWAP_ASSETS.forEach(a => { w[a.id] = a.id === 'NEAR' ? 100 : 0; });
       return w;
     });
-    setMyMissions(pickRandomMissions(MISSIONS_ASSIGNED_COUNT, roomInfoRef.current?.gameMode === 'pool' ? ['admin'] : []));
+    setMyMissions(pickRandomMissions(MISSIONS_ASSIGNED_COUNT, []));
     setMemeWallet(() => {
       const m = {};
       MEME_COINS.forEach(c => { m[c.id] = 0; });
@@ -21688,7 +21688,7 @@ function MovementDemo() {
             // [NEW FEATURE - POOL GAMES: LEGION HUB BONUS MISSION] Pool
             // games only - Free/Paid rooms never set this true, so they
             // never render any of the treatment below.
-            const isBonusRoom = rm.id === 'admin' && roomInfo?.gameMode === 'pool';
+            const isBonusRoom = false; // [SAME GAME EVERYWHERE] no pool-only bonus room
             return (
               <div key={rm.id} style={{
                 position: 'absolute',
@@ -22604,8 +22604,8 @@ function MovementDemo() {
         </span>
         <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>·</span>
         <span style={{
-          fontSize: 11, fontWeight: (currentRoom?.id === 'admin' && roomInfo?.gameMode === 'pool') ? 800 : 500,
-          color: (currentRoom?.id === 'admin' && roomInfo?.gameMode === 'pool') ? '#ffd75e' : '#cfd2da',
+          fontSize: 11, fontWeight: 500,
+          color: '#cfd2da',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {currentRoom ? (ROOM_NAME_OVERRIDE[currentRoom.id] || currentRoom.name) : 'Corridor'}
@@ -22792,7 +22792,7 @@ function MovementDemo() {
                 const isHere = currentRoom?.id === rm.id;
                 const isLockedVault = rm.id === 'reactor' && !vaultUnlocked;
                 // [NEW FEATURE - POOL GAMES: LEGION HUB BONUS MISSION]
-                const isBonusRoom = rm.id === 'admin' && roomInfo?.gameMode === 'pool';
+                const isBonusRoom = false; // [SAME GAME EVERYWHERE] no pool-only bonus room
                 return (
                   <div key={rm.id} style={{
                     position: 'absolute', left: `${left}%`, top: `${top}%`, width: `${w}%`, height: `${h}%`,
@@ -22835,7 +22835,7 @@ function MovementDemo() {
                 const label = ROOM_NAME_OVERRIDE[rm.id] || rm.name;
                 const isLockedVault = rm.id === 'reactor' && !vaultUnlocked;
                 // [NEW FEATURE - POOL GAMES: LEGION HUB BONUS MISSION]
-                const isBonusRoom = rm.id === 'admin' && roomInfo?.gameMode === 'pool';
+                const isBonusRoom = false; // [SAME GAME EVERYWHERE] no pool-only bonus room
                 return (
                   <div key={rm.id} style={{
                     display: 'flex', alignItems: 'center', gap: 6,
@@ -22887,7 +22887,7 @@ function MovementDemo() {
         >
           {isDesktopPointer && <KeyCap k="E" />}<HudIcon name={nearTask.room === 'reactor' && !vaultUnlocked ? 'lock' : nearTask.room} size={15} color="currentColor" style={{ marginRight: 2 }} />{nearTask.room === 'reactor' && !vaultUnlocked
           ? `Vault locked — needs ${MISSIONS_REQUIRED_FOR_VAULT} missions done (crew: ${crewProgress.minDone}/${MISSIONS_REQUIRED_FOR_VAULT})`
-          : ({ cafeteria: 'Call Assembly', medbay: 'Verify Wallet', security: 'Access Security Hub', reactor: 'Enable Confidential Mode', upper_eng: 'Stake NEAR', lower_eng: 'Claim Rewards', electrical: 'Repair Power Grid', storage: 'Ask NEAR AI 4 Questions', comms: 'Buy Merch', o2: 'Deploy AI Agent', admin: roomInfo?.gameMode === 'pool' ? 'Bonus Mission' : 'NEAR Legion', shields: 'Cross-Chain Swap', weapons: 'Buy Meme Coin', navigation: 'Stop Hacker Attack' }[nearTask.room] || 'Start Mission')}</button>
+          : ({ cafeteria: 'Call Assembly', medbay: 'Verify Wallet', security: 'Access Security Hub', reactor: 'Enable Confidential Mode', upper_eng: 'Stake NEAR', lower_eng: 'Claim Rewards', electrical: 'Repair Power Grid', storage: 'Ask NEAR AI 4 Questions', comms: 'Buy Merch', o2: 'Deploy AI Agent', admin: 'NEAR Legion', shields: 'Cross-Chain Swap', weapons: 'Buy Meme Coin', navigation: 'Stop Hacker Attack' }[nearTask.room] || 'Start Mission')}</button>
       )}
 
       {showMission && nearTask && nearTask.room === 'medbay' && (
@@ -23042,7 +23042,7 @@ function MovementDemo() {
         </MissionFloat>
       )}
 
-      {showMission && nearTask && nearTask.room === 'admin' && roomInfo?.gameMode === 'pool' && (
+      {false && showMission && nearTask && nearTask.room === 'admin' && (
         <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <LegionBonusMission
             bonusMission={bonusMission}
@@ -23058,7 +23058,7 @@ function MovementDemo() {
         </MissionFloat>
       )}
 
-      {showMission && nearTask && nearTask.room === 'admin' && roomInfo?.gameMode !== 'pool' && (
+      {showMission && nearTask && nearTask.room === 'admin' && (
         <MissionFloat k={missionZoom} title={missionTitleFor(nearTask.room)} place={nearTask.room}>
           <LegionHubMission
             sbtMinted={sbtMinted}
