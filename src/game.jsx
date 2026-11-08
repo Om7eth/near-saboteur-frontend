@@ -6391,6 +6391,7 @@ function LobbyScreen({
   // off - identical to live behavior in that case.
   const effectiveMinPlayers = roomInfo?.devMode ? 2 : MIN_PLAYERS;
   const canStartGame = !!roomInfo && roomInfo.players.filter((p) => !p.spectator).length >= effectiveMinPlayers && !allMatchesDone;
+  const amLobbySpectator = !!(roomInfo?.players || []).find((p) => p.id === socket?.id)?.spectator; // [WATCH MODE] watching host has no lobby avatar
 
   const [pos, setPos] = useState({ x: 50, y: 75 }); // percentage coords
   const [facing, setFacing] = useState('right');
@@ -6480,6 +6481,7 @@ function LobbyScreen({
       const validIds = new Set();
       roomInfo.players.forEach((p) => {
         if (p.id === socket?.id) return;
+        if (p.spectator) return; // [WATCH MODE] the watching host isn't in the room as an avatar
         validIds.add(p.id);
         // [BUG FIX] Preserve any existing x/y from a movement update
         // already received (don't blow it away just because roomInfo
@@ -7522,7 +7524,7 @@ function LobbyScreen({
           {/* Player avatar in lobby — identical sizing/flip/bounce logic to
               the in-game avatar, just positioned in % instead of screen px. */}
           <div style={{
-            position: 'absolute', left: `${pos.x}%`, top: `${pos.y}%`, width: Math.round(24 * Math.max(1, (roomSize?.w || 480) / 480)), height: Math.round(24 * Math.max(1, (roomSize?.w || 480) / 480)), zIndex: 5,
+            display: amLobbySpectator ? 'none' : 'block', position: 'absolute', left: `${pos.x}%`, top: `${pos.y}%`, width: Math.round(24 * Math.max(1, (roomSize?.w || 480) / 480)), height: Math.round(24 * Math.max(1, (roomSize?.w || 480) / 480)), zIndex: 5,
             pointerEvents: 'none',
             transform: `translate(-50%, -60%) scaleX(${facing === 'left' ? -1 : 1})`,
           }}>
@@ -8153,7 +8155,7 @@ function LobbyScreen({
       )}
       {isHost && !allMatchesDone && (() => {
         const pool = roomInfo?.pool;
-        const needsOnChainRecord = pool && pool.state !== 'Locked';
+        const needsOnChainRecord = pool && pool.mode !== 'manual' && pool.state !== 'Locked'; // [POOL v2] Real-NEAR pools have nothing on-chain to record
         if (needsOnChainRecord) {
           // [NEW UI - RECORD ON-CHAIN, THEN START] Shown instead of
           // Start for any Pool/Paid room that hasn't locked
@@ -15122,6 +15124,29 @@ function MovementDemo() {
   // the check silently always evaluated against the stale default.
   const playerRoleRef = useRef('crewmate');
   useEffect(() => { playerRoleRef.current = playerRole; }, [playerRole]);
+  // [WATCH MODE] A watching pool host has no avatar - the camera follows a player.
+  const [specFollowId, setSpecFollowId] = useState(null);
+  const specFollowRef = useRef(null);
+  useEffect(() => { specFollowRef.current = specFollowId; }, [specFollowId]);
+  const cycleSpecFollow = (dir) => {
+    const ids = Object.keys(otherPlayersRef.current || {}).filter((id) => !(roomInfoRef.current?.players || []).some((rp) => rp.id === id && rp.spectator));
+    if (!ids.length) return;
+    const alive = ids.filter((id) => otherPlayersRef.current[id].alive !== false);
+    const list = alive.length ? alive : ids;
+    const i = list.indexOf(specFollowRef.current);
+    const next = list[(i + dir + list.length) % list.length];
+    specFollowRef.current = next; setSpecFollowId(next);
+  };
+  useEffect(() => {
+    if (playerRole !== 'spectator') return undefined;
+    const onKey = (e) => {
+      const k = (e.key || '').toLowerCase();
+      if (k === 'arrowleft' || k === 'a') cycleSpecFollow(-1);
+      else if (k === 'arrowright' || k === 'd') cycleSpecFollow(1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [playerRole]); // eslint-disable-line react-hooks/exhaustive-deps
   // [NEW FEATURE] Multi-Saboteur awareness - only ever populated for a
   // Saboteur's own client (the server never sends this field to
   // crewmates at all). Used both for the brief 2s reveal popup right
@@ -17472,7 +17497,23 @@ function MovementDemo() {
       // collision - correctly, since they're interacting with a popup/
       // cutscene/vent/meeting UI and shouldn't be walking around during
       // it - while leaving other players' interpolation (below) running.
-      const skipOwnMovement = showMissionRef.current || killCutsceneRef.current || inVentRef.current || meetingRef.current;
+      // [WATCH MODE] spectator: no own movement / no position sent - glide the camera to the followed player
+      if (playerRoleRef.current === 'spectator') {
+        const others = otherPlayersRef.current || {};
+        let target = others[specFollowRef.current];
+        if (!target || typeof target.x !== 'number') {
+          const firstId = Object.keys(others).find((id) => typeof others[id].x === 'number' && others[id].alive !== false) || Object.keys(others).find((id) => typeof others[id].x === 'number');
+          if (firstId) { specFollowRef.current = firstId; setSpecFollowId(firstId); target = others[firstId]; }
+        }
+        if (target && typeof target.x === 'number') {
+          const cur = posRef.current;
+          const k = Math.min(1, 0.18 * dtScale);
+          const next = { x: cur.x + (target.x - cur.x) * k, y: cur.y + (target.y - cur.y) * k };
+          posRef.current = next;
+          if (Math.abs(next.x - cur.x) >= 0.12 || Math.abs(next.y - cur.y) >= 0.12) setPos(next);
+        }
+      }
+      const skipOwnMovement = playerRoleRef.current === 'spectator' || showMissionRef.current || killCutsceneRef.current || inVentRef.current || meetingRef.current;
       if (!skipOwnMovement) {
       let dx = 0, dy = 0;
       const k = keysRef.current;
@@ -17916,13 +17957,13 @@ function MovementDemo() {
   useEffect(() => {
     if (!isDesktopPointer) return undefined;
     try {
-      if (!localStorage.getItem('nearSaboteurControlsSeen') && screen === 'game') {
+      if (!localStorage.getItem('nearSaboteurControlsSeen') && screen === 'game' && playerRole !== 'spectator') { // [WATCH MODE] nothing to control
         setShowControlsGuide(true);
         localStorage.setItem('nearSaboteurControlsSeen', '1');
       }
     } catch (e) { /* localStorage unavailable */ }
     return undefined;
-  }, [isDesktopPointer, screen]);
+  }, [isDesktopPointer, screen, playerRole]);
   useEffect(() => {
     const onKey = (e) => {
       const st = desktopKeysRef.current;
@@ -22152,7 +22193,7 @@ function MovementDemo() {
             radius collapses to VISION_RADIUS_SABOTAGED AND the clear zone
             itself shrinks relative to that radius, producing the graduated
             3-ring blackout — same dark "lights are out" look as Among Us. */}
-        {(() => {
+        {playerRole !== 'spectator' && (() => {
           const radiusTiles = VISION_RADIUS_TILES + (VISION_RADIUS_SABOTAGED - VISION_RADIUS_TILES) * sabotageProgress;
           const lerp = (a, b) => a + (b - a) * sabotageProgress;
           // [UPDATE] Complete rework per Om7eth's exact spec - the
@@ -22202,7 +22243,7 @@ function MovementDemo() {
           "inside the walls" and shouldn't be visible on the map at all —
           except during the brief enter/exit squish animation, which plays
           right at the vent grate before/after that. */}
-      {(!inVent || ventAnim) && (
+      {playerRole !== 'spectator' && (!inVent || ventAnim) && (
       <div style={{
         position: 'absolute', left: playerScreenX, top: playerScreenY,
         // [BUG FIX] Lowered from 9 to 7 - below the fog-of-war overlay
@@ -22318,6 +22359,7 @@ function MovementDemo() {
           below and don't overlap with this. */}
       {Object.entries(otherPlayers).map(([id, p]) => {
         if (typeof p.x !== 'number' || typeof p.y !== 'number') return null;
+        if ((roomInfo?.players || []).some((rp) => rp.id === id && rp.spectator)) return null; // [WATCH MODE] the watching host has no avatar
         const isGhost = p.alive === false;
         // [GHOST RULE] A dead other-player only renders here if WE are
         // also currently dead — alive players never see a ghost moving
@@ -22861,7 +22903,7 @@ function MovementDemo() {
         </div>
       )}
 
-      {nearTask && !showMission && (
+      {playerRole !== 'spectator' && nearTask && !showMission && (
         <button
           data-sfx={nearTask.room === 'cafeteria' ? 'none' : 'open'}
           onClick={() => {
@@ -23357,7 +23399,7 @@ function MovementDemo() {
             glow={!hudSeen.missions && !meeting} tip="YOUR MISSIONS"
             badge={myMissions.some(m => !m.done) ? myMissions.filter(m => !m.done).length : null} />
         )}
-        <HudButton icon="wallet" label="WALLET" color="#8fe3ff" ariaLabel="Wallet" onClick={() => setShowWallet(true)} />
+        {playerRole !== 'spectator' && <HudButton icon="wallet" label="WALLET" color="#8fe3ff" ariaLabel="Wallet" onClick={() => setShowWallet(true)} />}
       </div>
 
       {/* Saboteur action panel popup — 5 actions total: the original 4
@@ -23967,6 +24009,33 @@ function MovementDemo() {
           triggered while one happens to be open (e.g. a vote-out that
           ejects the last Saboteur). Shows which side won and why, plus
           a button back to the Lobby. */}
+      {/* [WATCH MODE] spectator bar - who you're following + everyone's status */}
+      {screen === 'game' && playerRole === 'spectator' && roomInfo?.pool?.hostRole !== 'host' && !gameResult && (() => {
+        const specIds = new Set((roomInfo?.players || []).filter((rp) => rp.spectator).map((rp) => rp.id));
+        const list = Object.entries(otherPlayers).filter(([id]) => !specIds.has(id));
+        const cur = otherPlayers[specFollowId];
+        const aliveN = list.filter(([, p]) => p.alive !== false).length;
+        const chip = { display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px 4px 4px', borderRadius: 99, cursor: 'pointer', font: "600 11px 'IBM Plex Mono',monospace", whiteSpace: 'nowrap' };
+        return (
+          <div style={{ position: 'absolute', top: 54, left: '50%', transform: 'translateX(-50%)', zIndex: 30, zoom: hudK, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, maxWidth: '96vw' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', background: 'rgba(6,10,9,0.9)', border: '1px solid rgba(255,215,94,0.5)', clipPath: 'polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)' }}>
+              <button type="button" aria-label="Previous player" onClick={() => cycleSpecFollow(-1)} style={{ width: 30, height: 30, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#ffd75e', fontSize: 16, cursor: 'pointer' }}>‹</button>
+              <div style={{ textAlign: 'center', minWidth: 150 }}>
+                <div style={{ font: "600 9.5px 'IBM Plex Mono',monospace", letterSpacing: 2, color: '#ffd75e' }}>WATCHING · {aliveN} ALIVE</div>
+                <div style={{ font: "700 15px 'Space Grotesk',sans-serif", color: '#fff' }}>{cur ? displayPlayerName(cur.name, cur.avatarId) : '—'}{cur && cur.alive === false ? ' (ghost)' : ''}</div>
+              </div>
+              <button type="button" aria-label="Next player" onClick={() => cycleSpecFollow(1)} style={{ width: 30, height: 30, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#ffd75e', fontSize: 16, cursor: 'pointer' }}>›</button>
+            </div>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {list.map(([id, p]) => (
+                <span key={id} onClick={() => { specFollowRef.current = id; setSpecFollowId(id); }} style={{ ...chip, background: id === specFollowId ? 'rgba(255,215,94,0.18)' : 'rgba(6,10,9,0.8)', border: `1px solid ${id === specFollowId ? 'rgba(255,215,94,0.6)' : 'rgba(255,255,255,0.1)'}`, color: p.alive === false ? '#6a7570' : '#e6ece9', textDecoration: p.alive === false ? 'line-through' : 'none' }}>
+                  <img src={resolveAvatarImg(p.avatarId, p.hasPlayPass, p.avatarVariantId)} alt="" style={{ width: 18, height: 18, objectFit: 'contain', opacity: p.alive === false ? 0.4 : 1 }} />{displayPlayerName(p.name, p.avatarId)}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       {/* [POOL v2] "Host only" doesn't watch the map - a calm hosting screen instead */}
       {playerRole === 'spectator' && roomInfo?.pool?.hostRole === 'host' && !gameResult && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 85, background: 'radial-gradient(circle at 50% 35%, #12100a, #050403 70%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center' }}>
@@ -24684,7 +24753,7 @@ function MovementDemo() {
         >🛠 Force End Round</button>
       )}
 
-      {!myAlive && screen === 'game' && !showGhostChat && (
+      {!myAlive && playerRole !== 'spectator' && screen === 'game' && !showGhostChat && (
         <button
           onClick={() => setShowGhostChat(true)}
           style={{
