@@ -21,7 +21,13 @@
     #root {
       height: 100%;
       width: 100%;
+      background: #000;
     }
+    /* Shown while the game itself downloads - replaced as soon as it starts */
+    .boot{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#000;color:#7fd9b8;font:600 13px system-ui,sans-serif;text-align:center;padding:24px}
+    .boot i{width:36px;height:36px;border-radius:50%;border:3px solid rgba(110,255,192,.2);border-top-color:#6effc0;animation:bs .8s linear infinite}
+    .boot small{display:none;max-width:300px;font-weight:500;color:#ffcf6e;line-height:1.5}
+    @keyframes bs{to{transform:rotate(360deg)}}
     /* [DEBUG - TEMPORARY] Shows the real error on-screen instead of a
        silent blank white page - lets a mobile-only, no-dev-tools setup
        actually see what's crashing. Remove once things are stable. */
@@ -35,7 +41,7 @@
   </style>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root"><div class="boot"><i></i><span>Loading NEAR Saboteur…</span><small id="boot-slow">Your internet looks slow - the game is still downloading. Try Wi-Fi or a stronger signal.</small></div></div>
   <div id="boot-error"></div>
   <script>
     // [DEBUG - TEMPORARY] Catches anything that crashes before/during
@@ -43,6 +49,11 @@
     // and rejected Promises (unhandledrejection), since a broken
     // dynamic import or async init can fail as either one.
     function showBootError(title, detail) {
+      // Only while the game is still starting up - once it's running, the game
+      // handles its own errors (a flaky mobile network must never cover the
+      // whole screen with this).
+      var root = document.getElementById('root');
+      if (window.__nsBooted && root && root.childElementCount > 0) return; // game still on screen: a network blip, not a crash
       var box = document.getElementById('boot-error');
       box.style.display = 'block';
       box.textContent = title + '\n\n' + detail;
@@ -54,6 +65,14 @@
       var reason = e.reason;
       showBootError('Unhandled Promise rejection:', (reason && (reason.stack || reason.message)) || String(reason));
     });
+  </script>
+  <script>
+    // Slow download? say so instead of leaving a spinner with no explanation.
+    (function () {
+      var c = navigator.connection || {};
+      var slow = /2g/.test(c.effectiveType || '') || (c.downlink && c.downlink < 1);
+      setTimeout(function () { var el = document.getElementById('boot-slow'); if (el && !window.__nsBooted) el.style.display = 'block'; }, slow ? 1500 : 6000);
+    })();
   </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
