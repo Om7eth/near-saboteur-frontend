@@ -16173,6 +16173,124 @@ function MovementDemo() {
     thudOsc.stop(now + 0.42);
   }, [soundOn, getAudioCtx]);
 
+  // [MATCH MOMENTS] One sound per big moment - role reveal, ejection,
+  // meeting verdict, the end-of-match Saboteur reveal and win / lose.
+  // Original Web Audio synthesis like every other sound here (no files).
+  const playMomentSound = useCallback((kind) => {
+    if (!soundOn) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const t0 = ctx.currentTime + 0.02;
+    const out = ctx.createGain();
+    out.gain.value = 0.9;
+    out.connect(ctx.destination);
+    // one oscillator note with a soft attack and release
+    const tone = (freq, at, dur, { type = 'sine', vol = 0.12, to = null, attack = 0.02 } = {}) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t0 + at);
+      if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + at + dur);
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.linearRampToValueAtTime(vol, t0 + at + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+      o.connect(g).connect(out); o.start(t0 + at); o.stop(t0 + at + dur + 0.05);
+    };
+    // filtered noise - whooshes and impacts
+    const noise = (at, dur, { vol = 0.12, type = 'bandpass', from = 800, to = 800, q = 0.8 } = {}) => {
+      const n = Math.max(1, Math.floor(ctx.sampleRate * dur));
+      const buf = ctx.createBuffer(1, n, ctx.sampleRate); const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q;
+      f.frequency.setValueAtTime(from, t0 + at); f.frequency.exponentialRampToValueAtTime(to, t0 + at + dur);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + at); g.gain.linearRampToValueAtTime(vol, t0 + at + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+      src.connect(f).connect(g).connect(out); src.start(t0 + at); src.stop(t0 + at + dur + 0.02);
+    };
+    const thud = (at, vol = 0.3) => { tone(150, at, 0.45, { vol, to: 45, attack: 0.008 }); noise(at, 0.06, { vol: vol * 0.5, type: 'highpass', from: 2000, to: 2000 }); };
+    switch (kind) {
+      case 'roleCrew': // bright rising shimmer
+        noise(0, 0.6, { vol: 0.05, from: 600, to: 5000 });
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 0.12 + i * 0.09, 0.9 - i * 0.1, { type: 'triangle', vol: 0.08 }));
+        tone(261.63, 0.12, 1.2, { vol: 0.07 });
+        break;
+      case 'roleSab': // low ominous hit + dissonant drone
+        thud(0, 0.32);
+        tone(110, 0.05, 1.6, { type: 'sawtooth', vol: 0.05, to: 82 });
+        tone(116.5, 0.05, 1.6, { type: 'sawtooth', vol: 0.04, to: 87 });
+        tone(880, 0.25, 0.9, { type: 'sine', vol: 0.03, to: 830 });
+        break;
+      case 'ejectWas': // whoosh out, then a sharp "caught you" sting
+        noise(0, 1.1, { vol: 0.09, from: 300, to: 3000 });
+        thud(1.2, 0.26);
+        [392, 523.25, 659.25].forEach((f, i) => tone(f, 1.25 + i * 0.07, 0.8, { type: 'square', vol: 0.035 }));
+        break;
+      case 'ejectNot': // whoosh out, then a sad falling minor line
+        noise(0, 1.1, { vol: 0.09, from: 300, to: 3000 });
+        [440, 392, 349.23, 329.63].forEach((f, i) => tone(f, 1.2 + i * 0.22, 0.55, { type: 'triangle', vol: 0.07 }));
+        tone(110, 1.2, 1.4, { vol: 0.06 });
+        break;
+      case 'voteOut': // the EJECTED stamp lands (stamp animation starts at 0.3s)
+        thud(0.42, 0.34);
+        noise(0.42, 0.12, { vol: 0.08, type: 'lowpass', from: 900, to: 300 });
+        break;
+      case 'voteNone': // neutral "no decision"
+        tone(392, 0, 0.35, { type: 'triangle', vol: 0.06 });
+        tone(392, 0.28, 0.5, { type: 'triangle', vol: 0.06, to: 330 });
+        break;
+      case 'sabReveal': // dramatic boom + dissonant stab
+        noise(0, 0.5, { vol: 0.08, from: 4000, to: 300 });
+        thud(0.35, 0.36);
+        [146.83, 155.56, 220].forEach((f) => tone(f, 0.38, 1.8, { type: 'sawtooth', vol: 0.035 }));
+        break;
+      case 'win': // short victory fanfare
+        [523.25, 659.25, 783.99].forEach((f, i) => tone(f, i * 0.12, 0.35, { type: 'square', vol: 0.045 }));
+        [523.25, 659.25, 783.99, 1046.5].forEach((f) => tone(f, 0.4, 1.4, { type: 'triangle', vol: 0.055 }));
+        tone(130.81, 0.4, 1.4, { vol: 0.08 });
+        noise(0.4, 0.8, { vol: 0.03, type: 'highpass', from: 6000, to: 9000 });
+        break;
+      case 'lose': // slow descending defeat
+        [392, 349.23, 311.13].forEach((f, i) => tone(f, i * 0.3, 0.6, { type: 'triangle', vol: 0.07 }));
+        tone(98, 0.9, 1.6, { vol: 0.08, to: 82 });
+        tone(155.56, 0.9, 1.6, { type: 'triangle', vol: 0.05 });
+        break;
+      default: break;
+    }
+  }, [soundOn, getAudioCtx]);
+
+  // [MATCH MOMENTS] fire each moment's sound once, when its screen appears
+  useEffect(() => {
+    if (screen === 'roleReveal') playMomentSound(playerRole === 'saboteur' ? 'roleSab' : 'roleCrew');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
+  useEffect(() => {
+    if (eliminationRoleReveal) playMomentSound(eliminationRoleReveal.role === 'saboteur' ? 'ejectWas' : 'ejectNot');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eliminationRoleReveal]);
+  const verdictSoundForRef = useRef(null);
+  useEffect(() => {
+    // the verdict screen is only visible once the ejection reveal on top of it is gone
+    if (!meeting || meeting.stage !== 'results' || eliminationRoleReveal) return;
+    if (verdictSoundForRef.current === meeting.result) return;
+    verdictSoundForRef.current = meeting.result;
+    playMomentSound(meeting.result?.eliminatedName ? 'voteOut' : 'voteNone');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meeting, eliminationRoleReveal]);
+  useEffect(() => {
+    if (saboteurReveal) playMomentSound('sabReveal');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saboteurReveal]);
+  const endSoundForRef = useRef(null);
+  useEffect(() => {
+    // the win screen shows once the Saboteur reveal on top of it is gone
+    if (!gameResult || saboteurReveal || endSoundForRef.current === gameResult) return;
+    endSoundForRef.current = gameResult;
+    if (gameResult.winner === 'devEnded') return;
+    const sabWon = gameResult.winner === 'saboteur';
+    const lost = (playerRole === 'saboteur' && !sabWon) || (playerRole === 'crewmate' && sabWon);
+    playMomentSound(lost ? 'lose' : 'win');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameResult, saboteurReveal]);
+
   // Synthesized vent enter/exit sound — a brief metallic "whoosh + clang"
   // (filtered noise sweep for the air/movement, plus a short ringing tone
   // for the metal grate), distinct in direction: entering sweeps the
