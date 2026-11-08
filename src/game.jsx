@@ -6227,6 +6227,89 @@ function LiveGameGrid({ items }) {
   );
 }
 
+
+// [LOBBY STANDINGS] One leaderboard for every room type (Free / Pool / Paid):
+// rank, per-match points, total, and - for pools - what each place wins.
+function StandingsBoard({ entries, pool, maxMatches, matchesPlayed, allDone, meAccountId, missions, onClose, wide }) {
+  const list = entries || [];
+  const real = pool && pool.mode === 'manual';
+  const split = pool ? (real ? (pool.split || []) : [50, 30, 20]) : [];
+  const prize = pool ? Number(real ? pool.prizeNear : pool.entryFeeNear) || 0 : 0;
+  const payPool = real ? prize : prize * 0.95;
+  const unit = real ? 'NEAR' : 'tNEAR';
+  const nMatches = Math.max(matchesPlayed || 0, ...list.map((e) => (e.matches || []).length), 0);
+  const medal = ['#ffd75e', '#c9d3d9', '#d9965c'];
+  const mono = "'IBM Plex Mono', monospace", disp = "'Space Grotesk', sans-serif";
+  const played = Math.max(matchesPlayed || 0, nMatches);
+  const subtitle = maxMatches != null
+    ? (allDone ? `All ${maxMatches} matches played` : `After match ${played} of ${maxMatches}`)
+    : `${played} match${played === 1 ? '' : 'es'} played`;
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 62, background: 'rgba(0,0,0,0.78)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: '100%', maxWidth: wide ? 640 : 420, maxHeight: '86%', display: 'flex', flexDirection: 'column', color: '#e6ece9',
+        background: 'linear-gradient(180deg, #0c1311, #060a09)', border: '1px solid rgba(255,215,94,0.4)',
+        clipPath: 'polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))', padding: '18px 18px 16px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+          <img src={POINT_COIN_IMG} alt="" style={{ width: 34, height: 'auto', flexShrink: 0 }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ font: `700 19px ${disp}`, letterSpacing: 2.5 }}>STANDINGS</div>
+            <div style={{ font: `11px ${mono}`, color: '#7d8d86', marginTop: 2 }}>{subtitle}{pool ? ` · ${prize} ${unit} prize` : ''}</div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" style={{ marginLeft: 'auto', width: 32, height: 32, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#cfd8d3', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+        </div>
+        {allDone && (
+          <div style={{ padding: '8px 11px', marginBottom: 10, border: '1px solid rgba(110,255,192,0.35)', background: 'rgba(110,255,192,0.08)', font: `600 11.5px ${mono}`, color: '#6effc0' }}>
+            {pool ? 'Final result — everyone confirms it in the pool panel to release the prizes.' : 'All matches done — you can leave the room now.'}
+          </div>
+        )}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {list.length === 0 ? (
+            <div style={{ padding: '28px 10px', textAlign: 'center', font: `12px ${mono}`, color: '#7d8d86', border: '1px dashed rgba(255,255,255,0.12)' }}>No points yet — finish a match to get on the board.</div>
+          ) : list.map((e, i) => {
+            const me = meAccountId && e.accountId === meAccountId;
+            const inMoney = pool && i < split.length && e.totalPoints > 0;
+            const mission = missions ? missions.find((m) => m.accountId && m.accountId === e.accountId) : null;
+            return (
+              <div key={e.accountId || i} style={{
+                display: 'grid', gridTemplateColumns: '30px 30px minmax(0,1fr) auto', alignItems: 'center', gap: 9, padding: '9px 10px',
+                background: me ? 'rgba(110,255,192,0.08)' : 'rgba(255,255,255,0.025)',
+                border: `1px solid ${me ? 'rgba(110,255,192,0.45)' : i < 3 && e.totalPoints > 0 ? `${medal[i]}55` : 'rgba(255,255,255,0.06)'}`,
+              }}>
+                <span style={{ font: `700 16px ${disp}`, color: i < 3 && e.totalPoints > 0 ? medal[i] : '#7d8d86', textAlign: 'center' }}>{i + 1}</span>
+                <img src={resolveAvatarImg(e.avatarId, true, e.avatarVariantId)} alt="" style={{ width: 30, height: 30, objectFit: 'contain', opacity: e.present === false ? 0.45 : 1 }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: `600 14px ${disp}`, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}><PlayerNameTag name={e.name || (e.username ? `@${e.username}` : 'Player')} premium={e.hasPlayPass} /></span>
+                    {e.hasLegionBadge && <LegionBadge size={10} />}
+                    {me && <span style={{ font: `700 9px ${mono}`, color: '#6effc0', letterSpacing: 1 }}>YOU</span>}
+                    {e.present === false && <span style={{ font: `10px ${mono}`, color: '#6a7570' }}>left</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+                    {Array.from({ length: nMatches }, (_, k) => {
+                      const m = (e.matches || [])[k];
+                      return <span key={k} style={{ font: `10px ${mono}`, padding: '1px 5px', background: 'rgba(255,255,255,0.05)', color: m ? '#cfd8d3' : '#4b5752' }}>M{k + 1} {m ? `+${m.points}` : '—'}</span>;
+                    })}
+                    {mission && <span style={{ font: `10px ${mono}`, padding: '1px 5px', color: mission.missionsDone >= mission.missionsTotal ? '#6effc0' : '#ffd75e' }}>missions {mission.missionsDone}/{mission.missionsTotal}</span>}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ font: `700 18px ${disp}`, color: '#ffd75e', lineHeight: 1 }}>{e.totalPoints}</div>
+                  <div style={{ font: `10px ${mono}`, color: inMoney ? '#6effc0' : '#5d6d66', marginTop: 3 }}>{inMoney ? `→ ${Math.round(payPool * split[i] / 100 * 1000) / 1000} ${unit}` : 'pts'}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 10, font: `11px ${mono}`, color: '#7d8d86', lineHeight: 1.5 }}>
+          Points from every match add up — highest total {pool ? `wins. Top ${split.length} share the prize${real ? ' (paid by the host)' : ''}.` : 'tops the room.'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LobbyScreen({
   playerName, setPlayerName, playerAvatarId, setPlayerAvatarId, onStart, soundOn, musicOn, onToggleMusic, onOpenPoolPanel,
   hasPlayPass, activePremiumAvatarVariant, onSelectPremiumVariant, playPassError,
@@ -7087,41 +7170,12 @@ function LobbyScreen({
               );
             })()}
 
+            {/* [LOBBY STANDINGS] one leaderboard only - open it instead of repeating it here */}
             {Object.keys(roomInfo.pool.leaderboard || {}).length > 0 && (
-              <div>
-                <label style={{ fontSize: 9.5, color: '#9aa0ad', fontWeight: 700 }}>STANDINGS</label>
-                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {Object.entries(roomInfo.pool.leaderboard)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([accountId, points], i) => {
-                      // [BUG FIX - SHOWED "PLAYER" INSTEAD OF A REAL NAME]
-                      // roomInfo.players only has CURRENTLY present
-                      // players - once someone leaves (including via the
-                      // new auto-confirm-on-leave flow), they vanish from
-                      // it, so this always fell back to the generic
-                      // "Player" placeholder for anyone not still
-                      // sitting in the room. roomLeaderboard entries
-                      // persist even after someone leaves (see
-                      // snapshotRoomLeaderboardOnDeparture) - using it as
-                      // the primary source, with username preferred per
-                      // Om7eth's explicit request, fixes this for
-                      // everyone, present or not.
-                      const p = roomInfo.players.find((pl) => pl.accountId === accountId);
-                      const lbEntry = roomInfo.roomLeaderboard?.find((e) => e.accountId === accountId);
-                      const displayName = lbEntry?.username ? `@${lbEntry.username}` : (p?.name || lbEntry?.name || 'Player');
-                      const hasLegionBadge = p?.hasLegionBadge || lbEntry?.hasLegionBadge;
-                      return (
-                        <div key={accountId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '7px 10px' }}>
-                          <span style={{ color: '#e8e8f0', display: 'flex', alignItems: 'center', gap: 5 }}>
-                            {i + 1}. {displayName}
-                            {hasLegionBadge && <LegionBadge size={11} />}
-                          </span>
-                          <span style={{ color: '#ffd75e', fontWeight: 800 }}>{points}</span>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
+              <button type="button" onClick={() => { setShowPoolDetails(false); setShowRoomLeaderboard(true); }} style={{
+                width: '100%', padding: '10px 0', border: '1px solid rgba(255,215,80,0.45)', background: 'rgba(255,215,80,0.08)',
+                color: '#ffd75e', fontWeight: 800, fontSize: 12.5, letterSpacing: 1, cursor: 'pointer',
+              }}>VIEW STANDINGS</button>
             )}
 
             {(() => {
@@ -7318,88 +7372,17 @@ function LobbyScreen({
           snapshotRoomLeaderboardOnDeparture) - anyone shown here either
           has points or is still actually in the room. */}
       {showRoomLeaderboard && (
-        <div
-          onClick={() => closeRoomLeaderboardPopup()}
-          style={{
-            position: 'absolute', inset: 0, zIndex: 62, background: 'rgba(0,0,0,0.8)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '100%', maxWidth: 340, maxHeight: '80%', display: 'flex', flexDirection: 'column',
-              background: 'linear-gradient(160deg, #1a1508, #0a0805)', border: '1px solid rgba(255,215,80,0.4)',
-              borderRadius: 16, padding: '18px 16px',
-            }}
-          >
-            <h3 style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 900, color: '#ffd75e' }}>Room Leaderboard</h3>
-            <p style={{ margin: '0 0 12px', fontSize: 10, color: '#9aa0ad' }}>Total points across every match in this room</p>
-            {/* [NEW FEATURE] Shown once the room's chosen match count is
-                fully played - never for "No Limit" Free Play, where
-                matches just keep going until the host closes the room. */}
-            {allMatchesDone && (
-              <div style={{
-                background: 'rgba(110,255,192,0.1)', border: '1px solid rgba(110,255,192,0.35)', borderRadius: 8,
-                padding: '8px 10px', marginBottom: 10, textAlign: 'center',
-              }}>
-                <span style={{ fontSize: 11.5, fontWeight: 800, color: '#6effc0' }}>
-                  {roomInfo?.pool
-                    ? `All ${roomMaxMatches} match${roomMaxMatches > 1 ? 'es' : ''} completed - confirm the final leaderboard to release the prizes.`
-                    : `All ${roomMaxMatches} match${roomMaxMatches > 1 ? 'es' : ''} completed - you can leave now.`}
-                </span>
-              </div>
-            )}
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(!roomInfo?.roomLeaderboard || roomInfo.roomLeaderboard.length === 0) ? (
-                <p style={{ fontSize: 12, color: '#6a7570', textAlign: 'center', marginTop: 20 }}>No points collected in this room yet.</p>
-              ) : (
-                roomInfo.roomLeaderboard.map((entry, i) => {
-                  // [NEW FEATURE - MISSION PROGRESS ON RETURN TO LOBBY]
-                  // Only ever looked up in the auto-popup right when a
-                  // player lands back in the Lobby after a match (see
-                  // showMatchMissions) - shown inline right next to that
-                  // player's own name/row here, not as a separate list.
-                  // Saboteurs never have an entry (matches
-                  // snapshotMatchMissionsSummary on the backend).
-                  const missionEntry = showMatchMissions
-                    ? roomInfo.lastMatchMissions?.find((m) => m.accountId && m.accountId === entry.accountId)
-                    : null;
-                  return (
-                    <div key={entry.accountId} style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '9px 11px',
-                      border: i === 0 ? '1px solid rgba(255,215,80,0.4)' : '1px solid transparent',
-                    }}>
-                      <span style={{ fontSize: 13, fontWeight: 900, color: i === 0 ? '#ffd75e' : '#9aa0ad', width: 18, flexShrink: 0 }}>#{i + 1}</span>
-                      <img src={resolveAvatarImg(entry.avatarId, true, entry.avatarVariantId)} alt="" style={{ width: 26, height: 'auto', flexShrink: 0, opacity: entry.present ? 1 : 0.5 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <PlayerNameTag name={entry.name || 'Player'} premium={entry.hasPlayPass} />{!entry.present && <span style={{ color: '#6a7570', fontWeight: 400 }}> (left)</span>}
-                          {entry.hasLegionBadge && <LegionBadge size={10} />}
-                        </div>
-                        {missionEntry && (
-                          <div style={{
-                            fontSize: 10, fontWeight: 700, marginTop: 1,
-                            color: missionEntry.missionsDone >= missionEntry.missionsTotal ? '#6effc0' : missionEntry.missionsDone > 0 ? '#ffd75e' : '#8a9088',
-                          }}>Missions: {missionEntry.missionsDone}/{missionEntry.missionsTotal}</div>
-                        )}
-                      </div>
-                      <span style={{ fontSize: 16, fontWeight: 900, color: '#ffd75e', flexShrink: 0 }}>{entry.totalPoints}</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-            <button
-              onClick={() => closeRoomLeaderboardPopup()}
-              style={{
-                width: '100%', marginTop: 12, padding: '9px 0', borderRadius: 8, flexShrink: 0,
-                background: 'transparent', border: '1px solid rgba(255,215,80,0.4)', color: '#ffd75e', fontSize: 13, fontWeight: 700,
-              }}
-            >Close</button>
-          </div>
-        </div>
+        <StandingsBoard
+          entries={roomInfo?.roomLeaderboard}
+          pool={roomInfo?.pool || null}
+          maxMatches={roomMaxMatches}
+          matchesPlayed={roomMatchesPlayed}
+          allDone={allMatchesDone}
+          meAccountId={roomInfo?.players?.find((p) => p.id === socket?.id)?.accountId}
+          missions={showMatchMissions ? roomInfo?.lastMatchMissions : null}
+          wide={(roomSize?.w || 0) > 700}
+          onClose={() => closeRoomLeaderboardPopup()}
+        />
       )}
 
       <div style={{
@@ -8341,6 +8324,7 @@ function LobbyScreen({
           style elsewhere. */}
       {roomInfo && (
         <button
+          aria-label="Standings" data-sfx="open"
           onClick={() => setShowRoomLeaderboard(true)}
           style={{
             position: 'absolute', right: 12, top: '55%', transform: 'translateY(-50%)', zIndex: 20,
