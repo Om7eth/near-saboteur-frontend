@@ -17,6 +17,7 @@ import { KeyPair, actions, nearToYocto, yoctoToNear, teraToGas, viewFunction, vi
 import { generateSeedPhrase, parseSeedPhrase } from 'near-seed-phrase';
 import { createBgm } from './bgm';
 import { HudIcon, HudButton, MissionFloat, MISSION_ICON, HUD_CSS } from './hudKit';
+import { RoleRevealMoment, VoteResultMoment, EjectRevealMoment, SaboteurRevealMoment, MOMENT_CSS } from './matchMoments';
 import { PoolGamesScreen, LobbyPoolPanel, setPoolArt } from './poolScreen';
 // [POOL v2] Invite links: nearsaboteur.com/?join=KQZT (also /join/KQZT once the
 // host has a "/* -> /index.html" rewrite). Read once on load, then the URL is cleaned.
@@ -10325,6 +10326,7 @@ function MovementDemo() {
     ? { w: 360, h: 640 }
     : { w: window.innerWidth, h: window.innerHeight });
   const [desktopDims, setDesktopDims] = useState(getWindowDims);
+  const momentWide = desktopDims.w >= 1000 && desktopDims.w > desktopDims.h; // [MATCH MOMENTS] PC / laptop layout
   // [REDESIGN - HOME] Launch-console mode ('free' | 'pool' | 'paid' | 'sponsor').
   const [homeMode, setHomeMode] = useState('free');
   useEffect(() => {
@@ -14470,7 +14472,7 @@ function MovementDemo() {
         // style - separate from (and shown before) the regular results/
         // vote-breakdown screen.
         setEliminationRoleReveal({
-          id: data.eliminatedId, name: data.eliminatedName, role: data.eliminatedRole, avatarId: data.eliminatedAvatarId, avatarVariantId: data.eliminatedAvatarVariantId || null, hasPlayPass: !!data.eliminatedHasPlayPass,
+          id: data.eliminatedId, name: data.eliminatedName, role: data.eliminatedRole, avatarId: data.eliminatedAvatarId, avatarVariantId: data.eliminatedAvatarVariantId || null, hasPlayPass: !!data.eliminatedHasPlayPass, saboteursLeft: typeof data.saboteursLeft === 'number' ? data.saboteursLeft : null,
         });
         // [BUG FIX] If this elimination also ends the game (e.g. the
         // last Saboteur just got voted out), gameOver needs to know to
@@ -21626,51 +21628,17 @@ function MovementDemo() {
           condensed lettering, plus - only if there are 2+ Saboteurs in
           this game - their fellow Saboteur(s)' avatar+name below. */}
       {screen === 'roleReveal' && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: playerRole === 'saboteur' ? 'radial-gradient(circle at 50% 40%, #2a0a0a, #0a0303)' : 'radial-gradient(circle at 50% 40%, #0d1a14, #05070a)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24,
-        }}>
-          <img src={resolveAvatarImg(playerAvatarId, loggedInPlayer?.hasPlayPass, loggedInPlayer?.activePremiumAvatarVariant)} alt="" style={{
-            width: 84, height: 'auto',
-            filter: playerRole === 'saboteur' ? 'drop-shadow(0 0 22px rgba(255,60,60,0.6))' : 'drop-shadow(0 0 18px rgba(110,255,192,0.45))',
-            animation: 'roleRevealPop 0.4s ease-out',
-          }} />
-          <p style={{
-            margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: 1.2, textTransform: 'uppercase',
-            fontFamily: '"Arial Black", "Helvetica Neue", sans-serif',
-            color: playerRole === 'saboteur' ? '#ff3b3b' : '#ffffff',
-            textShadow: playerRole === 'saboteur' ? '0 0 18px rgba(255,59,59,0.65)' : '0 1px 3px rgba(0,0,0,0.6)',
-          }}>
-            {playerRole === 'saboteur' ? 'You are The Saboteur' : playerRole === 'spectator' ? (roomInfo?.pool?.hostRole === 'host' ? "You're hosting" : "You're watching") : 'You are a Crewmate'}
-          </p>
-          {playerRole === 'spectator' && (
-            <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#9aa0ad', letterSpacing: 0.3, textAlign: 'center' }}>
-              You're hosting this pool — you can move around freely and see every player. You don't play or score.
-            </p>
-          )}
-          {playerRole === 'crewmate' && (
-            <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#9aa0ad', letterSpacing: 0.3 }}>
-              {saboteurCount} Saboteur{saboteurCount > 1 ? 's' : ''} {saboteurCount > 1 ? 'are' : 'is'} hiding among you.
-            </p>
-          )}
-          {playerRole === 'saboteur' && fellowSaboteurs.length > 0 && (
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <p style={{ fontSize: 11, fontWeight: 800, color: '#ff8a8a', letterSpacing: 0.5, margin: 0 }}>
-                YOUR FELLOW SABOTEUR{fellowSaboteurs.length > 1 ? 'S' : ''}
-              </p>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {fellowSaboteurs.map((s, i) => (
-                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                    <img src={resolveAvatarImg(s.avatarId, true, s.avatarVariantId)} alt="" style={{ width: 42, height: 'auto' }} />
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#ff8a8a' }}><PlayerNameTag name={displayPlayerName(s.name, s.avatarId)} premium={s.hasPlayPass} /></span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <style>{`@keyframes roleRevealPop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }`}</style>
-        </div>
+        <>
+          <RoleRevealMoment
+            wide={momentWide}
+            role={playerRole}
+            hostRole={roomInfo?.pool?.hostRole}
+            avatarSrc={resolveAvatarImg(playerAvatarId, loggedInPlayer?.hasPlayPass, loggedInPlayer?.activePremiumAvatarVariant)}
+            saboteurCount={saboteurCount}
+            mates={fellowSaboteurs.map((m) => ({ avatarSrc: resolveAvatarImg(m.avatarId, true, m.avatarVariantId), nameNode: <PlayerNameTag name={displayPlayerName(m.name, m.avatarId)} premium={m.hasPlayPass} /> }))}
+          />
+          <style>{MOMENT_CSS + '@keyframes roleRevealPop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }'}</style>
+        </>
       )}
 
       <div style={{ display: screen === 'game' ? 'block' : 'none', position: 'absolute', inset: 0 }}>
@@ -23937,104 +23905,49 @@ function MovementDemo() {
           true role is ever revealed, and only after they're voted out —
           never proactively, never for anyone still alive. */}
       {eliminationRoleReveal && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 70,
-          background: eliminationRoleReveal.role === 'saboteur' ? 'radial-gradient(circle at 50% 42%, #3a0d0d, #050202)' : 'radial-gradient(circle at 50% 42%, #0f221a, #05070a)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24,
-        }}>
-          {eliminationRoleReveal.avatarId && (
-            <img src={resolveAvatarImg(eliminationRoleReveal.avatarId, true, eliminationRoleReveal.avatarVariantId)} alt="" style={{
-              width: 96, height: 'auto',
-              filter: eliminationRoleReveal.role === 'saboteur' ? 'drop-shadow(0 0 28px rgba(255,60,60,0.7))' : 'drop-shadow(0 0 22px rgba(110,255,192,0.5))',
-              animation: 'roleRevealPop 0.4s ease-out',
-            }} />
-          )}
-          <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#cfd2da', letterSpacing: 0.4, textAlign: 'center' }}>
-            <PlayerNameTag name={displayPlayerName(eliminationRoleReveal.name, eliminationRoleReveal.avatarId)} premium={eliminationRoleReveal.hasPlayPass} isBot={isBotPlayerId(eliminationRoleReveal.id)} /> was
-          </p>
-          <p style={{
-            margin: 0, fontSize: 30, fontWeight: 900, letterSpacing: 1.4, textTransform: 'uppercase',
-            fontFamily: '"Arial Black", "Helvetica Neue", sans-serif', textAlign: 'center', lineHeight: 1.15,
-            color: eliminationRoleReveal.role === 'saboteur' ? '#ff3b3b' : '#ffffff',
-            textShadow: eliminationRoleReveal.role === 'saboteur' ? '0 0 24px rgba(255,59,59,0.75), 0 2px 4px rgba(0,0,0,0.6)' : '0 2px 4px rgba(0,0,0,0.7)',
-          }}>
-            {eliminationRoleReveal.role === 'saboteur' ? 'The Saboteur' : 'A Crewmate'}
-          </p>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 70 }}>
+          <EjectRevealMoment
+            wide={momentWide}
+            avatarSrc={eliminationRoleReveal.avatarId ? resolveAvatarImg(eliminationRoleReveal.avatarId, true, eliminationRoleReveal.avatarVariantId) : null}
+            nameNode={<PlayerNameTag name={displayPlayerName(eliminationRoleReveal.name, eliminationRoleReveal.avatarId)} premium={eliminationRoleReveal.hasPlayPass} isBot={isBotPlayerId(eliminationRoleReveal.id)} />}
+            wasSaboteur={eliminationRoleReveal.role === 'saboteur'}
+            saboteursLeft={eliminationRoleReveal.saboteursLeft}
+          />
+          <style>{MOMENT_CSS}</style>
         </div>
       )}
 
       {/* Stage 4: Results — shows the outcome for a few seconds, then the
           meeting closes itself and gameplay resumes. */}
-      {meeting && meeting.stage === 'results' && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 65, background: 'rgba(0,0,0,0.92)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24,
-        }}>
-          {meeting.result?.eliminatedName ? (
-            <>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>⚖️</div>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#ff5c5c', margin: '0 0 6px', textAlign: 'center' }}>
-                <PlayerNameTag name={displayPlayerName(meeting.result.eliminatedName, meeting.result.eliminatedAvatarId)} premium={meeting.result.eliminatedHasPlayPass} isBot={isBotPlayerId(meeting.result.eliminatedId)} /> was eliminated
-              </h2>
-              <p style={{ fontSize: 11.5, color: '#9aa0ad', margin: '0 0 16px', textAlign: 'center' }}>
-                The group has voted them out.
-              </p>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>🤷</div>
-              <h2 style={{ fontSize: 17, fontWeight: 800, color: '#6effc0', margin: '0 0 6px', textAlign: 'center' }}>
-                No one was eliminated
-              </h2>
-              <p style={{ fontSize: 11.5, color: '#9aa0ad', margin: '0 0 16px', textAlign: 'center' }}>
-                The vote was skipped or didn't reach a majority.
-              </p>
-            </>
-          )}
-
-          {/* [NEW FEATURE] Vote breakdown — revealed only now, on the
-              results screen, never during voting itself. Groups every
-              cast vote by its target (including "skip" as its own
-              group) and shows a small avatar for each voter under that
-              target's name. */}
-          {meeting.result?.votes && Object.keys(meeting.result.votes).length > 0 && (
-            <div style={{ width: '100%', maxWidth: 300, maxHeight: '40vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(() => {
-                const allPlayersById = { [socketRef.current?.id]: { name: playerName, avatarId: playerAvatarId, avatarVariantId: loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null }, ...otherPlayers };
-                const groups = {}; // targetId|'skip' -> [voterId, ...]
-                Object.entries(meeting.result.votes).forEach(([voterId, targetId]) => {
-                  if (!groups[targetId]) groups[targetId] = [];
-                  groups[targetId].push(voterId);
-                });
-                return Object.entries(groups).map(([targetId, voterIds]) => {
-                  const targetInfo = targetId === 'skip' ? null : allPlayersById[targetId];
-                  return (
-                    <div key={targetId} style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                      background: 'rgba(255,255,255,0.04)', borderRadius: 10,
-                    }}>
-                      <span style={{ fontSize: 11, color: '#cfd2da', minWidth: 70 }}>
-                        {targetId === 'skip' ? '🤷 Skip' : (targetInfo ? displayPlayerName(targetInfo.name, targetInfo.avatarId) : 'Unknown')}
-                      </span>
-                      <span style={{ fontSize: 12, color: '#5f6b67' }}>←</span>
-                      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                        {voterIds.map((voterId) => {
-                          const voterInfo = allPlayersById[voterId];
-                          if (!voterInfo) return null;
-                          return (
-                            <img key={voterId} src={resolveAvatarImg(voterInfo.avatarId, true, voterInfo.avatarVariantId)} alt="" title={voterInfo.name}
-                              style={{ width: 18, height: 18, objectFit: 'contain' }} />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          )}
-        </div>
-      )}
+      {meeting && meeting.stage === 'results' && (() => {
+        // [MATCH MOMENTS] verdict + who-voted-for-whom, grouped by target
+        const allPlayersById = { [socketRef.current?.id]: { name: playerName, avatarId: playerAvatarId, avatarVariantId: loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null }, ...otherPlayers };
+        const votes = meeting.result?.votes || {};
+        const groups = {};
+        Object.entries(votes).forEach(([voterId, targetId]) => { (groups[targetId] = groups[targetId] || []).push(voterId); });
+        const rows = Object.entries(groups).map(([targetId, voterIds]) => {
+          const t = targetId === 'skip' ? null : allPlayersById[targetId];
+          return {
+            key: targetId,
+            count: voterIds.length,
+            avatarSrc: t ? resolveAvatarImg(t.avatarId, true, t.avatarVariantId) : null,
+            nameNode: targetId === 'skip' ? 'Skipped' : (t ? <PlayerNameTag name={displayPlayerName(t.name, t.avatarId)} premium={t.hasPlayPass} isBot={isBotPlayerId(targetId)} /> : 'Unknown'),
+            voters: voterIds.map((vid) => allPlayersById[vid]).filter(Boolean).map((v) => ({ src: resolveAvatarImg(v.avatarId, true, v.avatarVariantId), name: v.name })),
+          };
+        }).sort((a, b) => (b.key === meeting.result?.eliminatedId) - (a.key === meeting.result?.eliminatedId) || b.count - a.count);
+        const r = meeting.result || {};
+        const out = r.eliminatedName ? {
+          avatarSrc: resolveAvatarImg(r.eliminatedAvatarId, true, allPlayersById[r.eliminatedId]?.avatarVariantId),
+          nameNode: <PlayerNameTag name={displayPlayerName(r.eliminatedName, r.eliminatedAvatarId)} premium={r.eliminatedHasPlayPass} isBot={isBotPlayerId(r.eliminatedId)} />,
+          count: (groups[r.eliminatedId] || []).length,
+        } : null;
+        return (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 65 }}>
+            <VoteResultMoment wide={momentWide} out={out} rows={rows} totalVotes={Object.keys(votes).length} />
+            <style>{MOMENT_CSS}</style>
+          </div>
+        );
+      })()}
 
       {/* [NEW FEATURE - SABOTEUR REVEAL] Shown for 3s right before the
           win banner (see the gameOver handler) - highest z-index in
@@ -24044,29 +23957,12 @@ function MovementDemo() {
           jumped straight to "Return to Lobby" and nobody ever learned
           who the Saboteur was. Always 1-3 avatars, never more. */}
       {saboteurReveal && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 91, background: '#0a0508',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24,
-        }}>
-          <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1.2, color: '#ff8a8a', margin: '0 0 6px', textTransform: 'uppercase' }}>
-            The Saboteur{saboteurReveal.length > 1 ? 's were' : ' was'}...
-          </p>
-          <div style={{ display: 'flex', gap: 20, marginTop: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-            {saboteurReveal.map((s, i) => (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 74, height: 74, borderRadius: '50%', background: 'rgba(255,92,92,0.12)',
-                  border: '2px solid #ff5c5c', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 24px rgba(255,92,92,0.5)',
-                }}>
-                  <img src={resolveAvatarImg(s.avatarId, true, s.avatarVariantId)} alt="" style={{ width: 52, height: 52, objectFit: 'contain' }} />
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', textAlign: 'center', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {s.name}
-                </span>
-              </div>
-            ))}
-          </div>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 91 }}>
+          <SaboteurRevealMoment
+            wide={momentWide}
+            list={saboteurReveal.map((x) => ({ avatarSrc: resolveAvatarImg(x.avatarId, true, x.avatarVariantId), nameNode: <PlayerNameTag name={displayPlayerName(x.name, x.avatarId)} premium={x.hasPlayPass} />, kills: typeof x.kills === 'number' ? x.kills : null }))}
+          />
+          <style>{MOMENT_CSS}</style>
         </div>
       )}
 
