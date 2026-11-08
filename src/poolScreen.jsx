@@ -15,6 +15,11 @@ const P = {
 };
 const Ico = ({ d, c = '#8fe3ff', w = 1.7, s = 20 }) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}><path d={d} stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const RANKC = ['#ffd75e', '#c9d3d9', '#d9965c'];
+// Art comes from game.jsx (the game's own gold coin + the real NEAR logo).
+const ART = { coin: null, near: null };
+export function setPoolArt(a) { Object.assign(ART, a); }
+const Coin = ({ cls }) => (ART.coin ? <img className={cls} src={ART.coin} alt="" /> : <span className={cls} />);
+const NearMark = ({ s = 16 }) => (ART.near ? <img src={ART.near} alt="NEAR" style={{ width: s, height: s, borderRadius: '50%', marginRight: 6, flexShrink: 0 }} /> : null);
 const rk = (i) => <span style={{ color: RANKC[i] || '#9fb0a8' }}>#{i + 1}</span>;
 const fmt = (n) => (Math.round(n * 1000) / 1000).toString();
 const NEAR_RE = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
@@ -89,10 +94,10 @@ const CSS = `
 .pg-pc{border:1px solid rgba(143,227,255,.35);background:linear-gradient(180deg,rgba(143,227,255,.07),rgba(0,0,0,.2));clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
 .pg-pc.real{border-color:rgba(255,215,94,.4);background:linear-gradient(180deg,rgba(255,215,94,.07),rgba(0,0,0,.2))}
 .pg-top{display:flex;gap:14px;align-items:center;padding:18px;flex-wrap:wrap}
-.pg-coin{width:58px;height:58px;flex-shrink:0;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9a0,#e0a52a 60%,#8a5a10);display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(255,200,60,.35);font:800 21px var(--disp);color:#5a3a05}
+.pg-coin{width:62px;height:auto;flex-shrink:0;object-fit:contain;filter:drop-shadow(0 0 14px rgba(255,200,60,.35))}
 .pg-top h3{margin:0;font:700 20px var(--disp);word-break:break-word}
 .pg-top p{margin:4px 0 0;font:12px var(--mono);color:var(--dim);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.pg-amtb{margin-left:auto;text-align:right}.pg-amtb b{display:block;font:700 30px var(--disp);color:var(--g);line-height:1}.pg-amtb span{font:10.5px var(--mono);color:var(--dim)}
+.pg-amtb{margin-left:auto;text-align:right}.pg-amtb b{display:flex;align-items:center;justify-content:flex-end;font:700 30px var(--disp);color:var(--g);line-height:1}.pg-amtb span{font:10.5px var(--mono);color:var(--dim)}
 .pg-facts{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line)}
 .pg-facts div{padding:11px 14px;min-width:0}.pg-facts div+div{border-left:1px solid var(--line)}
 .pg-facts small{display:block;font:500 9.5px var(--mono);letter-spacing:.12em;color:#5d6d66}.pg-facts b{display:block;font:600 14px var(--disp);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -105,7 +110,7 @@ const CSS = `
 .pg-pl{display:grid !important;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px !important;border:1px solid var(--line) !important;background:rgba(255,255,255,.018) !important;margin-bottom:8px !important;border-radius:4px;text-align:left;width:100%}
 .pg-pl.on{border-color:rgba(143,227,255,.55) !important;background:rgba(143,227,255,.06) !important}
 .pg-pl.real{border-left:3px solid rgba(255,215,94,.7) !important}
-.pg-pl .ic{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9a0,#e0a52a 60%,#8a5a10);display:flex;align-items:center;justify-content:center;font:800 15px var(--disp);color:#5a3a05}
+.pg-pl .ic{width:42px;height:auto;object-fit:contain;filter:drop-shadow(0 0 8px rgba(255,200,60,.3))}
 .pg-pl b{display:flex;align-items:center;gap:8px;font:600 14.5px var(--disp);min-width:0}
 .pg-pl b em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pg-pl .s{display:block;font:11px var(--mono);color:var(--dim);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -238,12 +243,12 @@ function PoolCard({ pool, me }) {
   return (
     <div className={`pg-pc ${real ? 'real' : ''}`}>
       <div className="pg-top">
-        <div className="pg-coin">N</div>
+        <Coin cls="pg-coin" />
         <div style={{ minWidth: 0 }}>
           <h3>{pool.poolName || 'Pool game'}</h3>
           <p>Hosted by {pool.poolHostUsername ? `@${pool.poolHostUsername}` : (pool.poolHostName || me || 'you')} <span className={`pg-tag ${real ? 't-real' : 't-test'}`}>{real ? 'REAL NEAR · HOST PAYS' : 'TESTNET · AUTO PAYOUT'}</span></p>
         </div>
-        <div className="pg-amtb"><b>{fmt(amt)}</b><span>{real ? 'NEAR PRIZE' : 'TEST NEAR PRIZE'}</span></div>
+        <div className="pg-amtb"><b><NearMark s={22} />{fmt(amt)}</b><span>{real ? 'NEAR PRIZE' : 'TEST NEAR PRIZE'}</span></div>
       </div>
       <div className="pg-facts">
         <div><small>MATCHES</small><b>{pool.maxMatches || 3}</b></div>
@@ -387,7 +392,7 @@ function History({ h, mobile }) {
       {data && (tab === 'hosted' ? hosted : joined).length === 0 && <div className="pg-empty">{tab === 'hosted' ? "You haven't hosted a pool yet." : "You haven't joined a pool yet."}</div>}
       {(tab === 'hosted' ? hosted : joined).map((x) => (
         <button type="button" key={x.id} className={`pg-pl ${x.kind === 'manual' ? 'real' : ''}`} onClick={() => { if (tab === 'hosted' && x.kind === 'manual' && x.state === 'Finished') setPayId(x.id); }}>
-          <span className="ic">N</span>
+          <Coin cls="ic" />
           <div style={{ minWidth: 0 }}>
             <b><em>{x.name}</em><span className={`pg-tag ${x.kind === 'manual' ? 't-real' : 't-test'}`}>{x.kind === 'manual' ? 'REAL' : 'TESTNET'}</span></b>
             <span className="s">{new Date(x.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {fmt(x.prizeNear || 0)} {x.kind === 'manual' ? 'NEAR' : 'tNEAR'} · {x.players} players{tab === 'joined' && x.myRank ? ` · you placed #${x.myRank}` : ''}</span>
@@ -429,7 +434,7 @@ export function PoolGamesScreen({ mobile, onClose, tab, setTab, create, live, hi
     const real = p.payout === 'manual';
     return (
       <button type="button" key={key} className={`pg-pl ${real ? 'real' : ''} ${!mobile && sel && (sel.roomCode || sel.onChainPoolId) === key ? 'on' : ''}`} onClick={() => { setSelCode(key); if (mobile) setMOpen(true); }}>
-        <span className="ic">N</span>
+        <Coin cls="ic" />
         <div style={{ minWidth: 0 }}>
           <b><em>{p.poolName || 'Pool game'}</em><span className={`pg-tag ${real ? 't-real' : 't-test'}`}>{real ? 'REAL NEAR' : 'TESTNET'}</span>{!p.isPublic && <span className="pg-tag t-priv">PRIVATE</span>}</b>
           <span className="s"><span className="pg-seats">{Array.from({ length: 10 }, (_, k) => <i key={k} className={k < (p.seats || 0) ? 'f' : ''} />)}</span>{p.seats || 0}/10 · {p.maxMatches} matches{p.poolHostUsername ? ` · by @${p.poolHostUsername}` : ''}</span>
