@@ -11568,6 +11568,29 @@ function MovementDemo() {
     setWalletBalance(bal);
     setWalletBalanceError(bal === null);
     setWalletBalanceLoading(false);
+    if (bal !== null && Number(bal) < 0.5) ensureTestnetGas(Number(bal)); // [TESTNET GIFT]
+  }
+  // [TESTNET GIFT] An (almost) empty in-game testnet wallet asks the server once
+  // for its 1 test NEAR - the server decides (testnet only, once per player,
+  // keeps the funder's reserve). Returns true when NEAR was just sent.
+  const testnetTopupTriedRef = useRef(false);
+  async function ensureTestnetGas(knownBalance) {
+    if (POOL_NEAR_NETWORK !== 'testnet' || loggedInPlayer?.walletType !== 'ingame' || !loggedInPlayer?.walletAddress || !sessionToken) return false;
+    if (testnetTopupTriedRef.current) return false;
+    const bal = knownBalance ?? Number(await getAccountBalanceNear(loggedInPlayer.walletAddress));
+    if (!(bal < 0.5)) return false;
+    testnetTopupTriedRef.current = true;
+    try {
+      const res = await fetch(`${BACKEND_URL}/wallet/testnet-topup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken }) });
+      const d = await res.json();
+      if (d.sent) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const nb = await getAccountBalanceNear(loggedInPlayer.walletAddress);
+        if (nb !== null) setWalletBalance(nb);
+        return true;
+      }
+    } catch (e) { /* not critical */ }
+    return false;
   }
 
   // [NEW FEATURE] Real NEAR transfer out of this wallet - the in-game
@@ -18003,6 +18026,7 @@ function MovementDemo() {
         // [POOL v2 FIX] Testnet pools need the in-game wallet to sign "participate" -
         // say so up front instead of failing somewhere out of sight.
         if (!loggedInPlayer?.walletAddress) throw new Error('Testnet pools need your in-game NEAR wallet. Open Wallet on the Home screen and set it up first, then join.');
+        await ensureTestnetGas(); // [TESTNET GIFT] an empty wallet gets its 1 test NEAR before signing
         const failed = await handleJoinFreePool(pool);
         if (failed) throw new Error(failed);
         setHomeModal(null);
