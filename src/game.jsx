@@ -6235,10 +6235,55 @@ function PoolSettleStatus({ pool, inline }) {
   const manual = pool.mode === 'manual';
   const done = pool.state === 'Distributed';
   const left = pool.settlesAt ? Math.max(0, Math.ceil((pool.settlesAt - now) / 1000)) : null;
+  const early = pool.endedEarly ? ` Ended after ${pool.matchesPlayed} of ${pool.maxMatches} matches — those standings count.` : '';
+  const kept = done && manual && pool.unclaimedNear > 0 ? ` ${pool.unclaimedNear} NEAR wasn't won (too few scorers) and stays with the host.` : '';
   const text = done
-    ? (manual ? '✓ Winners decided — the host is paying them now. Each winner gets an Inbox message when it\'s sent.' : '✓ Prizes paid automatically to the winners\' wallets.')
+    ? (manual ? '✓ Winners decided — the host is paying them now. Each winner gets an Inbox message when it\'s sent.' : '✓ Prizes paid automatically to the winners\' wallets.') + early + kept
     : left ? `Prizes go out automatically in ${left}s — nothing to confirm.` : 'Sending prizes…';
   return <p style={{ margin: inline ? 0 : '6px 0 0', fontSize: 11.5, fontWeight: 700, lineHeight: 1.5, color: done ? '#6effc0' : '#ffd75e' }}>{text}</p>;
+}
+
+// [EARLY END] Between matches: the next match has to start within 10 min,
+// otherwise the pool settles on the matches already played.
+function PoolIdleNote({ pool }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  if (!pool || !pool.idleSettlesAt || pool.state === 'Distributed') return null;
+  const s = Math.max(0, Math.ceil((pool.idleSettlesAt - now) / 1000));
+  return <div style={{ padding: '7px 11px', marginBottom: 10, border: '1px solid rgba(255,215,94,0.35)', background: 'rgba(255,215,94,0.07)', font: "600 11px 'IBM Plex Mono', monospace", color: '#ffd75e', lineHeight: 1.5 }}>
+    Start match {(pool.matchesPlayed || 0) + 1} within {Math.floor(s / 60)}:{String(s % 60).padStart(2, '0')} — otherwise the pool ends now and pays out on these standings.
+  </div>;
+}
+// Place -> prize, with ties sharing the places they cover (same rule as the server).
+function standingsPrizes(list, split, payPool) {
+  const out = []; let place = 0;
+  for (let i = 0; i < list.length && place < split.length; ) {
+    if (!(list[i].totalPoints > 0)) break;
+    let j = i; while (j < list.length && list[j].totalPoints === list[i].totalPoints) j++;
+    const n = j - i; const pct = split.slice(place, place + n).reduce((a, b) => a + b, 0) / n;
+    for (let k = i; k < j; k++) out[k] = { amount: Math.floor(payPool * pct / 100 * 1000) / 1000, tied: n > 1, rank: place + 1 };
+    place += n; i = j;
+  }
+  return out;
+}
+// One match line inside an expanded standings row.
+function MatchStatLine({ m, k }) {
+  const mono = "'IBM Plex Mono', monospace";
+  const sab = m.role === 'saboteur';
+  const bits = m.role ? [
+    sab ? `${m.kills || 0} kill${m.kills === 1 ? '' : 's'}` : (m.missionsTotal ? `missions ${m.missionsDone || 0}/${m.missionsTotal}` : null),
+    sab ? `${m.meetingsSurvived || 0} meeting${m.meetingsSurvived === 1 ? '' : 's'} survived` : (m.survived ? 'survived' : 'eliminated'),
+    sab && m.sabotages ? `${m.sabotages} sabotage${m.sabotages === 1 ? '' : 's'}` : null,
+  ].filter(Boolean) : [];
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '28px 74px 40px minmax(0,1fr) auto', gap: 8, alignItems: 'center', font: `10.5px ${mono}`, padding: '5px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <span style={{ color: '#7d8d86' }}>M{k + 1}</span>
+      <span style={{ color: m.role ? (sab ? '#ff7a8a' : '#6ec8ff') : '#5d6d66', fontWeight: 700, letterSpacing: 0.5 }}>{m.role ? (sab ? 'SABOTEUR' : 'CREWMATE') : '—'}</span>
+      <span style={{ color: m.role ? (m.won ? '#6effc0' : '#8a9590') : '#5d6d66', fontWeight: 700 }}>{m.role ? (m.won ? 'WON' : 'LOST') : ''}</span>
+      <span style={{ color: '#aeb9b4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bits.join(' · ')}</span>
+      <span style={{ color: '#ffd75e', fontWeight: 700 }}>+{m.points}</span>
+    </div>
+  );
 }
 
 // [LOBBY STANDINGS] One leaderboard for every room type (Free / Pool / Paid):
@@ -6254,6 +6299,10 @@ function StandingsBoard({ entries, pool, maxMatches, matchesPlayed, allDone, meA
   const medal = ['#ffd75e', '#c9d3d9', '#d9965c'];
   const mono = "'IBM Plex Mono', monospace", disp = "'Space Grotesk', sans-serif";
   const played = Math.max(matchesPlayed || 0, nMatches);
+  const [openId, setOpenId] = useState(null); // [PER-MATCH STATS] which row is expanded
+  // Real NEAR pools split ties; the testnet contract pays a fixed 50/30/20 by position.
+  const prizes = !pool ? [] : real ? standingsPrizes(list, split, payPool)
+    : list.map((e, i) => (i < split.length && e.totalPoints > 0 ? { amount: Math.round(payPool * split[i] / 100 * 1000) / 1000, tied: false } : null));
   const subtitle = maxMatches != null
     ? (allDone ? `All ${maxMatches} matches played` : `After match ${played} of ${maxMatches}`)
     : `${played} match${played === 1 ? '' : 'es'} played`;
@@ -6272,7 +6321,8 @@ function StandingsBoard({ entries, pool, maxMatches, matchesPlayed, allDone, meA
           </div>
           <button type="button" onClick={onClose} aria-label="Close" style={{ marginLeft: 'auto', width: 32, height: 32, border: '1px solid rgba(255,255,255,0.12)', background: 'transparent', color: '#cfd8d3', cursor: 'pointer', flexShrink: 0 }}>✕</button>
         </div>
-        {allDone && (
+        {pool && !allDone && <PoolIdleNote pool={pool} />}
+        {(allDone || (pool && pool.state === 'Distributed')) && (
           <div style={{ padding: '8px 11px', marginBottom: 10, border: '1px solid rgba(110,255,192,0.35)', background: 'rgba(110,255,192,0.08)', font: `600 11.5px ${mono}`, color: '#6effc0' }}>
             {pool ? <PoolSettleStatus pool={pool} inline /> : 'All matches done — you can leave the room now.'}
           </div>
@@ -6282,13 +6332,22 @@ function StandingsBoard({ entries, pool, maxMatches, matchesPlayed, allDone, meA
             <div style={{ padding: '28px 10px', textAlign: 'center', font: `12px ${mono}`, color: '#7d8d86', border: '1px dashed rgba(255,255,255,0.12)' }}>No points yet — finish a match to get on the board.</div>
           ) : list.map((e, i) => {
             const me = meAccountId && e.accountId === meAccountId;
-            const inMoney = pool && i < split.length && e.totalPoints > 0;
+            const prizeHere = prizes[i];
+            const inMoney = !!prizeHere;
             const mission = missions ? missions.find((m) => m.accountId && m.accountId === e.accountId) : null;
+            const rowId = e.accountId || i;
+            const open = openId === rowId;
+            const hasStats = (e.matches || []).length > 0;
             return (
-              <div key={e.accountId || i} style={{
-                display: 'grid', gridTemplateColumns: '30px 30px minmax(0,1fr) auto', alignItems: 'center', gap: 9, padding: '9px 10px',
+              <div key={rowId} style={{ display: 'flex', flexDirection: 'column',
                 background: me ? 'rgba(110,255,192,0.08)' : 'rgba(255,255,255,0.025)',
                 border: `1px solid ${me ? 'rgba(110,255,192,0.45)' : i < 3 && e.totalPoints > 0 ? `${medal[i]}55` : 'rgba(255,255,255,0.06)'}`,
+              }}>
+              <div role={hasStats ? 'button' : undefined} tabIndex={hasStats ? 0 : undefined} aria-expanded={hasStats ? open : undefined}
+                onClick={() => hasStats && setOpenId(open ? null : rowId)}
+                onKeyDown={(ev) => { if (hasStats && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); setOpenId(open ? null : rowId); } }}
+                style={{ cursor: hasStats ? 'pointer' : 'default',
+                display: 'grid', gridTemplateColumns: '30px 30px minmax(0,1fr) auto', alignItems: 'center', gap: 9, padding: '9px 10px',
               }}>
                 <span style={{ font: `700 16px ${disp}`, color: i < 3 && e.totalPoints > 0 ? medal[i] : '#7d8d86', textAlign: 'center' }}>{i + 1}</span>
                 <img src={resolveAvatarImg(e.avatarId, true, e.avatarVariantId)} alt="" style={{ width: 30, height: 30, objectFit: 'contain', opacity: e.present === false ? 0.45 : 1 }} />
@@ -6309,14 +6368,21 @@ function StandingsBoard({ entries, pool, maxMatches, matchesPlayed, allDone, meA
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ font: `700 18px ${disp}`, color: '#ffd75e', lineHeight: 1 }}>{e.totalPoints}</div>
-                  <div style={{ font: `10px ${mono}`, color: inMoney ? '#6effc0' : '#5d6d66', marginTop: 3 }}>{inMoney ? `→ ${Math.round(payPool * split[i] / 100 * 1000) / 1000} ${unit}` : 'pts'}</div>
+                  <div style={{ font: `10px ${mono}`, color: inMoney ? '#6effc0' : '#5d6d66', marginTop: 3 }}>{inMoney ? `→ ${prizeHere.amount} ${unit}${prizeHere.tied ? ' · tie' : ''}` : 'pts'}</div>
+                  {hasStats && <div style={{ font: `9px ${mono}`, color: '#6a7570', marginTop: 3 }}>{open ? '▲ hide' : '▼ stats'}</div>}
                 </div>
+              </div>
+              {open && (
+                <div style={{ padding: '2px 12px 8px 12px' }}>
+                  {(e.matches || []).map((m, k) => <MatchStatLine key={k} m={m} k={k} />)}
+                </div>
+              )}
               </div>
             );
           })}
         </div>
         <div style={{ marginTop: 10, font: `11px ${mono}`, color: '#7d8d86', lineHeight: 1.5 }}>
-          Points from every match add up — highest total {pool ? `wins. Top ${split.length} share the prize${real ? ' (paid by the host)' : ''}.` : 'tops the room.'}
+          Points from every match add up — highest total {pool ? `wins. Top ${split.length} share the prize${real ? ' (paid by the host); tied players split their places equally' : ''}.` : 'tops the room.'} Tap a player to see each match.
         </div>
       </div>
     </div>
