@@ -42,7 +42,7 @@ function Ico({ d, c = '#7dffc8', w = 1.7, s }) {
 const CSS = `
 .hc{position:fixed;inset:0;z-index:300;color:#e6ece9;font-family:'IBM Plex Sans',system-ui,sans-serif;--m:#6effc0;--c:#8fe3ff;--g:#ffd75e;--r:#ff6b6b;--dim:#7d8d86;--line:rgba(255,255,255,.07);--mono:'IBM Plex Mono',monospace;--disp:'Space Grotesk',sans-serif;background:#030605}
 .hc *{box-sizing:border-box}
-.hc button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0;margin:0;-webkit-tap-highlight-color:transparent}
+.hc-win button,.hc-m button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;padding:0;margin:0;-webkit-tap-highlight-color:transparent}
 .hc a{color:inherit}
 .hc-bg{position:absolute;inset:-6%;background-size:cover;background-position:center;filter:blur(18px) brightness(.32) saturate(.8);pointer-events:none}
 .hc ::-webkit-scrollbar{width:5px;height:5px}.hc ::-webkit-scrollbar-thumb{background:rgba(110,255,192,.22);border-radius:4px}
@@ -333,7 +333,7 @@ function DeskHead({ title, sub, children }) {
 /* ---------------- SHELL ---------------- */
 export const CONSOLE_NAV = [['activity', 'Activity'], ['wallet', 'Wallet'], ['ranks', 'Ranks'], ['inbox', 'Inbox'], ['friends', 'Friends'], ['news', 'News'], ['settings', 'Settings']];
 
-export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, bgImg, children, escBlocked, noRail, accent }) {
+export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, bgImg, children, escBlocked, noRail, accent, topBar, topOffset = 90 }) {
   useEffect(() => {
     if (mobile) return undefined;
     const onKey = (e) => {
@@ -362,8 +362,9 @@ export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, b
     <div className="hc hc-d">
       <style>{CSS + CSS2}</style>
       {bgImg && <div className="hc-bg" style={{ backgroundImage: `url(${bgImg})` }} />}
-      <div className={`hc-win ${noRail ? 'solo' : ''} ${accent || ''}`}>
-        {noRail ? null : <aside className="hc-rail">
+      {topBar ? <div className="hc-tb">{topBar}</div> : null}
+      <div className={`hc-win ${noRail || topBar ? 'solo' : ''} ${accent || ''}`} style={topBar ? { top: topOffset } : undefined}>
+        {noRail || topBar ? null : <aside className="hc-rail">
           <div className="hc-me">
             {me?.avatar && <img src={me.avatar} alt="" />}
             <div style={{ minWidth: 0 }}><b>{me?.name || 'Crewmate'}</b><span>{me?.handle || ''}</span></div>
@@ -1024,6 +1025,7 @@ export function SettingsScreen({ mobile, onClose, me, soundOn, onSound, musicOn,
    ================================================================ */
 const CSS2 = `
 .hc-win.solo{grid-template-columns:minmax(0,1fr)}
+.hc-tb{position:absolute;left:0;right:0;top:0;z-index:2}.hc-tb .dh-top{position:relative}
 .hc-win.gold{border-color:rgba(255,215,94,.3)}
 .hc-win.gold:before{background:#ffd75e;box-shadow:0 0 12px #ffd75e}
 .hc-closeb{display:flex !important;gap:9px;align-items:center;padding:9px 13px !important;border-radius:7px;border:1px solid var(--line) !important;font:500 11.5px var(--mono) !important;color:var(--dim) !important;letter-spacing:.08em;white-space:nowrap}
@@ -1461,6 +1463,98 @@ export function FreePlayScreen({ mobile, onClose, f }) {
             </>
           )}
         </section>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- POINTS (this week) ---------------- */
+const CSS3 = `
+.hc-pts{flex:1;display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);min-height:0;border-top:1px solid var(--line)}
+.hc-pts>div{padding:26px 28px;overflow:auto;min-height:0}
+.hc-pts>div:first-child{border-right:1px solid var(--line);background:radial-gradient(120% 70% at 50% 0,rgba(255,215,94,.09),transparent 70%)}
+.hc-ptbig{text-align:center;padding:22px 16px;border:1px solid rgba(255,215,94,.35);background:rgba(255,215,94,.05);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+.hc-ptbig img{width:54px;filter:drop-shadow(0 0 12px rgba(255,200,60,.5))}
+.hc-ptbig small{display:block;font:600 10.5px var(--mono);letter-spacing:.2em;color:#c9a862;margin-top:8px}
+.hc-ptbig b{display:block;font:700 54px var(--disp);color:#fff;line-height:1.05;margin:4px 0 10px}
+.hc-trend{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:99px;font:600 11.5px var(--mono)}
+.hc-trend.up{background:rgba(110,255,192,.14);color:#6effc0}.hc-trend.dn{background:rgba(255,92,92,.14);color:#ff8a8a}
+.hc-ptbig p{margin:12px 0 0;font:11.5px var(--mono);color:var(--dim)}.hc-ptbig p b{display:inline;font:inherit;color:#cfd3da;margin:0}
+.hc-ptgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.hc-ptgrid div{padding:14px;border:1px solid var(--line);background:rgba(255,255,255,.02);min-width:0}
+.hc-ptgrid svg{width:18px;height:18px;margin-bottom:8px}
+.hc-ptgrid b{display:block;font:600 22px var(--disp);color:#fff}.hc-ptgrid span{font:10px var(--mono);letter-spacing:.1em;color:var(--dim)}
+.hc-m .hc-ptgrid{grid-template-columns:1fr 1fr}
+.hc-sharebtn{width:100%;display:flex !important;align-items:center;justify-content:center;gap:9px;padding:14px !important;margin-top:16px;background:linear-gradient(135deg,#ffe08f,#f2b84b 55%,#c98a1e) !important;color:#1c1203 !important;font:700 13px var(--disp) !important;letter-spacing:.18em;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px))}
+.hc-sharebtn svg{width:16px;height:16px}
+`;
+const PT_ICON = {
+  last: 'M12 7v5l3 2M12 3a9 9 0 100 18 9 9 0 000-18z',
+  rank: 'M9 20V11h6v9M3 20v-5h6M15 20v-7h6v7M2 20h20',
+  matches: 'M7 8h10a4 4 0 014 4v1.5a3.5 3.5 0 01-6.3 2.1L13.5 14h-3l-1.2 1.6A3.5 3.5 0 013 13.5V12a4 4 0 014-4z',
+  best: 'M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z',
+  missions: 'M9 5h10M9 12h10M9 19h10M4 5.5l1 1 2-2M4 12.5l1 1 2-2M4 19.5l1 1 2-2',
+  wins: 'M7 4h10v4a5 5 0 01-10 0zM7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3M12 13v4M8 21h8M9 17h6',
+  kills: 'M14.5 3.5L20.5 9.5 10 20l-3.5-1.2L5.3 15zM5.3 15l-2.8 2.8 3.7 3.7L9 18.7',
+  share: 'M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6',
+};
+export function PointsScreen({ mobile, onClose, pts }) {
+  const s = pts.summary;
+  const cur = pts.current || 0;
+  const big = !s ? null : (() => {
+    const last = s.lastWeekPoints || 0, diff = cur - last;
+    const pct = last > 0 ? Math.round((diff / last) * 100) : (cur > 0 ? 100 : 0);
+    const ms = s.weekResetsAt ? new Date(s.weekResetsAt).getTime() - Date.now() : 0;
+    const d = Math.max(0, Math.floor(ms / 864e5)), h = Math.max(0, Math.floor((ms % 864e5) / 36e5));
+    return (
+      <div className="hc-ptbig">
+        {pts.coin && <img src={pts.coin} alt="" />}
+        <small>POINTS THIS WEEK</small>
+        <b>{cur}</b>
+        {(last > 0 || cur > 0) && <span className={`hc-trend ${diff >= 0 ? 'up' : 'dn'}`}>{diff >= 0 ? '▲' : '▼'} {diff >= 0 ? '+' : ''}{diff} ({pct >= 0 ? '+' : ''}{pct}%) vs last week</span>}
+        <p>Weekly board resets in <b>{d}d {h}h</b></p>
+      </div>
+    );
+  })();
+  const tile = (k, v, l) => <div key={l}><Ico d={PT_ICON[k]} c="#ffd75e" s={18} /><b>{v}</b><span>{l}</span></div>;
+  const tiles = s && (
+    <>
+      <div className="hc-sec">THIS WEEK</div>
+      <div className="hc-ptgrid">
+        {tile('rank', s.weeklyRank ? `#${s.weeklyRank}` : '—', 'WEEKLY RANK')}
+        {tile('matches', s.matchesThisWeek ?? 0, 'MATCHES')}
+        {tile('wins', s.winsThisWeek ?? 0, 'WINS')}
+        {tile('missions', s.missionsThisWeek ?? 0, 'MISSIONS')}
+        {tile('kills', s.killsThisWeek ?? 0, 'KILLS')}
+        {tile('last', s.lastWeekPoints || 0, 'LAST WEEK')}
+        {tile('best', s.bestWeekPoints ?? 0, 'BEST WEEK')}
+      </div>
+      <div className="hc-note">Points turn into $SABOTEUR (testnet) by rank after every match. <button type="button" style={{ color: 'var(--c)', textDecoration: 'underline' }} onClick={pts.onWallet}>See it in Wallet →</button></div>
+    </>
+  );
+  const states = (
+    <>
+      {pts.loading && !s && <div className="hc-skel" style={{ height: 200 }} />}
+      {pts.error && !pts.loading && <div className="hc-empty hc-err">{pts.error}</div>}
+    </>
+  );
+  const share = s && <button type="button" className="hc-sharebtn" onClick={pts.onShare}><Ico d={PT_ICON.share} c="#1c1203" w={2} />SHARE MY POINTS</button>;
+  if (mobile) {
+    return (
+      <div className="hc-page">
+        <style>{CSS3}</style>
+        <MobileHead title="POINTS" sub="This week" onBack={onClose} />
+        <div className="hc-mbody">{states}{big}{share}<div style={{ height: 16 }} />{tiles}</div>
+      </div>
+    );
+  }
+  return (
+    <>
+      <style>{CSS3}</style>
+      <DeskHead title="POINTS" sub="How your week is going" />
+      <div className="hc-pts">
+        <div>{states}{big}{share}</div>
+        <div>{tiles}</div>
       </div>
     </>
   );

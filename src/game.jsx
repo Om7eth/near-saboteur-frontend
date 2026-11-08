@@ -17,7 +17,7 @@ import { KeyPair, actions, nearToYocto, yoctoToNear, teraToGas, viewFunction, vi
 import { generateSeedPhrase, parseSeedPhrase } from 'near-seed-phrase';
 import { createBgm } from './bgm';
 import { HudIcon, HudButton, MissionFloat, MISSION_ICON, HUD_CSS } from './hudKit';
-import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen } from './homeConsole';
+import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen, PointsScreen } from './homeConsole';
 
 // [BGM] one shared music + UI-click engine for the whole app (all synthesised, no audio files)
 const BGM = createBgm();
@@ -9998,6 +9998,11 @@ const DESK_HOME_CSS = `
 .dh-hx > *{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1}
 .dh-hx svg{width:2em;height:2em}.dh-hx img{width:2.9em;height:2.9em;object-fit:contain}
 .dh-ib:hover .dh-hx:before{background:linear-gradient(180deg,#6effc0,rgba(110,255,192,.3))}
+.dh-ib.on{color:#6effc0}.dh-ib.on .dh-hx:before{background:linear-gradient(180deg,#6effc0,rgba(110,255,192,.5))}
+.dh-ib.on:after{content:"";position:absolute;bottom:-.7em;left:28%;right:28%;height:2px;background:#6effc0;box-shadow:0 0 8px #6effc0}
+.dh-pts.on{border-color:rgba(255,215,94,.7);color:#ffd75e}
+.dh-backb{display:flex;align-items:center;gap:.45em;height:2.9em;padding:0 1.1em 0 .8em;border:1px solid rgba(110,255,192,.4);background:rgba(5,10,9,.85);color:#6effc0;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:.82em;letter-spacing:.14em;cursor:pointer;clip-path:polygon(.6em 0,100% 0,100% calc(100% - .6em),calc(100% - .6em) 100%,0 100%,0 .6em)}
+.dh-backb:hover{background:rgba(110,255,192,.12)}.dh-backb svg{width:1.3em;height:1.3em}
 .dh-badge{position:absolute;top:-.2em;right:.6em;min-width:1.7em;height:1.7em;border-radius:999px;background:#ff5c5c;color:#fff;font-size:.95em;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:2}
 .dh-crew{position:absolute;transform:translate(-50%,-100%);pointer-events:none}
 .dh-crew>div{width:100%;height:100%;animation:dhBob 3.4s ease-in-out infinite;will-change:transform}
@@ -10056,9 +10061,9 @@ function MusicToggle({ on, onToggle, size = 34, style }) {
 }
 // Hex button in the desktop home's top bar (module-level so it isn't
 // re-created on every render).
-function DeskTopButton({ label, onClick, children, badge }) {
+function DeskTopButton({ label, onClick, children, badge, active }) {
   return (
-    <button type="button" className="dh-ib hm-btn" aria-label={label} onClick={onClick}>
+    <button type="button" className={`dh-ib hm-btn ${active ? 'on' : ''}`} aria-label={label} onClick={onClick}>
       <span className="dh-hx">{children}</span>{label.toUpperCase()}
       {badge > 0 && <span className="dh-badge">{badge > 9 ? '9+' : badge}</span>}
     </button>
@@ -17879,11 +17884,54 @@ function MovementDemo() {
   // window with a left rail, or a full-screen page on phones. The same
   // state flags as before decide which one is open.
   const consoleKey = homeModal === 'activity' ? 'activity' : homeModal === 'wallet' ? 'wallet' : homeModal === 'leaderboard' ? 'ranks'
-    : homeModal === 'announcements' ? 'news' : showInbox ? 'inbox' : showReferrals ? 'friends' : showHomeSettings ? 'settings' : null;
+    : homeModal === 'announcements' ? 'news' : showInbox ? 'inbox' : showReferrals ? 'friends' : showHomeSettings ? 'settings' : showPointsPopup ? 'points' : null;
   const openConsole = (k) => {
     setHomeModal({ activity: 'activity', wallet: 'wallet', ranks: 'leaderboard', news: 'announcements' }[k] || null);
-    setShowInbox(k === 'inbox'); setShowReferrals(k === 'friends'); setShowHomeSettings(k === 'settings');
+    setShowInbox(k === 'inbox'); setShowReferrals(k === 'friends'); setShowHomeSettings(k === 'settings'); setShowPointsPopup(k === 'points');
     if (k !== 'inbox') setConsoleReport(false);
+    if (k) setShowPlayPassModal(false);
+  };
+  const openPlayPassFromBar = () => {
+    openConsole(null);
+    setShowPlayPassModal(true); setPlayPassTab('skins'); setPlayPassError(''); loadPlayPassConfig(); loadPlayPassStatus();
+  };
+  const closeAnyHomeWindow = () => { setFreeSelRoomCode(null); if (!playPassBusy) setShowPlayPassModal(false); openConsole(null); };
+  // [HOME CONSOLE] The desktop Home top bar, shared by the hangar and every
+  // window opened from it - so each button stays exactly where it is, the
+  // open one lights up, and "‹ HANGAR" (top-left) goes back.
+  const deskTopBar = (active) => {
+    const fs = Math.max(11, deskHomeLayout(desktopDims.w, desktopDims.h).s * 15);
+    const av = resolveAvatarImg(playerAvatarId, loggedInPlayer?.hasPlayPass, loggedInPlayer?.activePremiumAvatarVariant);
+    const go = (k) => (k === 'inbox' || k === 'friends' ? () => openConsole(k) : guestGuard(() => openConsole(k)));
+    return (
+      <div className="dh-top" style={{ fontSize: fs }}>
+        {active && (
+          <button type="button" className="dh-backb hm-btn" data-sfx="back" aria-label="Back to hangar" onClick={closeAnyHomeWindow}>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="#6effc0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>HANGAR
+          </button>
+        )}
+        <button type="button" className="dh-prof hm-btn" aria-label="Profile and settings" onClick={go('settings')}>
+          <img src={av} alt="" />
+          <div><b>{isGuestPlayer ? 'Guest' : (loggedInPlayer?.name || playerName || 'Crewmate')}</b><span>{isGuestPlayer ? 'playing as guest' : `@${loggedInPlayer?.username || ''}`}</span></div>
+        </button>
+        <button type="button" className={`dh-pts hm-btn ${active === 'points' ? 'on' : ''}`} aria-label="Weekly points" onClick={() => { if (!isGuestPlayer) openConsole('points'); }}>
+          <img src={POINT_COIN_IMG} alt="" />{isGuestPlayer ? '—' : (loggedInPlayer?.currentSeasonPoints ?? 0)} · this week
+        </button>
+        <div className="dh-logo"><img src={SABOTEUR_BRAND_LOGO_IMG} alt="NEAR Saboteur" draggable={false} /></div>
+        <button type="button" className="dh-pass hm-btn" aria-label="Play Pass" onClick={openPlayPassFromBar} style={active === 'pass' ? { filter: 'drop-shadow(0 0 1.2em rgba(255,200,60,.75))' } : undefined}>
+          <img src={PLAY_PASS_IMG} alt="Play Pass" />
+        </button>
+        <DeskTopButton label="Inbox" active={active === 'inbox'} onClick={go('inbox')} badge={inboxUnreadCount}><img src={INBOX_ICON_IMG} alt="" /></DeskTopButton>
+        <DeskTopButton label="Friends" active={active === 'friends'} onClick={go('friends')}><img src={REFERRAL_ICON_IMG} alt="" /></DeskTopButton>
+        <DeskTopButton label="Wallet" active={active === 'wallet'} onClick={go('wallet')}><DeskIcon d={DESK_ICON.WALLET} /></DeskTopButton>
+        <DeskTopButton label="Ranks" active={active === 'ranks'} onClick={go('ranks')}><DeskIcon d={DESK_ICON.RANKS} /></DeskTopButton>
+        <DeskTopButton label="Activity" active={active === 'activity'} onClick={go('activity')}><DeskIcon d={DESK_ICON.ACTIVITY} /></DeskTopButton>
+        <DeskTopButton label="News" active={active === 'news'} onClick={go('news')}><DeskIcon d={DESK_ICON.NEWS} /></DeskTopButton>
+        <DeskTopButton label="Music" onClick={toggleMusic}><DeskIcon d={musicActive ? DESK_ICON.MUSIC : DESK_ICON.MUSIC_OFF} /></DeskTopButton>
+        <DeskTopButton label="Sound" onClick={() => setSoundOn((v) => !v)}><DeskIcon d={soundOn ? DESK_ICON.SOUND : DESK_ICON.MUTED} /></DeskTopButton>
+        <DeskTopButton label="Settings" active={active === 'settings'} onClick={go('settings')}><DeskIcon d={DESK_ICON.SETTINGS} /></DeskTopButton>
+      </div>
+    );
   };
   const closeConsole = () => openConsole(null);
   const consoleMobile = !isDesktopHomeLayout(desktopDims);
@@ -17893,6 +17941,8 @@ function MovementDemo() {
   };
   const consoleShell = (active) => ({
     mobile: consoleMobile, active, onClose: closeConsole,
+    topBar: consoleMobile ? null : <><style>{DESK_HOME_CSS}</style>{deskTopBar(active || 'other')}</>,
+    topOffset: Math.round(Math.max(11, deskHomeLayout(desktopDims.w, desktopDims.h).s * 15) * 5.9),
     onNav: (k) => {
       if (k === 'inbox' || k === 'friends') { openConsole(k); return; }
       if (isGuestPlayer) closeConsole(); // the "sign up to use this" notice sits under the console
@@ -19548,26 +19598,7 @@ function MovementDemo() {
                     <div style={{ position: 'absolute', inset: '-8%', backgroundImage: `url(${DESKTOP_HOME_ART_IMG})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(22px) brightness(0.5)' }} />
                     <img src={DESKTOP_HOME_ART_IMG} alt="" draggable={false} style={{ position: 'absolute', left: DL.ox, top: DL.oy, width: DL.dw, height: DL.dh, pointerEvents: 'none', userSelect: 'none' }} />
 
-                    <div className="dh-top">
-                      <button type="button" className="dh-prof hm-btn" aria-label="Profile and settings" onClick={guestGuard(() => setShowHomeSettings(true))}>
-                        <img src={avatarImg} alt="" />
-                        <div><b>{isGuestPlayer ? 'Guest' : (loggedInPlayer?.name || playerName || 'Crewmate')}</b><span>{isGuestPlayer ? 'playing as guest' : `@${loggedInPlayer?.username || ''}`}</span></div>
-                      </button>
-                      <button type="button" className="dh-pts hm-btn" aria-label="Weekly points" onClick={() => { if (!isGuestPlayer) setShowPointsPopup(true); }}>
-                        <img src={POINT_COIN_IMG} alt="" />{isGuestPlayer ? '—' : (loggedInPlayer?.currentSeasonPoints ?? 0)} · this week
-                      </button>
-                      <div className="dh-logo"><img src={SABOTEUR_BRAND_LOGO_IMG} alt="NEAR Saboteur" draggable={false} /></div>
-                      <button type="button" className="dh-pass hm-btn" aria-label="Play Pass" onClick={() => { setShowPlayPassModal(true); setPlayPassTab('skins'); setPlayPassError(''); loadPlayPassConfig(); loadPlayPassStatus(); }}>
-                        <img src={PLAY_PASS_IMG} alt="Play Pass" />
-                      </button>
-                      <DeskTopButton label="Inbox" onClick={() => setShowInbox(true)} badge={inboxUnreadCount}><img src={INBOX_ICON_IMG} alt="" /></DeskTopButton>
-                      <DeskTopButton label="Friends" onClick={() => setShowReferrals(true)}><img src={REFERRAL_ICON_IMG} alt="" /></DeskTopButton>
-                      {RAIL.map((r) => <DeskTopButton key={r.label} label={r.label.charAt(0) + r.label.slice(1).toLowerCase()} onClick={r.go}><DeskIcon d={r.icon} /></DeskTopButton>)}
-                      <DeskTopButton label="News" onClick={guestGuard(() => setHomeModal('announcements'))}><DeskIcon d={DESK_ICON.NEWS} /></DeskTopButton>
-                      <DeskTopButton label="Music" onClick={toggleMusic}><DeskIcon d={musicActive ? DESK_ICON.MUSIC : DESK_ICON.MUSIC_OFF} /></DeskTopButton>
-                      <DeskTopButton label="Sound" onClick={() => setSoundOn((v) => !v)}><DeskIcon d={soundOn ? DESK_ICON.SOUND : DESK_ICON.MUTED} /></DeskTopButton>
-                      <DeskTopButton label="Settings" onClick={guestGuard(() => setShowHomeSettings(true))}><DeskIcon d={DESK_ICON.SETTINGS} /></DeskTopButton>
-                    </div>
+                    {deskTopBar(null)}
 
                     <DeskWallScreen q={DL.leftQ} w={520} h={360}>
                       <div className="dh-st"><i />LIVE ROOMS<span>{liveRoomsAll.length} open now</span></div>
@@ -19596,14 +19627,16 @@ function MovementDemo() {
                       {!wk ? <div className="dh-empty">{leaderboardError || 'Loading…'}</div> : (wk.leaderboard || []).length === 0 ? (
                         <div className="dh-empty">Nobody has points yet this week.<br />Finish a match to take #1.</div>
                       ) : (wk.leaderboard || []).slice(0, 5).map((p, i) => (
-                        <div className="dh-lb" key={p.username || i}>
+                        <div className={`dh-lb ${!isGuestPlayer && wk.myRank && (p.username ? p.username === loggedInPlayer?.username : p.rank === wk.myRank.rank) ? 'me' : ''}`} key={p.username || i}>
                           <span className={`r ${i < 3 ? 'g' : ''}`}>{p.rank || i + 1}</span>
                           <img src={resolveAvatarImg(p.avatarId, p.hasPlayPass, p.avatarVariantId)} alt="" />
                           <span className="nm"><PlayerNameTag name={p.name || p.username} premium={p.hasPlayPass} /></span>
                           <span className="p">{p.points}</span>
                         </div>
                       ))}
-                      {!isGuestPlayer && wk && (
+                      {/* [FIX] only when you're NOT already in the top 5 above - was always
+                          added, so a #1 player saw themselves twice */}
+                      {!isGuestPlayer && wk && !(wk.leaderboard || []).slice(0, 5).some((p) => (p.username ? p.username === loggedInPlayer?.username : p.rank === wk.myRank?.rank)) && (
                         <div className="dh-lb me">
                           <span className="r">{wk.myRank?.rank || '—'}</span>
                           <img src={avatarImg} alt="" />
@@ -19849,122 +19882,14 @@ function MovementDemo() {
                 Activity tab already covers the full per-match log), and
                 a Share card. */}
             {showPointsPopup && (
-              <div
-                onClick={(e) => { if (e.target === e.currentTarget) setShowPointsPopup(false); }}
-                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-              >
-                <div style={{
-                  width: '100%', maxWidth: 320,
-                  background: 'linear-gradient(165deg, #171008, #0a0805 55%, #0a0805)',
-                  border: '1px solid rgba(255,215,80,0.4)', borderRadius: 18, padding: 18,
-                  boxShadow: '0 0 40px rgba(0,0,0,0.7)', maxHeight: '86vh', overflowY: 'auto',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <img src={POINT_COIN_IMG} alt="" style={{ width: 26, height: 'auto', filter: 'drop-shadow(0 0 8px rgba(255,200,60,0.5))' }} />
-                      <h3 style={{ fontSize: 14, fontWeight: 900, color: '#ffd75e', margin: 0, letterSpacing: 0.3 }}>POINTS</h3>
-                    </div>
-                    <button onClick={() => setShowPointsPopup(false)} style={{
-                      width: 26, height: 26, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
-                      background: 'rgba(255,255,255,0.06)', color: '#cfd3da', fontSize: 13, fontWeight: 800,
-                    }}>✕</button>
-                  </div>
-
-                  {/* [$SABOTEUR] points turn into testnet tokens by rank */}
-                  <button type="button" onClick={() => { setShowPointsPopup(false); setWalletTab('coins'); setHomeModal('wallet'); }} style={{
-                    display: 'block', margin: '0 0 10px auto', background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                    color: '#8a9490', fontSize: 10.5, fontWeight: 700, textDecoration: 'underline',
-                  }}>$SABOTEUR (testnet) in Wallet →</button>
-                  {pointsSummaryLoading && !pointsSummary && (
-                    <p style={{ fontSize: 12, color: '#9aa0ad', textAlign: 'center', margin: '20px 0' }}>Loading your points…</p>
-                  )}
-                  {pointsSummaryError && !pointsSummaryLoading && (
-                    <p style={{ fontSize: 11.5, color: '#ff8a8a', textAlign: 'center', margin: '20px 0' }}>{pointsSummaryError}</p>
-                  )}
-
-                  {pointsSummary && (() => {
-                    const cur = loggedInPlayer?.currentSeasonPoints ?? 0;
-                    const last = pointsSummary.lastWeekPoints || 0;
-                    const diff = cur - last;
-                    const pct = last > 0 ? Math.round((diff / last) * 100) : (cur > 0 ? 100 : 0);
-                    const resetMs = pointsSummary.weekResetsAt ? new Date(pointsSummary.weekResetsAt).getTime() - Date.now() : 0;
-                    const resetD = Math.max(0, Math.floor(resetMs / 86400000));
-                    const resetH = Math.max(0, Math.floor((resetMs % 86400000) / 3600000));
-                    return (
-                      <>
-                        <div style={{
-                          background: 'rgba(255,215,80,0.08)', border: '1px solid rgba(255,215,80,0.25)',
-                          borderRadius: 14, padding: '14px 16px', marginBottom: 12, textAlign: 'center',
-                        }}>
-                          <div style={{ fontSize: 9, fontWeight: 800, color: '#c9a862', letterSpacing: 1 }}>THIS WEEK</div>
-                          <div style={{ fontSize: 34, fontWeight: 900, color: '#fff', lineHeight: 1.1, margin: '4px 0 6px' }}>{cur}</div>
-                          {last > 0 || cur > 0 ? (
-                            <span style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 999,
-                              fontSize: 10.5, fontWeight: 800,
-                              background: diff >= 0 ? 'rgba(110,255,192,0.14)' : 'rgba(255,92,92,0.14)',
-                              color: diff >= 0 ? '#6effc0' : '#ff8a8a',
-                            }}>{diff >= 0 ? '↑' : '↓'} {diff >= 0 ? '+' : ''}{diff} ({pct >= 0 ? '+' : ''}{pct}%) vs last week</span>
-                          ) : null}
-                          <div style={{ marginTop: 8, fontSize: 10, color: '#8a9088' }}>
-                            Resets in <b style={{ color: '#cfd3da' }}>{resetD}d {resetH}h</b>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '9px 10px' }}>
-                            <div style={{ fontSize: 8.5, fontWeight: 800, color: '#9aa0ad', letterSpacing: 0.4 }}>LAST WEEK</div>
-                            <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 2 }}>{last}</div>
-                          </div>
-                          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '9px 10px' }}>
-                            <div style={{ fontSize: 8.5, fontWeight: 800, color: '#9aa0ad', letterSpacing: 0.4 }}>WEEKLY RANK</div>
-                            <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 2 }}>{pointsSummary.weeklyRank ? `#${pointsSummary.weeklyRank}` : '—'}</div>
-                          </div>
-                          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '9px 10px' }}>
-                            <div style={{ fontSize: 8.5, fontWeight: 800, color: '#9aa0ad', letterSpacing: 0.4 }}>MATCHES PLAYED</div>
-                            <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 2 }}>{pointsSummary.matchesThisWeek}</div>
-                          </div>
-                          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '9px 10px' }}>
-                            <div style={{ fontSize: 8.5, fontWeight: 800, color: '#9aa0ad', letterSpacing: 0.4 }}>BEST WEEK</div>
-                            <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 2 }}>{pointsSummary.bestWeekPoints}</div>
-                          </div>
-                        </div>
-
-                        <div style={{
-                          display: 'flex', justifyContent: 'space-between', gap: 6, marginBottom: 14,
-                          background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '9px 4px',
-                        }}>
-                          <div style={{ flex: 1, textAlign: 'center' }}>
-                            <div style={{ fontSize: 15 }}>🎯</div>
-                            <div style={{ fontSize: 12.5, fontWeight: 900, color: '#fff', marginTop: 1 }}>{pointsSummary.missionsThisWeek}</div>
-                            <div style={{ fontSize: 8, color: '#7a8079', fontWeight: 700 }}>MISSIONS</div>
-                          </div>
-                          <div style={{ flex: 1, textAlign: 'center' }}>
-                            <div style={{ fontSize: 15 }}>🏆</div>
-                            <div style={{ fontSize: 12.5, fontWeight: 900, color: '#fff', marginTop: 1 }}>{pointsSummary.winsThisWeek}</div>
-                            <div style={{ fontSize: 8, color: '#7a8079', fontWeight: 700 }}>WINS</div>
-                          </div>
-                          <div style={{ flex: 1, textAlign: 'center' }}>
-                            <div style={{ fontSize: 15 }}>⚔️</div>
-                            <div style={{ fontSize: 12.5, fontWeight: 900, color: '#fff', marginTop: 1 }}>{pointsSummary.killsThisWeek}</div>
-                            <div style={{ fontSize: 8, color: '#7a8079', fontWeight: 700 }}>KILLS</div>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => setShowSharePointsCard(true)}
-                          style={{
-                            width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-                            background: 'linear-gradient(135deg, #ffd75e, #e6a92a)', color: '#241a03',
-                            fontWeight: 900, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                            boxShadow: '0 4px 16px rgba(255,200,60,0.25)',
-                          }}
-                        >📤 Share My Points</button>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
+              <HomeConsole {...consoleShell('points')}>
+                <PointsScreen mobile={consoleMobile} onClose={closeConsole} pts={{
+                  summary: pointsSummary, loading: pointsSummaryLoading, error: pointsSummaryError,
+                  current: loggedInPlayer?.currentSeasonPoints ?? 0, coin: POINT_COIN_IMG,
+                  onShare: () => setShowSharePointsCard(true),
+                  onWallet: () => { setWalletTab('coins'); openConsole('wallet'); },
+                }} />
+              </HomeConsole>
             )}
 
             {/* [NEW FEATURE - SHARE POINTS CARD] Portrait "weekly report"
@@ -20005,17 +19930,17 @@ function MovementDemo() {
                     onClick={copyShareCardImage}
                     disabled={!shareCardReady || shareCardBusy}
                     style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: '1px solid rgba(110,255,192,0.4)', background: 'rgba(110,255,192,0.1)', color: '#6effc0', fontWeight: 800, fontSize: 11.5, opacity: shareCardReady ? 1 : 0.5 }}
-                  >📋 Copy</button>
+                  >Copy</button>
                   <button
                     onClick={downloadShareCardImage}
                     disabled={!shareCardReady || shareCardBusy}
                     style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#cfd3da', fontWeight: 800, fontSize: 11.5, opacity: shareCardReady ? 1 : 0.5 }}
-                  >⬇ Download</button>
+                  >Download</button>
                   <button
                     onClick={nativeShareCardImage}
                     disabled={!shareCardReady || shareCardBusy}
                     style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#ffd75e,#e6a92a)', color: '#241a03', fontWeight: 900, fontSize: 11.5, opacity: shareCardReady ? 1 : 0.5 }}
-                  >📤 Share</button>
+                  >Share</button>
                 </div>
               </div>
             )}
@@ -21046,7 +20971,7 @@ function MovementDemo() {
             };
             const closeFree = () => { setFreeSelRoomCode(null); setHomeModal(null); };
             return (
-              <HomeConsole {...consoleShell(null)} noRail onClose={closeFree}>
+              <HomeConsole {...consoleShell('freeplay')} noRail onClose={closeFree}>
                 <FreePlayScreen mobile={consoleMobile} onClose={closeFree} f={{
                   NameTag: PlayerNameTag, LegionBadge, bannerImg: FREE_PLAY_BANNER_IMG,
                   copyButton: (code) => <CopyButton text={code} />,
@@ -21128,7 +21053,7 @@ function MovementDemo() {
           {showPlayPassModal && (() => {
             const closePass = () => { if (!playPassBusy) setShowPlayPassModal(false); };
             return (
-              <HomeConsole {...consoleShell(null)} noRail accent="gold" onClose={closePass} escBlocked={showCustomAvatarRequestModal}>
+              <HomeConsole {...consoleShell('pass')} noRail accent="gold" onClose={closePass} escBlocked={showCustomAvatarRequestModal}>
                 <PlayPassScreen mobile={consoleMobile} onClose={closePass} pp={{
                   owned: !!loggedInPlayer?.hasPlayPass, config: playPassConfig, status: playPassStatus,
                   error: playPassError, busy: playPassBusy, onBuy: handleBuyPlayPass,
