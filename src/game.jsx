@@ -6226,7 +6226,7 @@ function LiveGameGrid({ items }) {
 }
 
 function LobbyScreen({
-  playerName, setPlayerName, playerAvatarId, setPlayerAvatarId, onStart, soundOn, musicOn, onToggleMusic,
+  playerName, setPlayerName, playerAvatarId, setPlayerAvatarId, onStart, soundOn, musicOn, onToggleMusic, onOpenPoolPanel,
   hasPlayPass, activePremiumAvatarVariant, onSelectPremiumVariant, playPassError,
   premiumSwapConfirmingId, premiumSwapConfirmedId, playPassStatus, loadPlayPassStatus, playPassConfig,
   socket, connStatus, roomInfo, myRole, joinError, onConnect, onCreateRoom, onJoinRoom,
@@ -7808,6 +7808,19 @@ function LobbyScreen({
           at all: their screen transitions automatically the moment their
           own roleAssigned event arrives (handled in MovementDemo). */}
       {/* [BGM] music on/off, just above LEAVE */}
+      {/* [POOL v2] its own lobby button: invite link, prize split, wallets */}
+      {roomInfo?.pool && onOpenPoolPanel && (
+        <button type="button" data-sfx="open" onClick={onOpenPoolPanel} aria-label="Pool details" style={{
+          position: 'absolute', left: 18, bottom: 128, zIndex: 15, zoom: lobbyHudK,
+          display: 'flex', alignItems: 'center', gap: 7, height: 40, padding: '0 13px 0 6px', cursor: 'pointer',
+          border: '1px solid rgba(255,215,94,0.6)', background: 'rgba(14,10,3,0.92)', color: '#ffd75e',
+          fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, fontSize: 11.5, letterSpacing: 1,
+          clipPath: 'polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)', boxShadow: '0 0 14px rgba(255,200,60,0.25)',
+        }}>
+          <span style={{ width: 28, height: 28, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%,#ffe9a0,#e0a52a 60%,#8a5a10)', color: '#5a3a05', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12 }}>N</span>
+          POOL
+        </button>
+      )}
       {onToggleMusic && (
         <div style={{ position: 'absolute', left: 18, bottom: 78, zIndex: 15, zoom: lobbyHudK }}>
           <MusicToggle on={musicOn} onToggle={onToggleMusic} size={38} style={{ borderRadius: 999 }} />
@@ -10647,6 +10660,7 @@ function MovementDemo() {
   const [livePoolsLoading, setLivePoolsLoading] = useState(false);
   // [POOL v2] Pool Games screen state
   const [poolTab, setPoolTab] = useState('create');
+  const [poolPanelOpen, setPoolPanelOpen] = useState(false); // [POOL v2] lobby pool panel
   const [poolFindCode, setPoolFindCode] = useState('');
   const [poolFindError, setPoolFindError] = useState('');
   const [poolFocus, setPoolFocus] = useState(null);
@@ -21307,6 +21321,7 @@ function MovementDemo() {
       {/* [POOL v2] pool panel in the lobby: invite link, prize split, wallets */}
       {screen === 'lobby' && roomInfo?.pool && (
         <LobbyPoolPanel
+          open={poolPanelOpen} onClose={() => setPoolPanelOpen(false)}
           pool={{ ...roomInfo.pool, isPublicRoom: !!roomInfo.isPublic }}
           code={roomInfo.code}
           link={poolInviteLink(roomInfo.code)}
@@ -21349,6 +21364,7 @@ function MovementDemo() {
           soundOn={soundOn}
           musicOn={musicActive}
           onToggleMusic={toggleMusic}
+          onOpenPoolPanel={() => setPoolPanelOpen(true)}
           socket={socketRef.current}
           connStatus={connStatus}
           roomInfo={roomInfo}
@@ -21476,7 +21492,7 @@ function MovementDemo() {
             color: playerRole === 'saboteur' ? '#ff3b3b' : '#ffffff',
             textShadow: playerRole === 'saboteur' ? '0 0 18px rgba(255,59,59,0.65)' : '0 1px 3px rgba(0,0,0,0.6)',
           }}>
-            {playerRole === 'saboteur' ? 'You are The Saboteur' : playerRole === 'spectator' ? "You're watching" : 'You are a Crewmate'}
+            {playerRole === 'saboteur' ? 'You are The Saboteur' : playerRole === 'spectator' ? (roomInfo?.pool?.hostRole === 'host' ? "You're hosting" : "You're watching") : 'You are a Crewmate'}
           </p>
           {playerRole === 'spectator' && (
             <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#9aa0ad', letterSpacing: 0.3, textAlign: 'center' }}>
@@ -23909,6 +23925,15 @@ function MovementDemo() {
           triggered while one happens to be open (e.g. a vote-out that
           ejects the last Saboteur). Shows which side won and why, plus
           a button back to the Lobby. */}
+      {/* [POOL v2] "Host only" doesn't watch the map - a calm hosting screen instead */}
+      {playerRole === 'spectator' && roomInfo?.pool?.hostRole === 'host' && !gameResult && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 85, background: 'radial-gradient(circle at 50% 35%, #12100a, #050403 70%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center' }}>
+          <div style={{ width: 84, height: 84, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%,#ffe9a0,#e0a52a 60%,#8a5a10)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: "800 30px 'Space Grotesk',sans-serif", color: '#5a3a05', boxShadow: '0 0 40px rgba(255,200,60,0.35)' }}>N</div>
+          <div style={{ font: "600 11px 'IBM Plex Mono',monospace", letterSpacing: 3, color: '#ffd75e' }}>YOU'RE HOSTING</div>
+          <div style={{ font: "700 26px 'Space Grotesk',sans-serif", color: '#fff' }}>Match {Math.min((roomInfo.pool.matchesPlayed || 0) + 1, roomInfo.pool.maxMatches)} of {roomInfo.pool.maxMatches} in progress</div>
+          <div style={{ fontSize: 14, color: '#9aa0ad', maxWidth: 420, lineHeight: 1.6 }}>{roomInfo.pool.poolName || 'Your pool'} · {roomInfo.players.filter((p) => !p.spectator).length} players. You'll be back in the lobby when it ends{roomInfo.pool.mode === 'manual' ? ', and the winners with their wallets show up in Pool Games → History.' : '.'}</div>
+        </div>
+      )}
       {gameResult && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 90, background: '#05050a',

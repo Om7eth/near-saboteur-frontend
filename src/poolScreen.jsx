@@ -17,8 +17,9 @@ const Ico = ({ d, c = '#8fe3ff', w = 1.7, s = 20 }) => <svg width={s} height={s}
 const RANKC = ['#ffd75e', '#c9d3d9', '#d9965c'];
 const rk = (i) => <span style={{ color: RANKC[i] || '#9fb0a8' }}>#{i + 1}</span>;
 const fmt = (n) => (Math.round(n * 1000) / 1000).toString();
-const NEAR_RE = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+\.near$|^[0-9a-f]{64}$/;
-export const isNearMainnetAddress = (w) => NEAR_RE.test(String(w || '').trim().toLowerCase());
+const NEAR_RE = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
+// Any mainnet NEAR account: name.near, name.tg (HOT), 64-hex implicit, 0x… - just not a testnet one.
+export const isNearMainnetAddress = (w) => { const v = String(w || '').trim().toLowerCase(); return v.length >= 2 && v.length <= 64 && NEAR_RE.test(v) && !v.endsWith('.testnet') && (v.includes('.') || /^[0-9a-f]{64}$/.test(v) || /^0x[0-9a-f]{40}$/.test(v)); };
 const PRESETS = { winner: [100], top3: [50, 30, 20], top5: [40, 25, 15, 12, 8], custom: null };
 const PRESET_LABEL = { winner: 'WINNER TAKES ALL', top3: 'TOP 3 · 50/30/20', top5: 'TOP 5', custom: 'CUSTOM' };
 
@@ -221,7 +222,7 @@ function CreateForm({ c, setC, mobile }) {
       {real && c.role === 'play' && (
         <>
           <div className="pg-sec">YOUR .NEAR WALLET · IN CASE YOU PLACE</div>
-          <div className="pg-fld"><input className="pg-in mono" placeholder="yourname.near" value={c.wallet} onChange={(e) => setC({ wallet: e.target.value.trim().toLowerCase() })} /></div>
+          <div className="pg-fld"><input className="pg-in mono" placeholder="yourname.near / yourname.tg" value={c.wallet} onChange={(e) => setC({ wallet: e.target.value.trim().toLowerCase() })} /></div>
         </>
       )}
     </>
@@ -281,8 +282,8 @@ function JoinPanel({ pool, j, mobile }) {
         <>
           <div className="pg-sec">YOUR .NEAR WALLET · FOR YOUR PRIZE</div>
           <div className="pg-fld">
-            <input className="pg-in mono" placeholder="yourname.near" value={wallet} onChange={(e) => setWallet(e.target.value.trim().toLowerCase())} />
-            {wallet && <p style={{ font: '11px var(--mono)', margin: '6px 0 0', color: valid ? 'var(--m)' : '#ff8a8a' }}>{valid ? '✓ Looks like a valid mainnet address · saved for next time' : 'Needs to be a mainnet address, like yourname.near'}</p>}
+            <input className="pg-in mono" placeholder="yourname.near / yourname.tg" value={wallet} onChange={(e) => setWallet(e.target.value.trim().toLowerCase())} />
+            {wallet && <p style={{ font: '11px var(--mono)', margin: '6px 0 0', color: valid ? 'var(--m)' : '#ff8a8a' }}>{valid ? '✓ Looks like a valid mainnet address · saved for next time' : wallet.endsWith('.testnet') ? 'That is a testnet address — prizes here are real NEAR, so use your mainnet wallet (yourname.near, yourname.tg …)' : 'Needs to be a mainnet NEAR address, like yourname.near or yourname.tg'}</p>}
           </div>
           <div className="pg-fld pg-info"><Ico d={P.info} s={18} /><div>Your address is shared <b>only with the host</b> so they can send your prize. Prizes in this pool are paid <b>by the host</b>, not by NEAR Saboteur.</div></div>
         </>
@@ -506,6 +507,7 @@ const LCSS = `
 .lp-btn{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:70;display:flex;align-items:center;gap:9px;padding:8px 16px 8px 9px;border:1px solid rgba(255,215,94,.55);background:rgba(10,8,3,.92);color:#ffd75e;font:700 12px 'IBM Plex Mono',monospace;letter-spacing:.1em;cursor:pointer;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);box-shadow:0 4px 18px rgba(0,0,0,.5)}
 .lp-btn i{width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9a0,#e0a52a 60%,#8a5a10);display:flex;align-items:center;justify-content:center;font:800 11px 'Space Grotesk',sans-serif;font-style:normal;color:#5a3a05}
 .lp-btn em{font-style:normal;color:#cfd8d3;font-weight:500}
+.lp-chip{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:70;padding:7px 14px;border:1px solid rgba(255,215,94,.55);background:rgba(10,8,3,.92);color:#ffd75e;font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;white-space:nowrap;pointer-events:none;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
 .lp-back{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.6);display:flex;justify-content:flex-end}
 .lp{width:min(440px,100%);height:100%;overflow:auto;background:linear-gradient(180deg,#0b1210,#060a09);border-left:1px solid rgba(255,215,94,.3);padding:calc(18px + env(safe-area-inset-top,0px)) 20px calc(24px + env(safe-area-inset-bottom,0px));animation:lpIn .22s ease-out}
 @keyframes lpIn{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
@@ -514,8 +516,8 @@ const LCSS = `
 .lp-link button{padding:0 14px !important;border-left:1px solid rgba(143,227,255,.3) !important;font:700 11px var(--mono) !important;letter-spacing:.1em;color:var(--c) !important}
 .lp-share{display:flex;gap:8px;margin-top:8px}.lp-share a,.lp-share button{flex:1;text-align:center;padding:9px !important;border:1px solid var(--line) !important;border-radius:5px;font:600 11px var(--mono) !important;letter-spacing:.08em;color:#cfd8d3 !important;text-decoration:none}
 `;
-export function LobbyPoolPanel({ pool, isPoolHost, code, link, myWallet, onSaveWallet, fetchWallets, iAmSpectator }) {
-  const [open, setOpen] = useState(false);
+export function LobbyPoolPanel({ pool, isPoolHost, code, link, myWallet, onSaveWallet, fetchWallets, iAmSpectator, open, onClose }) {
+  const setOpen = (v) => { if (!v) onClose(); };
   const [list, setList] = useState(null);
   const [w, setW] = useState(myWallet || '');
   const [msg, setMsg] = useState('');
@@ -531,7 +533,9 @@ export function LobbyPoolPanel({ pool, isPoolHost, code, link, myWallet, onSaveW
   return (
     <div className="pg">
       <style>{CSS + LCSS}</style>
-      <button type="button" className="lp-btn" onClick={() => setOpen(true)} data-sfx="open"><i>N</i>POOL · {fmt(amt)} {real ? 'NEAR' : 'tNEAR'}<em>· {pool.matchesPlayed || 0}/{pool.maxMatches} MATCHES</em></button>
+      {iAmSpectator && (
+        <div className="lp-chip">{pool.hostRole === 'host' ? 'HOSTING ONLY · NOT PLAYING' : 'HOSTING & WATCHING · NOT PLAYING'}</div>
+      )}
       {open && (
         <div className="lp-back" onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="lp">
@@ -566,7 +570,7 @@ export function LobbyPoolPanel({ pool, isPoolHost, code, link, myWallet, onSaveW
                 <div className="pg-sec">YOUR PRIZE WALLET</div>
                 <div className="pg-fld">
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <input className="pg-in mono" value={w} placeholder="yourname.near" onChange={(e) => setW(e.target.value.trim().toLowerCase())} />
+                    <input className="pg-in mono" value={w} placeholder="yourname.near / yourname.tg" onChange={(e) => setW(e.target.value.trim().toLowerCase())} />
                     <button type="button" className="pg-gear hi" disabled={!isNearMainnetAddress(w) || w === myWallet} onClick={async () => { setMsg(''); try { await onSaveWallet(w); setMsg('Saved'); } catch (e) { setMsg(e.message || 'Could not save'); } }}>SAVE</button>
                   </div>
                   {msg && <p style={{ font: '11px var(--mono)', margin: '6px 0 0', color: msg === 'Saved' ? 'var(--m)' : '#ff8a8a' }}>{msg}</p>}
