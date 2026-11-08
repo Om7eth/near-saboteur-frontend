@@ -17,6 +17,19 @@ import { KeyPair, actions, nearToYocto, yoctoToNear, teraToGas, viewFunction, vi
 import { generateSeedPhrase, parseSeedPhrase } from 'near-seed-phrase';
 import { createBgm } from './bgm';
 import { HudIcon, HudButton, MissionFloat, MISSION_ICON, HUD_CSS } from './hudKit';
+import { PoolGamesScreen, LobbyPoolPanel } from './poolScreen';
+// [POOL v2] Invite links: nearsaboteur.com/?join=KQZT (also /join/KQZT once the
+// host has a "/* -> /index.html" rewrite). Read once on load, then the URL is cleaned.
+function readInviteCodeFromUrl() {
+  try {
+    const m = window.location.pathname.match(/^\/(?:join|j)\/([A-Za-z0-9]{4,6})\/?$/) || window.location.search.match(/[?&]join=([A-Za-z0-9]{4,6})/);
+    if (!m) return null;
+    window.history.replaceState(null, '', '/');
+    return m[1].toUpperCase();
+  } catch (e) { return null; }
+}
+const SITE_URL = ((import.meta.env && import.meta.env.VITE_SITE_URL) || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+const poolInviteLink = (code) => `${SITE_URL}/?join=${code}`;
 import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen, PointsScreen } from './homeConsole';
 
 // [BGM] one shared music + UI-click engine for the whole app (all synthesised, no audio files)
@@ -6375,7 +6388,7 @@ function LobbyScreen({
   // players. Falls back to the normal MIN_PLAYERS whenever Dev Mode is
   // off - identical to live behavior in that case.
   const effectiveMinPlayers = roomInfo?.devMode ? 2 : MIN_PLAYERS;
-  const canStartGame = !!roomInfo && roomInfo.players.length >= effectiveMinPlayers && !allMatchesDone;
+  const canStartGame = !!roomInfo && roomInfo.players.filter((p) => !p.spectator).length >= effectiveMinPlayers && !allMatchesDone;
 
   const [pos, setPos] = useState({ x: 50, y: 75 }); // percentage coords
   const [facing, setFacing] = useState('right');
@@ -8190,7 +8203,7 @@ function LobbyScreen({
           with the live count and exactly how many more players are
           needed. Only the not-enough-players case gets the prominent
           badge; the pre-room hint stays a subtle line. */}
-      {(!roomInfo || roomInfo.players.length < effectiveMinPlayers) && (
+      {(!roomInfo || roomInfo.players.filter((p) => !p.spectator).length < effectiveMinPlayers) && (
         !roomInfo ? (
           <p style={{ position: 'absolute', bottom: 185, left: 0, right: 0, textAlign: 'center', fontSize: 10, color: '#5a655f', padding: '0 16px' }}>
             Connect and create/join a room to play with friends
@@ -8205,10 +8218,10 @@ function LobbyScreen({
           }}>
             <span style={{ fontSize: 15 }}>👥</span>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#ffce7a' }}>
-              {roomInfo.players.length} / {effectiveMinPlayers} players
+              {roomInfo.players.filter((p) => !p.spectator).length} / {effectiveMinPlayers} players
             </span>
             <span style={{ fontSize: 12, fontWeight: 600, color: '#d8b878' }}>
-              — need {effectiveMinPlayers - roomInfo.players.length} more to start
+              — need {effectiveMinPlayers - roomInfo.players.filter((p) => !p.spectator).length} more to start
             </span>
           </div>
         )
@@ -9966,6 +9979,10 @@ const DESK_HOME_CSS = `
 .dh-room b{font-family:'IBM Plex Mono',monospace;font-size:.9em;color:#eafff4;letter-spacing:.08em}
 .dh-room .n{flex:1;min-width:0;font-size:.82em;color:#aab4af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dh-room .c{font-family:'IBM Plex Mono',monospace;font-size:.72em;color:#7d8d86}
+.dh-room.pool{border-color:rgba(255,215,94,.5);background:linear-gradient(90deg,rgba(255,215,94,.14),rgba(0,0,0,.35) 60%)}
+.dh-room.pool .coin{width:1.7em;height:1.7em;flex-shrink:0;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9a0,#e0a52a 60%,#8a5a10);display:flex;align-items:center;justify-content:center;font:800 .75em 'Space Grotesk',sans-serif;font-style:normal;color:#5a3a05;box-shadow:0 0 .6em rgba(255,200,60,.45)}
+.dh-room.pool .pz{color:#ffd75e;font-family:'Space Grotesk',sans-serif;font-size:1.05em;letter-spacing:0;margin-right:.5em}
+.dh-join.pool{background:linear-gradient(135deg,#ffe08f,#f2b84b);color:#1c1203}
 .dh-join{padding:.35em .9em;border-radius:.4em;border:none;background:#6effc0;color:#05130d;font-weight:800;font-size:.75em;cursor:pointer}
 .dh-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3em;color:#7d8d86;font-size:.85em;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:.45em;margin-bottom:.5em}
 .dh-foot{margin-top:auto;display:flex;gap:.5em}
@@ -10213,7 +10230,7 @@ function MovementDemo() {
   // moment they land on Home after signup/login + profile setup.
   const [authGateRoom, setAuthGateRoom] = useState(null);
   const [authCardFlash, setAuthCardFlash] = useState(false);
-  const pendingJoinCodeRef = useRef(null);
+  const pendingJoinCodeRef = useRef(readInviteCodeFromUrl());
   // [BUG FIX - DESKTOP RAILS NEVER SHOWED] The desktop rails below used
   // to read the `viewport` state declared elsewhere in this component
   // (tracked via a resize listener set up in a different effect further
@@ -10628,6 +10645,14 @@ function MovementDemo() {
   const [myLivePools, setMyLivePools] = useState([]);
   const [publicLivePools, setPublicLivePools] = useState([]);
   const [livePoolsLoading, setLivePoolsLoading] = useState(false);
+  // [POOL v2] Pool Games screen state
+  const [poolTab, setPoolTab] = useState('create');
+  const [poolFindCode, setPoolFindCode] = useState('');
+  const [poolFindError, setPoolFindError] = useState('');
+  const [poolFocus, setPoolFocus] = useState(null);
+  const [poolJoinBusy, setPoolJoinBusy] = useState(false);
+  const [poolJoinError, setPoolJoinError] = useState('');
+  const [poolHistory, setPoolHistory] = useState({ data: null, loading: false, error: '' });
   const refreshLivePools = useCallback(async () => {
     setLivePoolsLoading(true);
     try {
@@ -13566,7 +13591,7 @@ function MovementDemo() {
       setPlayerRole(data.role);
       setCurrentMatchId(data.matchId || null);
       setCurrentOnChainPoolId(data.onChainPoolId || null);
-      setMyMissions(data.role === 'saboteur' ? [] : pickRandomMissions(MISSIONS_ASSIGNED_COUNT, roomInfoRef.current?.gameMode === 'pool' ? ['admin'] : []));
+      setMyMissions(data.role !== 'crewmate' ? [] : pickRandomMissions(MISSIONS_ASSIGNED_COUNT, roomInfoRef.current?.gameMode === 'pool' ? ['admin'] : []));
       // [NEW FEATURE - POOL GAMES: LEGION HUB BONUS MISSION] Fresh every
       // match - server tells us which mission (if any) is active this
       // match; attempt state always starts un-done for a brand new match.
@@ -14640,6 +14665,14 @@ function MovementDemo() {
     const res = await fetch(`${BACKEND_URL}/rooms/check/${encodeURIComponent(code)}?sessionToken=${encodeURIComponent(sessionToken || '')}`);
     const check = await res.json();
     if (!check.found) throw new Error('Room not found. Check the code.');
+    // [POOL v2] Real-NEAR pool: show the prize + wallet step instead of joining blind
+    if (check.pool && check.pool.payout === 'manual') {
+      const pool = { ...check.pool, roomCode: code, mine: !!check.pool.alreadyParticipant, state: check.gameStarted ? 'Live' : 'Open' };
+      setShowLiveRoomsWindow(false);
+      if (pool.mine) { await joinPoolV2(pool, null); return; }
+      setPoolFocus(pool); setPoolTab('live'); setPoolJoinError(''); setHomeModal('poolGames');
+      return;
+    }
 
     // [BUG FIX - COULDN'T RE-ENTER A PRIVATE POOL/PAID ROOM AFTER
     // LEAVING] A returning participant (already paid/approved before)
@@ -17879,6 +17912,107 @@ function MovementDemo() {
     return () => window.removeEventListener('keydown', onKey);
   }, [callMeeting, handleKillDummy]);
 
+
+  // [POOL v2] create / join / history - used by the Pool Games screen.
+  async function createPoolV2(cfg) {
+    if (poolCreateBusy) return;
+    setPoolCreateError(''); setPoolCreateBusy(true);
+    try {
+      if (!(await checkPoolsNotPaused())) throw new Error('Pool games are paused right now — try again in a bit.');
+      if (cfg.fund === 'real') {
+        await handleCreateRoom(cfg.access === 'public', {
+          mode: 'manual', poolName: cfg.name, prizeNear: cfg.amount, split: cfg.split,
+          maxMatches: cfg.matches, hostRole: cfg.role, payoutWallet: cfg.wallet || null,
+        });
+        if (cfg.wallet) setLoggedInPlayer((p) => (p ? { ...p, payoutWallet: cfg.wallet } : p));
+      } else if (pendingPoolLink) {
+        await handleCreateRoom(true, { ...pendingPoolLink, hostRole: cfg.role });
+        setPendingPoolLink(null);
+      } else {
+        const entryFeeYocto = nearToYocto(String(cfg.amount));
+        const onChainPoolId = await callPoolContract('create_pool', {
+          name: cfg.name || 'Pool Game', max_matches: cfg.matches, entry_fee: entryFeeYocto.toString(), host_funded: true,
+        }, { depositYocto: entryFeeYocto.toString(), label: 'Create Pool' });
+        if (onChainPoolId == null) throw new Error('Pool created, but could not read its ID back. Check your wallet history.');
+        const linkConfig = { poolName: cfg.name, maxMatches: cfg.matches, entryFeeNear: cfg.amount, hostFunded: true, onChainPoolId, createTxHash: lastPoolTxHashRef.current, hostRole: cfg.role };
+        try {
+          await handleCreateRoom(cfg.access === 'public', linkConfig);
+        } catch (linkErr) {
+          setPendingPoolLink(linkConfig);
+          throw new Error(`Your pool was created on-chain (#${onChainPoolId}), but the room couldn't be set up: ${linkErr.message || 'unknown error'}. Press Create again to retry — you won't be charged twice.`);
+        }
+        try { localStorage.setItem('nearSaboteurPoolId', String(onChainPoolId)); localStorage.removeItem('nearSaboteurRoomCode'); } catch (e) { /* no storage */ }
+      }
+      setHomeModal(null);
+      setScreen('lobby');
+    } catch (e) {
+      setPoolCreateError(e.message || 'Could not create the pool.');
+    }
+    setPoolCreateBusy(false);
+  }
+  async function joinPoolV2(pool, wallet) {
+    setPoolJoinError(''); setPoolJoinBusy(true);
+    try {
+      if (pool.payout === 'manual') {
+        const socket = await ensureSocketConnected();
+        const payload = { code: pool.roomCode, name: playerName, avatarId: playerAvatarId, sessionToken, payoutWallet: wallet || null };
+        if (!pool.isPublic && !pool.mine) {
+          await new Promise((resolve, reject) => socket.emit('requestJoinRoom', payload, (r) => (!r || r.ok === false ? reject(new Error(r?.message || 'Could not send a join request.')) : resolve())));
+          setHomeModal(null);
+          setWaitingForApproval({ code: pool.roomCode });
+        } else {
+          setScreen('lobby');
+          try {
+            await new Promise((resolve, reject) => socket.emit('joinRoom', payload, (r) => (!r || r.ok === false ? reject(new Error(r?.message || 'Could not join the pool.')) : resolve(r))));
+            setHomeModal(null);
+          } catch (e) { setScreen('home'); throw e; }
+        }
+        if (wallet) setLoggedInPlayer((p) => (p ? { ...p, payoutWallet: wallet } : p));
+      } else if (pool.mine) {
+        setHomeModal(null);
+        await enterPoolAndOpenLobby(pool.onChainPoolId);
+      } else {
+        await handleJoinFreePool(pool);
+        setHomeModal(null);
+      }
+    } catch (e) {
+      setPoolJoinError(e.message || 'Could not join.');
+    }
+    setPoolJoinBusy(false);
+  }
+  async function findPoolByCode() {
+    setPoolFindError('');
+    const m = String(poolFindCode || '').trim().match(/([A-Za-z0-9]{4,6})\/?\s*$/);
+    if (!m) { setPoolFindError('Paste an invite link or a room code.'); return; }
+    const code = m[1].toUpperCase();
+    try {
+      const res = await fetch(`${BACKEND_URL}/rooms/check/${encodeURIComponent(code)}?sessionToken=${encodeURIComponent(sessionToken || '')}`);
+      const check = await res.json();
+      if (!check.found) { setPoolFindError('No room with that code.'); return; }
+      if (!check.pool) { setHomeModal(null); await handleEnterCodeUnified(code); return; }
+      setPoolFocus({ ...check.pool, roomCode: code, mine: !!check.pool.alreadyParticipant, state: check.gameStarted ? 'Live' : 'Open' });
+      setPoolJoinError('');
+    } catch (e) { setPoolFindError(e.message || 'Could not look that up.'); }
+  }
+  async function loadPoolHistory() {
+    if (!sessionToken) return;
+    setPoolHistory((h) => ({ ...h, loading: true, error: '' }));
+    try {
+      const res = await fetch(`${BACKEND_URL}/pools/history?sessionToken=${encodeURIComponent(sessionToken)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not load your pool history.');
+      setPoolHistory({ data, loading: false, error: '' });
+    } catch (e) { setPoolHistory((h) => ({ ...h, loading: false, error: e.message })); }
+  }
+  async function markPoolPaid(poolId, rank) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/pools/manual/${encodeURIComponent(poolId)}/paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, rank }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Could not update.');
+      setPoolHistory((h) => (h.data ? { ...h, data: { ...h.data, hosted: h.data.hosted.map((x) => (x.id === poolId ? { ...x, winners: data.winners, paidCount: data.winners.filter((w) => w.paidAt).length } : x)) } } : h));
+    } catch (e) { setPoolHistory((h) => ({ ...h, error: e.message })); }
+  }
+
   // [HOME CONSOLE] Every Home button (Activity, Wallet, Ranks, Inbox,
   // Friends, News, Settings) opens one shared console: a wide desktop
   // window with a left rail, or a full-screen page on phones. The same
@@ -18061,7 +18195,10 @@ function MovementDemo() {
             <p style={{ fontSize: 13, color: '#eafff4', margin: '0 0 4px', fontWeight: 700 }}>
               @{incomingJoinRequests[0].requesterUsername || incomingJoinRequests[0].requesterName}
             </p>
-            <p style={{ fontSize: 11, color: '#9aa0ad', margin: '0 0 18px' }}>wants to join your room</p>
+            <p style={{ fontSize: 11, color: '#9aa0ad', margin: incomingJoinRequests[0].requesterWallet ? '0 0 8px' : '0 0 18px' }}>wants to join your {incomingJoinRequests[0].requesterWallet ? 'pool' : 'room'}</p>
+            {incomingJoinRequests[0].requesterWallet && (
+              <p style={{ fontSize: 11.5, color: '#ffd75e', margin: '0 0 18px', fontFamily: "'IBM Plex Mono', monospace" }}>Prize wallet: {incomingJoinRequests[0].requesterWallet}</p>
+            )}
             {incomingJoinRequests.length > 1 && (
               <p style={{ fontSize: 9.5, color: '#5f6a64', margin: '0 0 12px' }}>+{incomingJoinRequests.length - 1} more waiting</p>
             )}
@@ -19425,8 +19562,10 @@ function MovementDemo() {
                         setEnterCodeBusy(false);
                       }}
                       style={{
-                        textAlign: 'left', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 10, padding: '9px 11px', WebkitTapHighlightColor: 'transparent',
+                        textAlign: 'left', WebkitTapHighlightColor: 'transparent', borderRadius: 10, padding: '9px 11px',
+                        // [POOL v2] pool rooms look different at a glance: gold edge + prize up front
+                        background: r.category === 'pool' ? 'linear-gradient(90deg, rgba(255,215,94,0.13), rgba(255,255,255,0.03) 70%)' : 'rgba(255,255,255,0.04)',
+                        border: r.category === 'pool' ? '1px solid rgba(255,215,94,0.45)' : '1px solid rgba(255,255,255,0.08)',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -19437,7 +19576,7 @@ function MovementDemo() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#7fd9b8' }}>
                         <span>Host: @{r.hostUsername || r.hostName}</span>
                         {r.category === 'paid' && <span style={{ color: '#ffc14c' }}>{r.entryFeeNear} NEAR entry</span>}
-                        {r.category === 'pool' && <span style={{ color: '#ffd75e' }}>{r.poolSizeNear} NEAR pool</span>}
+                        {r.category === 'pool' && <span style={{ color: '#ffd75e', fontWeight: 800 }}>{r.poolSizeNear} {r.payout === 'manual' ? 'NEAR · REAL' : 'tNEAR · TESTNET'}</span>}
                       </div>
                     </button>
                   );
@@ -19605,12 +19744,21 @@ function MovementDemo() {
                       {rooms.length === 0 ? (
                         <div className="dh-empty">No rooms open right now.<br />Start one, or play with AI bots.</div>
                       ) : rooms.map((r) => (
+                        r.category === 'pool' ? (
+                          <div className="dh-room pool" key={r.code} title={`${r.payout === 'manual' ? 'Real NEAR · host pays' : 'Testnet · auto payout'} · ${r.maxMatches || 1} matches`}>
+                            <i className="coin">N</i>
+                            <span className="n"><b className="pz">{r.poolSizeNear} {r.payout === 'manual' ? 'NEAR' : 'tNEAR'}</b>{r.name || 'Pool game'}</span>
+                            <span className="c">{r.seats ?? r.playerCount}/10</span>
+                            <button type="button" className="dh-join pool" onClick={() => joinCode(r.code)}>VIEW</button>
+                          </div>
+                        ) : (
                         <div className="dh-room" key={r.code}>
                           <b>{r.code}</b>
-                          <span className="n">{r.name || (r.category === 'paid' ? 'Paid room' : r.category === 'pool' ? 'Pool room' : 'Free room')}</span>
+                          <span className="n">{r.name || (r.category === 'paid' ? 'Paid room' : 'Free room')}</span>
                           <span className="c">{r.playerCount}/10</span>
                           <button type="button" className="dh-join" onClick={() => joinCode(r.code)}>JOIN</button>
                         </div>
+                        )
                       ))}
                       {(desktopJoinError || firstMatchError) && <div className="dh-err">{desktopJoinError || firstMatchError}</div>}
                       <div className="dh-foot">
@@ -20468,191 +20616,24 @@ function MovementDemo() {
           )}
 
           {homeModal === 'poolGames' && (
-            <GameModeScreen bgImage={CREATE_POOL_BG_IMG} ratio={940 / 1672} onClose={() => setHomeModal(null)}>
-              {/* Pool name - typing lands straight inside the artwork's own
-                  drawn input box; no extra visible border layered on top. */}
-              <input
-                value={poolName} onChange={(e) => setPoolName(e.target.value)} maxLength={40}
-                placeholder="Pool name (optional)"
-                style={{
-                  position: 'absolute', top: '20.10%', height: '4.845%', left: '9.36%', width: '80.53%',
-                  background: 'transparent', border: 'none', outline: 'none', WebkitAppearance: 'none',
-                  color: '#eafffb', fontSize: '2.3vh', fontFamily: 'inherit', padding: '0 3%',
+            <HomeConsole {...consoleShell('pool')} noRail onClose={() => { setPoolFocus(null); setHomeModal(null); }}>
+              <PoolGamesScreen mobile={consoleMobile} onClose={() => { setPoolFocus(null); setHomeModal(null); }} tab={poolTab} setTab={setPoolTab}
+                create={{
+                  busy: poolCreateBusy, error: poolCreateError, onCreate: createPoolV2,
+                  balance: walletBalance != null ? Number(walletBalance).toFixed(2) : null,
+                  myName: loggedInPlayer?.username ? `@${loggedInPlayer.username}` : (playerName || 'you'),
+                  linkExample: poolInviteLink('KQZT').replace(/^https?:\/\//, ''),
                 }}
+                live={{
+                  mine: myLivePools, open: publicLivePools, loading: livePoolsLoading, onRefresh: refreshLivePools,
+                  code: poolFindCode, setCode: setPoolFindCode, onFindCode: findPoolByCode, findError: poolFindError,
+                  focusPool: poolFocus, focusCode: poolFocus ? poolFocus.roomCode : null,
+                  savedWallet: loggedInPlayer?.payoutWallet || '',
+                  busy: poolJoinBusy, error: poolJoinError || poolError, onJoin: joinPoolV2,
+                }}
+                history={{ data: poolHistory.data, loading: poolHistory.loading, error: poolHistory.error, load: loadPoolHistory, markPaid: markPoolPaid }}
               />
-              {/* Number of matches - unselected buttons stay fully invisible
-                  (the artwork already shows "1 / 2 / 3"); selecting one adds
-                  a glow layer on top, switching it off the previous pick. */}
-              {[
-                { n: 1, left: '9.36%', width: '25.85%' },
-                { n: 2, left: '37.13%', width: '25.32%' },
-                { n: 3, left: '64.36%', width: '25.53%' },
-              ].map(({ n, left, width }) => (
-                <div key={n} onClick={() => setPoolMaxMatches(n)}
-                  style={{
-                    position: 'absolute', top: '28.35%', height: '5.263%', left, width,
-                    borderRadius: 6, cursor: 'pointer',
-                    background: poolMaxMatches === n ? 'rgba(110,255,192,0.16)' : 'transparent',
-                    boxShadow: poolMaxMatches === n ? '0 0 8px rgba(110,255,192,0.55), inset 0 0 6px rgba(110,255,192,0.3)' : 'none',
-                    border: poolMaxMatches === n ? '1px solid rgba(110,255,192,0.7)' : '1px solid transparent',
-                  }}
-                />
-              ))}
-              {/* Pool Games is always host-funded now (Paid Games is the
-                  separate entry-fee flow) - this sits over the artwork's
-                  checkbox as a permanent, non-tappable "on" confirmation
-                  rather than a real toggle. */}
-              <div style={{
-                position: 'absolute', top: '38.52%', left: '83.09%', width: '3.83%', height: '2.153%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: '#6effc0', borderRadius: 3, boxShadow: '0 0 6px rgba(110,255,192,0.6)',
-              }}>
-                <span style={{ fontSize: '1.4vh', color: '#06140d', fontWeight: 900, lineHeight: 1 }}>&#10003;</span>
-              </div>
-              {/* Total pool amount */}
-              <input
-                type="number" min="0" step="0.1" inputMode="decimal"
-                value={poolEntryFee} onChange={(e) => setPoolEntryFee(e.target.value)}
-                placeholder="0.00"
-                style={{
-                  position: 'absolute', top: '45.57%', height: '5.263%', left: '20.64%', width: '69.25%',
-                  background: 'transparent', border: 'none', outline: 'none', WebkitAppearance: 'none',
-                  color: '#eafffb', fontSize: '2.3vh', fontFamily: 'inherit', padding: '0 3%',
-                }}
-              />
-              {/* Create button - same create_pool call the app already
-                  relies on, just always host_funded:true from this screen. */}
-              <div
-                onClick={async () => {
-                  if (poolCreateBusy) return;
-                  const amt = parseFloat(poolEntryFee) || 0;
-                  if (!poolMaxMatches || amt <= 0) { setPoolCreateError('Pick a match count and a pool amount first.'); return; }
-                  setPoolCreateError('');
-                  setPoolCreateBusy(true);
-                  if (!(await checkPoolsNotPaused())) {
-                    setPoolCreateError('Pool/Paid games are temporarily paused right now — try again in a bit.');
-                    setPoolCreateBusy(false);
-                    return;
-                  }
-                  try {
-                    const entryFeeYocto = nearToYocto(String(amt));
-                    const onChainPoolId = await callPoolContract('create_pool', {
-                      name: poolName.trim() || 'Pool Game',
-                      max_matches: poolMaxMatches,
-                      entry_fee: entryFeeYocto.toString(),
-                      host_funded: true,
-                    }, { depositYocto: entryFeeYocto.toString(), label: 'Create Pool' });
-                    if (onChainPoolId == null) throw new Error('Pool created, but could not read its ID back. Check your wallet history.');
-                    const linkConfig = { poolName: poolName.trim(), maxMatches: poolMaxMatches, entryFeeNear: amt, hostFunded: true, onChainPoolId, createTxHash: lastPoolTxHashRef.current };
-                    try {
-                      await handleCreateRoom(true, linkConfig);
-                      try {
-                        localStorage.setItem('nearSaboteurPoolId', String(onChainPoolId));
-                        localStorage.removeItem('nearSaboteurRoomCode');
-                      } catch (e) { /* localStorage unavailable */ }
-                      setPendingPoolLink(null);
-                      setPoolName(''); setPoolEntryFee(''); setPoolMaxMatches(1);
-                      setHomeModal(null);
-                      setScreen('lobby');
-                    } catch (linkErr) {
-                      setPendingPoolLink(linkConfig);
-                      throw new Error(`Your pool was created on-chain (#${onChainPoolId}), but setting up the room failed: ${linkErr.message || 'unknown error'}. Reopen Pool Games to retry - this will NOT charge you again.`);
-                    }
-                  } catch (e) {
-                    setPoolCreateError(e.message || 'Failed to create the pool on-chain.');
-                  }
-                  setPoolCreateBusy(false);
-                }}
-                style={{
-                  position: 'absolute', top: '52.15%', height: '4.64%', left: '9.36%', width: '80.96%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, cursor: 'pointer',
-                  fontWeight: 900, letterSpacing: 0.4, fontSize: '1.7vh', textTransform: 'uppercase', textAlign: 'center',
-                  color: poolCreateBusy ? '#fff' : ((poolMaxMatches && parseFloat(poolEntryFee) > 0) ? '#06140d' : '#7c8b8a'),
-                  background: poolCreateBusy ? 'rgba(110,255,192,0.35)' : ((poolMaxMatches && parseFloat(poolEntryFee) > 0) ? '#6effc0' : 'rgba(255,255,255,0.05)'),
-                  boxShadow: (!poolCreateBusy && poolMaxMatches && parseFloat(poolEntryFee) > 0) ? '0 0 10px rgba(110,255,192,0.5)' : 'none',
-                }}
-              >{poolCreateBusy ? 'Confirm in your wallet…' : 'Create Pool Game'}</div>
-              {poolCreateError && (
-                <div style={{ position: 'absolute', top: '57.1%', left: '9.36%', width: '80.53%', fontSize: '1.25vh', color: '#ff8a8a', textAlign: 'center', lineHeight: 1.4 }}>
-                  {poolCreateError}
-                </div>
-              )}
-              {pendingPoolLink && (
-                <div
-                  onClick={async () => {
-                    setPoolCreateError(''); setPoolCreateBusy(true);
-                    try {
-                      await handleCreateRoom(true, pendingPoolLink);
-                      localStorage.setItem('nearSaboteurPoolId', String(pendingPoolLink.onChainPoolId));
-                      localStorage.removeItem('nearSaboteurRoomCode');
-                      setPendingPoolLink(null);
-                      setHomeModal(null);
-                      setScreen('lobby');
-                    } catch (e) {
-                      setPoolCreateError(`Still couldn't set up the room: ${e.message || 'unknown error'}.`);
-                    }
-                    setPoolCreateBusy(false);
-                  }}
-                  style={{
-                    position: 'absolute', top: '58.6%', left: '9.36%', width: '80.53%', textAlign: 'center',
-                    fontSize: '1.2vh', color: '#ffc850', cursor: 'pointer', textDecoration: 'underline',
-                  }}
-                >Retry Room Setup (Pool #{pendingPoolLink.onChainPoolId} — won't charge again)</div>
-              )}
-              {/* [NEW FEATURE] Stuck-payment self-report - for when Retry
-                  itself keeps failing. Flags this pool+player for the
-                  admin so they can see and refund it, without waiting on
-                  Retry to eventually work. */}
-              {pendingPoolLink && (
-                <div
-                  onClick={async () => {
-                    if (stuckReportStatus === 'sending' || stuckReportStatus === 'sent') return;
-                    setStuckReportStatus('sending');
-                    const res = await reportStuckPayment(pendingPoolLink.onChainPoolId);
-                    setStuckReportStatus(res.success ? 'sent' : 'idle');
-                  }}
-                  style={{
-                    position: 'absolute', top: '60.4%', left: '9.36%', width: '80.53%', textAlign: 'center',
-                    fontSize: '1.15vh', color: stuckReportStatus === 'sent' ? '#6effc0' : '#ff9a9a', cursor: 'pointer', textDecoration: 'underline',
-                  }}
-                >{stuckReportStatus === 'sending' ? 'Reporting…' : stuckReportStatus === 'sent' ? '✓ Reported — we\u2019ll sort this out' : 'Still stuck? Report this payment'}</div>
-              )}
-              {/* Live Pools - sits inside the artwork's own drawn panel,
-                  scrolls internally only (the screen itself never scrolls).
-                  Only host-funded pools show up here - see Paid Games for
-                  entry-fee ones. */}
-              <div style={{
-                position: 'absolute', top: '64.31%', height: '27.47%', left: '10.8%', width: '79.12%',
-                overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '1.2% 0',
-              }}>
-                {livePoolsLoading && (
-                  <div style={{ textAlign: 'center', color: '#9aa0ad', fontSize: '1.4vh', padding: '2vh 0' }}>Checking for live pools…</div>
-                )}
-                {!livePoolsLoading && myLivePools.filter(p => p.hostFunded).length === 0 && publicLivePools.filter(p => p.hostFunded).length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#5a7a76', fontSize: '1.4vh', padding: '3vh 2vw' }}>No live pools yet — create one above.</div>
-                )}
-                <LiveGameGrid items={[
-                  ...myLivePools.filter(p => p.hostFunded).map((p) => ({
-                    key: p.onChainPoolId,
-                    onClick: () => setActiveLiveCard({ pool: p, mine: true, kind: 'pool' }),
-                    mine: true,
-                    title: p.poolName,
-                    tag: 'ENTER',
-                    metaLeft: `${p.matchesPlayed}/${p.maxMatches} matches${p.isHost ? ' · you\u2019re host' : ''}`,
-                    metaRight: `${p.entryFeeNear} NEAR pool`,
-                  })),
-                  ...publicLivePools.filter(p => p.hostFunded).map((p) => ({
-                    key: p.onChainPoolId,
-                    onClick: () => setActiveLiveCard({ pool: p, mine: false, kind: 'pool' }),
-                    mine: false,
-                    title: p.poolName,
-                    tag: 'OPEN',
-                    metaLeft: `${p.maxMatches} match${p.maxMatches > 1 ? 'es' : ''} · ${p.playerCount} in room`,
-                    metaRight: `${p.entryFeeNear} NEAR pool`,
-                  })),
-                ]} />
-              </div>
-            </GameModeScreen>
+            </HomeConsole>
           )}
 
           {homeModal === 'paidGames' && (
@@ -21323,6 +21304,24 @@ function MovementDemo() {
       )}
 
 
+      {/* [POOL v2] pool panel in the lobby: invite link, prize split, wallets */}
+      {screen === 'lobby' && roomInfo?.pool && (
+        <LobbyPoolPanel
+          pool={{ ...roomInfo.pool, isPublicRoom: !!roomInfo.isPublic }}
+          code={roomInfo.code}
+          link={poolInviteLink(roomInfo.code)}
+          isPoolHost={!!loggedInPlayer?.username && roomInfo.pool.hostUsername === loggedInPlayer.username}
+          iAmSpectator={!!loggedInPlayer?.username && roomInfo.pool.hostUsername === loggedInPlayer.username && roomInfo.pool.hostRole && roomInfo.pool.hostRole !== 'play'}
+          myWallet={loggedInPlayer?.payoutWallet || ''}
+          onSaveWallet={async (w) => {
+            const res = await fetch(`${BACKEND_URL}/pools/payout-wallet`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, wallet: w }) });
+            const d = await res.json();
+            if (!res.ok) throw new Error(d.message || 'Could not save.');
+            setLoggedInPlayer((p) => (p ? { ...p, payoutWallet: d.wallet } : p));
+          }}
+          fetchWallets={() => new Promise((resolve, reject) => socketRef.current?.emit('getPoolWallets', {}, (r) => (r && r.ok ? resolve(r.players) : reject(new Error('not host')))))}
+        />
+      )}
       {screen === 'lobby' && (
         <LobbyScreen
           playerName={playerName}
@@ -21477,8 +21476,13 @@ function MovementDemo() {
             color: playerRole === 'saboteur' ? '#ff3b3b' : '#ffffff',
             textShadow: playerRole === 'saboteur' ? '0 0 18px rgba(255,59,59,0.65)' : '0 1px 3px rgba(0,0,0,0.6)',
           }}>
-            {playerRole === 'saboteur' ? 'You are The Saboteur' : 'You are a Crewmate'}
+            {playerRole === 'saboteur' ? 'You are The Saboteur' : playerRole === 'spectator' ? "You're watching" : 'You are a Crewmate'}
           </p>
+          {playerRole === 'spectator' && (
+            <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#9aa0ad', letterSpacing: 0.3, textAlign: 'center' }}>
+              You're hosting this pool — you can move around freely and see every player. You don't play or score.
+            </p>
+          )}
           {playerRole === 'crewmate' && (
             <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: '#9aa0ad', letterSpacing: 0.3 }}>
               {saboteurCount} Saboteur{saboteurCount > 1 ? 's' : ''} {saboteurCount > 1 ? 'are' : 'is'} hiding among you.
