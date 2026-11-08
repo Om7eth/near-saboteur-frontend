@@ -6228,6 +6228,19 @@ function LiveGameGrid({ items }) {
 }
 
 
+// [AUTO SETTLE] What happens to the prize after the last match - no confirming needed.
+function PoolSettleStatus({ pool, inline }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const manual = pool.mode === 'manual';
+  const done = pool.state === 'Distributed';
+  const left = pool.settlesAt ? Math.max(0, Math.ceil((pool.settlesAt - now) / 1000)) : null;
+  const text = done
+    ? (manual ? '✓ Winners decided — the host is paying them now. Each winner gets an Inbox message when it\'s sent.' : '✓ Prizes paid automatically to the winners\' wallets.')
+    : left ? `Prizes go out automatically in ${left}s — nothing to confirm.` : 'Sending prizes…';
+  return <p style={{ margin: inline ? 0 : '6px 0 0', fontSize: 11.5, fontWeight: 700, lineHeight: 1.5, color: done ? '#6effc0' : '#ffd75e' }}>{text}</p>;
+}
+
 // [LOBBY STANDINGS] One leaderboard for every room type (Free / Pool / Paid):
 // rank, per-match points, total, and - for pools - what each place wins.
 function StandingsBoard({ entries, pool, maxMatches, matchesPlayed, allDone, meAccountId, missions, onClose, wide }) {
@@ -6261,7 +6274,7 @@ function StandingsBoard({ entries, pool, maxMatches, matchesPlayed, allDone, meA
         </div>
         {allDone && (
           <div style={{ padding: '8px 11px', marginBottom: 10, border: '1px solid rgba(110,255,192,0.35)', background: 'rgba(110,255,192,0.08)', font: `600 11.5px ${mono}`, color: '#6effc0' }}>
-            {pool ? 'Final result — everyone confirms it in the pool panel to release the prizes.' : 'All matches done — you can leave the room now.'}
+            {pool ? <PoolSettleStatus pool={pool} inline /> : 'All matches done — you can leave the room now.'}
           </div>
         )}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -6387,16 +6400,8 @@ function LobbyScreen({
   // hasn't been distributed yet, and I'M a participant who hasn't
   // personally tapped Confirm - drives both the glowing badge (below)
   // and the leave-without-confirming warning dialog.
-  const pendingPoolConfirmForMe = (() => {
-    if (!roomInfo?.pool) return false;
-    if (roomInfo.pool.matchesPlayed < roomInfo.pool.maxMatches) return false;
-    if (roomInfo.pool.state === 'Distributed' || roomInfo.pool.state === 'Refunded') return false;
-    const meAccountId = roomInfo.players?.find((p) => p.id === socket?.id)?.accountId;
-    if (!meAccountId) return false;
-    const amParticipant = (roomInfo.pool.participantAccountIds || []).includes(meAccountId);
-    const haveConfirmed = (roomInfo.pool.confirmedAccountIds || []).includes(meAccountId);
-    return amParticipant && !haveConfirmed;
-  })();
+  // [AUTO SETTLE] pools pay out on their own after the last match - nobody has to confirm any more
+  const pendingPoolConfirmForMe = false;
   // [NEW FEATURE - MATCH LIMIT REACHED] Works the same way for Pool/Paid
   // games (room.pool.maxMatches/matchesPlayed) and Free Play
   // (roomInfo.matchLimit/matchesPlayed) - "No Limit" Free Play has
@@ -7178,35 +7183,12 @@ function LobbyScreen({
               }}>VIEW STANDINGS</button>
             )}
 
-            {(() => {
-              const allMatchesDone = roomInfo.pool.matchesPlayed >= roomInfo.pool.maxMatches;
-              const meAccountId = roomInfo.players.find((p) => p.id === socket?.id)?.accountId;
-              const iAmParticipant = meAccountId && (roomInfo.pool.participantAccountIds || []).includes(meAccountId);
-              const iHaveConfirmed = meAccountId && (roomInfo.pool.confirmedAccountIds || []).includes(meAccountId);
-              if (!allMatchesDone || roomInfo.pool.state === 'Distributed') return null;
-              return (
-                <div style={{ paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <label style={{ fontSize: 9.5, color: '#9aa0ad', fontWeight: 700 }}>
-                    FINAL RESULT — {(roomInfo.pool.confirmedAccountIds || []).length}/{(roomInfo.pool.participantAccountIds || []).length} confirmed
-                  </label>
-                  {iAmParticipant ? (
-                    <button
-                      disabled={poolActionBusy || iHaveConfirmed}
-                      onClick={onConfirmFinalResult}
-                      style={{
-                        width: '100%', padding: '10px 0', borderRadius: 8,
-                        background: iHaveConfirmed ? 'rgba(110,255,192,0.2)' : (poolActionBusy ? 'rgba(255,215,80,0.4)' : '#ffd75e'),
-                        color: iHaveConfirmed ? '#6effc0' : '#1a1200', border: 'none', fontSize: 13, fontWeight: 800,
-                      }}
-                    >{iHaveConfirmed ? 'Confirmed - waiting on others' : (poolActionBusy ? 'Confirming…' : 'Confirm Final Leaderboard')}</button>
-                  ) : (
-                    <p style={{ fontSize: 11, color: '#9aa0ad', textAlign: 'center', margin: 0 }}>
-                      Waiting for every participant to confirm the final leaderboard...
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
+            {roomInfo.pool.matchesPlayed >= roomInfo.pool.maxMatches && (
+              <div style={{ paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <label style={{ fontSize: 9.5, color: '#9aa0ad', fontWeight: 700 }}>FINAL RESULT</label>
+                <PoolSettleStatus pool={roomInfo.pool} />
+              </div>
+            )}
             {isHost && (() => {
               const candidates = roomInfo.players.filter((p) => p.accountId && !p.isHost);
               if (candidates.length === 0 || roomInfo.pool.state === 'Distributed') return null;
