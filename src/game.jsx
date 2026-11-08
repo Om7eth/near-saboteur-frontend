@@ -14679,7 +14679,14 @@ function MovementDemo() {
     const res = await fetch(`${BACKEND_URL}/rooms/check/${encodeURIComponent(code)}?sessionToken=${encodeURIComponent(sessionToken || '')}`);
     const check = await res.json();
     if (!check.found) throw new Error('Room not found. Check the code.');
-    // [POOL v2] Real-NEAR pool: show the prize + wallet step instead of joining blind
+    // [POOL v2] Any pool (Real NEAR or Testnet): show the prize + join step instead of joining blind,
+    // so the player sees what they're joining and any error stays on screen.
+    if (check.pool && check.pool.hostFunded && !check.pool.alreadyParticipant && !check.gameStarted) {
+      setShowLiveRoomsWindow(false);
+      setPoolFocus({ ...check.pool, roomCode: code, mine: false, state: 'Open' });
+      setPoolTab('live'); setPoolJoinError(''); setPoolError(''); setHomeModal('poolGames');
+      return;
+    }
     if (check.pool && check.pool.payout === 'manual') {
       const pool = { ...check.pool, roomCode: code, mine: !!check.pool.alreadyParticipant, state: check.gameStarted ? 'Live' : 'Open' };
       setShowLiveRoomsWindow(false);
@@ -14980,9 +14987,10 @@ function MovementDemo() {
     setActionBusyPoolId(pool.onChainPoolId);
     setPoolError('');
     if (!(await checkPoolsNotPaused())) {
-      setPoolError('Pool/Paid games are temporarily paused right now — try again in a bit.');
+      const msg = 'Pool/Paid games are temporarily paused right now — try again in a bit.';
+      setPoolError(msg);
       setActionBusyPoolId(null);
-      return;
+      return msg; // [POOL v2] callers can show why it failed
     }
     try {
       await callPoolContract('participate', { pool_id: Number(pool.onChainPoolId) }, {
@@ -15002,9 +15010,13 @@ function MovementDemo() {
       await enterPoolAndOpenLobby(pool.onChainPoolId);
     } catch (e) {
       setJoiningRoomOverlay(false);
-      setPoolError(`Couldn't join "${pool.poolName}": ${e.message || 'unknown error'}.`);
+      const msg = `Couldn't join "${pool.poolName}": ${e.message || 'unknown error'}.`;
+      setPoolError(msg);
+      setActionBusyPoolId(null);
+      return msg;
     }
     setActionBusyPoolId(null);
+    return null;
   }
 
   // [BUG FIX - PRIVATE POOL/PAID APPROVAL NEVER ACTUALLY JOINED THE
@@ -17986,7 +17998,11 @@ function MovementDemo() {
         setHomeModal(null);
         await enterPoolAndOpenLobby(pool.onChainPoolId);
       } else {
-        await handleJoinFreePool(pool);
+        // [POOL v2 FIX] Testnet pools need the in-game wallet to sign "participate" -
+        // say so up front instead of failing somewhere out of sight.
+        if (!loggedInPlayer?.walletAddress) throw new Error('Testnet pools need your in-game NEAR wallet. Open Wallet on the Home screen and set it up first, then join.');
+        const failed = await handleJoinFreePool(pool);
+        if (failed) throw new Error(failed);
         setHomeModal(null);
       }
     } catch (e) {
@@ -20639,7 +20655,7 @@ function MovementDemo() {
                   linkExample: poolInviteLink('KQZT').replace(/^https?:\/\//, ''),
                 }}
                 live={{
-                  mine: myLivePools, open: publicLivePools, loading: livePoolsLoading, onRefresh: refreshLivePools,
+                  mine: myLivePools.filter((p) => p.hostFunded), open: publicLivePools.filter((p) => p.hostFunded), loading: livePoolsLoading, onRefresh: refreshLivePools,
                   code: poolFindCode, setCode: setPoolFindCode, onFindCode: findPoolByCode, findError: poolFindError,
                   focusPool: poolFocus, focusCode: poolFocus ? poolFocus.roomCode : null,
                   savedWallet: loggedInPlayer?.payoutWallet || '',
