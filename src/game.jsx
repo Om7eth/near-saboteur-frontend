@@ -13598,9 +13598,16 @@ function MovementDemo() {
         // had our actual last position - this mismatch is what made our
         // own avatar appear in the wrong place after a refresh.
         if (myServerData && typeof myServerData.x === 'number' && typeof myServerData.y === 'number') {
-          const restoredPos = { x: myServerData.x, y: myServerData.y };
+          // [STUCK-OUTSIDE-MAP FIX] A position from before the match (the lobby
+          // uses different coordinates) lands in the empty void at the top-left
+          // of the station, where you can't move. Only restore a spot you can
+          // actually stand on; otherwise go to your spawn point.
+          const onFloor = isWalkableTile(Math.floor(myServerData.x / TILE), Math.floor(myServerData.y / TILE));
+          const myIdx = Math.max(0, data.players.filter((p) => !p.spectator).findIndex((p) => p.id === socket.id));
+          const restoredPos = onFloor ? { x: myServerData.x, y: myServerData.y } : spawnPointPx(myIdx);
           setPos(restoredPos);
           posRef.current = restoredPos;
+          if (!onFloor) socket.emit('playerMove', { x: restoredPos.x, y: restoredPos.y });
         }
         // [BUG FIX] Sync any sabotage that was already active before we
         // reconnected - without this, a player who reconnects mid-game
