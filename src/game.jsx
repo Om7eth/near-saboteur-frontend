@@ -471,7 +471,7 @@ const MISSION_DEFS = [
   { room: 'upper_eng', label: 'Stake NEAR' },
   { room: 'lower_eng', label: 'Claim Rewards' },
   { room: 'electrical', label: 'Repair Power Grid' },
-  { room: 'storage', label: 'Ask NEAR AI 4 Questions' },
+  { room: 'storage', label: 'Ask NEAR AI 3 Questions' },
   { room: 'comms', label: 'Buy Merch' },
   { room: 'o2', label: 'Deploy AI Agent' },
   { room: 'admin', label: 'NEAR Legion' },
@@ -603,7 +603,7 @@ const NEAR_AI_QA = [
 // The "Access NEAR AI" mission only completes once the player has asked at
 // least this many distinct questions — a single question isn't enough to
 // count as actually having a conversation.
-const NEAR_AI_MISSION_MIN_QUESTIONS = 4;
+const NEAR_AI_MISSION_MIN_QUESTIONS = 3;
 
 // NEAR Legion (admin room) — mirrors the real nearlegion.com flow: connect
 // wallet, mint a Soulbound Token (one-time, flat fee), then track ecosystem
@@ -614,7 +614,7 @@ const LEGION_ACTIVITIES = [
   { key: 'stake', label: 'Stake an asset', iconType: 'stake' },
   { key: 'swap', label: 'Cross-chain swap', iconType: 'swap' },
   { key: 'confidential', label: 'Use Confidential Mode', iconType: 'shield' },
-  { key: 'nearAi', label: 'Ask NEAR AI 4 questions', iconType: 'chat' },
+  { key: 'nearAi', label: 'Ask NEAR AI 3 questions', iconType: 'chat' },
 ];
 
 
@@ -2498,65 +2498,75 @@ function NearAIChatMission({ onClose, onComplete, confidentialMode }) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, thinking]);
 
-  const handleAsk = (idx) => {
-    // [BUG FIX] This is what was actually causing the mission to get
-    // "stuck" partway through (reported specifically on this mission,
-    // but the same race existed for any mission reusing this pattern) -
-    // nothing previously stopped a second question from being asked
-    // while the first one's answer was still mid-typewriter-animation.
-    // Doing so left typeTimerRef.current pointing at the NEW interval,
-    // so the ORIGINAL interval kept running unreferenced in the
-    // background - and since both intervals target
-    // messages[messages.length - 1], the older one kept overwriting
-    // whatever the newer question had just written, corrupting the
-    // visible answer and, depending on timing, the "done" flag that
-    // askedIds' completion count depends on. Also blocks literally
-    // re-asking the same already-answered question (previously allowed,
-    // harmless to the count itself, but needlessly reopens this exact
-    // risk if tapped while something else is still typing).
-    if (thinking || typeTimerRef.current || askedIds.includes(idx)) return;
-    const qa = NEAR_AI_QA[idx];
-    setShowSuggestions(false);
-    setMessages(m => [...m, { role: 'user', text: qa.q }]);
-    setThinking(true);
-    setTimeout(() => {
-      setThinking(false);
-      // Push an empty AI message, then type into it in place — this is
-      // what gives the real "tokens streaming into the chat" feel instead
-      // of a separate typing screen.
-      setMessages(m => [...m, { role: 'ai', text: '', done: false }]);
-      let i = 0;
-      const stepMs = typewriterIntervalMs(qa.a);
-      typeTimerRef.current = setInterval(() => {
-        i++;
-        setMessages(m => {
-          const next = [...m];
-          next[next.length - 1] = { role: 'ai', text: qa.a.slice(0, i), done: i >= qa.a.length };
-          return next;
+  // [NEAR AI MISSION - REAL AI] Players type anything (or tap a suggestion)
+  // and the real NEAR AI answers via the server. If NEAR AI is down the
+  // server sends an auto-reply instead; if the server itself can't be
+  // reached, a built-in answer is used - the mission never gets stuck.
+  const [draft, setDraft] = useState('');
+  const [answered, setAnswered] = useState(0);
+  const localAnswer = (q) => {
+    const low = q.toLowerCase();
+    const hit = NEAR_AI_QA.find((qa) => qa.q.toLowerCase() === low)
+      || NEAR_AI_QA.find((qa) => qa.q.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 4).some((w) => low.includes(w)));
+    return hit ? hit.a : "NEAR AI can't be reached right now, so here's a quick auto-reply: NEAR is a fast, low-fee blockchain where AI agents run privately inside secure enclaves.";
+  };
+  const typeOut = (answer, source) => {
+    setMessages(m => [...m, { role: 'ai', text: '', done: false, source }]);
+    let i = 0;
+    const stepMs = typewriterIntervalMs(answer);
+    typeTimerRef.current = setInterval(() => {
+      i++;
+      setMessages(m => {
+        const next = [...m];
+        next[next.length - 1] = { role: 'ai', text: answer.slice(0, i), done: i >= answer.length, source };
+        return next;
+      });
+      if (i >= answer.length) {
+        clearInterval(typeTimerRef.current);
+        typeTimerRef.current = null; // must be null again so the next question is allowed
+        // A question counts once its answer has fully played out.
+        setAnswered(prev => {
+          const n = prev + 1;
+          if (!hasCompleted && n >= NEAR_AI_MISSION_MIN_QUESTIONS) { setHasCompleted(true); onComplete(); }
+          return n;
         });
-        if (i >= qa.a.length) {
-          clearInterval(typeTimerRef.current);
-          // [BUG FIX] Must reset this back to null (not just clear the
-          // interval) - the new guard in handleAsk checks
-          // `typeTimerRef.current` truthiness to block asking a new
-          // question while one's still typing, and a cleared-but-non-
-          // null interval id is still truthy, which would otherwise
-          // permanently lock out every question after the very first one.
-          typeTimerRef.current = null;
-          // Count this question as "asked" only once its answer has fully
-          // played out — and only then check whether the mission's
-          // minimum-questions requirement has been met.
-          setAskedIds(prev => {
-            const next = prev.includes(idx) ? prev : [...prev, idx];
-            if (!hasCompleted && next.length >= NEAR_AI_MISSION_MIN_QUESTIONS) {
-              setHasCompleted(true);
-              onComplete();
-            }
-            return next;
-          });
-        }
-      }, stepMs);
-    }, 700);
+      }
+    }, stepMs);
+  };
+  const handleAsk = async (idxOrText) => {
+    if (thinking || typeTimerRef.current) return;
+    const idx = typeof idxOrText === 'number' ? idxOrText : -1;
+    const q = (idx >= 0 ? NEAR_AI_QA[idx].q : String(idxOrText || '')).trim().slice(0, 300);
+    if (q.length < 2) return;
+    if (idx >= 0) setAskedIds(prev => (prev.includes(idx) ? prev : [...prev, idx]));
+    setShowSuggestions(false);
+    setDraft('');
+    const history = messages.filter(m => m.done !== false).slice(-6).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
+    setMessages(m => [...m, { role: 'user', text: q }]);
+    setThinking(true);
+    let answer = null, source = 'auto';
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 12000);
+      const res = await fetch(`${BACKEND_URL}/near-ai/mission-ask`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q, history }), signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && data.answer) { answer = String(data.answer); source = data.source === 'near-ai' ? 'near-ai' : 'auto'; }
+      else if (res.status === 429 && data && data.message) { answer = data.message; source = 'wait'; }
+    } catch (e) { /* server unreachable - local auto-reply below */ }
+    // A ready-made question always has its own written backup answer: if
+    // NEAR AI didn't answer it live, that exact answer is shown.
+    if (idx >= 0 && source !== 'near-ai' && source !== 'wait') { answer = NEAR_AI_QA[idx].a; source = 'auto'; }
+    if (!answer) answer = localAnswer(q);
+    setThinking(false);
+    if (source === 'wait') {
+      // Rate-limited: show the note but don't count it as an answered question.
+      setMessages(m => [...m, { role: 'ai', text: answer, done: true, source }]);
+      return;
+    }
+    typeOut(answer, source);
   };
 
   return (
@@ -2583,7 +2593,7 @@ function NearAIChatMission({ onClose, onComplete, confidentialMode }) {
         {view === 'chat' && !hasCompleted && (
           <p style={{
             fontFamily: 'ui-monospace, monospace', fontSize: 9, color: '#ffd166', margin: '4px 0 0', letterSpacing: 0.4,
-          }}>&gt;&gt; MISSION: ASK {NEAR_AI_MISSION_MIN_QUESTIONS} QUESTIONS ({askedIds.length}/{NEAR_AI_MISSION_MIN_QUESTIONS})</p>
+          }}>&gt;&gt; MISSION: ASK {NEAR_AI_MISSION_MIN_QUESTIONS} QUESTIONS ({Math.min(answered, NEAR_AI_MISSION_MIN_QUESTIONS)}/{NEAR_AI_MISSION_MIN_QUESTIONS})</p>
         )}
       </div>
 
@@ -2609,7 +2619,7 @@ function NearAIChatMission({ onClose, onComplete, confidentialMode }) {
           <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', minHeight: 0 }}>
             {messages.length === 0 && !thinking && (
               <p style={{ fontSize: 11.5, color: '#4a5450', textAlign: 'center', margin: '20px 0' }}>
-                Tap the box below to ask your first question.
+                Ask anything - type below, or tap 💡 for ideas.
               </p>
             )}
             {messages.map((m, i) => (
@@ -2617,7 +2627,7 @@ function NearAIChatMission({ onClose, onComplete, confidentialMode }) {
                 <p style={{
                   fontFamily: 'ui-monospace, monospace', fontSize: 8.5, margin: '0 0 4px', letterSpacing: 0.4,
                   color: m.role === 'user' ? '#4a5450' : '#5fd9c8',
-                }}>{m.role === 'user' ? '>> YOU' : '>> NEAR AI'}</p>
+                }}>{m.role === 'user' ? '>> YOU' : (m.source === 'near-ai' ? '>> NEAR AI · LIVE' : m.source === 'wait' ? '>> NEAR AI' : '>> NEAR AI · AUTO-REPLY')}</p>
                 <p style={{
                   fontSize: m.role === 'user' ? 13.5 : 13, fontWeight: m.role === 'user' ? 700 : 400,
                   color: m.role === 'user' ? '#fff' : '#dfe2ea', margin: 0, lineHeight: 1.55,
@@ -2688,23 +2698,40 @@ function NearAIChatMission({ onClose, onComplete, confidentialMode }) {
             </div>
           )}
 
-          {/* Real chat input bar — text field look + send button, like
-              private.near.ai. Tapping it (it's a button, not an editable
-              field, since answers are pre-written) opens the suggestion
-              overlay above instead of a keyboard. */}
-          <div style={{ padding: '10px 14px 14px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
-            <button onClick={() => setShowSuggestions(true)} style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-              padding: '11px 8px 11px 14px', borderRadius: 24, border: '1px solid rgba(255,255,255,0.15)',
-              background: '#111', color: '#6a7570', fontSize: 12.5,
+          {/* Ready-made questions (each has a written backup answer). */}
+          {!showSuggestions && (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '8px 14px 0', flexShrink: 0, scrollbarWidth: 'none' }}>
+              {NEAR_AI_QA.map((qa, i) => ({ qa, i })).filter(({ i }) => !askedIds.includes(i)).slice(0, 4).map(({ qa, i }) => (
+                <button key={i} type="button" disabled={thinking} onClick={() => handleAsk(i)} style={{
+                  flexShrink: 0, maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  padding: '6px 11px', borderRadius: 999, border: '1px solid rgba(110,255,192,0.35)',
+                  background: 'rgba(110,255,192,0.06)', color: '#9ff0cf', fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                }}>{qa.q}</button>
+              ))}
+            </div>
+          )}
+          {/* Real chat input: type anything, or 💡 for suggested questions. */}
+          <form onSubmit={(ev) => { ev.preventDefault(); handleAsk(draft); }} style={{
+            padding: '10px 14px 14px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <button type="button" onClick={() => setShowSuggestions(true)} title="Suggested questions" style={{
+              width: 34, height: 34, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)',
+              background: '#111', fontSize: 15, flexShrink: 0, cursor: 'pointer', padding: 0,
+            }}>💡</button>
+            <div style={{
+              flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6,
+              padding: '4px 4px 4px 14px', borderRadius: 24, border: '1px solid rgba(255,255,255,0.15)', background: '#111',
             }}>
-              <span style={{ flex: 1, textAlign: 'left' }}>Message Private Chat…</span>
-              <span style={{
-                width: 28, height: 28, borderRadius: '50%', background: '#6effc0', color: '#050505',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0,
-              }}>↑</span>
-            </button>
-          </div>
+              <input value={draft} onChange={(ev) => setDraft(ev.target.value)} maxLength={300} enterKeyHint="send"
+                placeholder={thinking || typeTimerRef.current ? 'NEAR AI is answering…' : 'Ask NEAR AI anything…'}
+                style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: '#e8e8f0', fontSize: 13.5, padding: '7px 0' }} />
+              <button type="submit" disabled={thinking || draft.trim().length < 2} aria-label="Send" style={{
+                width: 28, height: 28, borderRadius: '50%', border: 'none', flexShrink: 0, cursor: 'pointer',
+                background: draft.trim().length >= 2 && !thinking ? '#6effc0' : '#2a2f2d', color: '#050505', fontSize: 13,
+              }}>↑</button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -15550,8 +15577,10 @@ function MovementDemo() {
   }, [soundOn]);
   const bgmTrack = !musicActive ? null
     : screen === 'game' ? (gameResult ? 'menu' : inMeeting ? 'meeting' : 'game')
-    : ['home', 'lobby', 'profileEdit', 'loading'].includes(screen) ? 'menu'
-    : null; // sign-up / role reveal stay quiet
+    // [BGM] new players hear the Hangar theme from the very first screen
+    // (welcome / sign-up / onboarding) - browsers start it on the first tap.
+    : ['home', 'lobby', 'profileEdit', 'loading', 'auth', 'walletChoice', 'onboardReady'].includes(screen) ? 'menu'
+    : null; // role reveal stays quiet
   useEffect(() => { BGM.play(bgmTrack); }, [bgmTrack]);
   // browsers only allow sound after the first tap/key; pause when the tab is hidden
   useEffect(() => {
@@ -23122,7 +23151,7 @@ function MovementDemo() {
         >
           {isDesktopPointer && <KeyCap k="E" />}<HudIcon name={nearTask.room === 'reactor' && !vaultUnlocked ? 'lock' : nearTask.room} size={15} color="currentColor" style={{ marginRight: 2 }} />{nearTask.room === 'reactor' && !vaultUnlocked
           ? `Vault locked — needs ${MISSIONS_REQUIRED_FOR_VAULT} missions done (crew: ${crewProgress.minDone}/${MISSIONS_REQUIRED_FOR_VAULT})`
-          : ({ cafeteria: 'Call Assembly', medbay: 'Verify Wallet', security: 'Access Security Hub', reactor: 'Enable Confidential Mode', upper_eng: 'Stake NEAR', lower_eng: 'Claim Rewards', electrical: 'Repair Power Grid', storage: 'Ask NEAR AI 4 Questions', comms: 'Buy Merch', o2: 'Deploy AI Agent', admin: 'NEAR Legion', shields: 'Cross-Chain Swap', weapons: 'Buy Meme Coin', navigation: 'Stop Hacker Attack' }[nearTask.room] || 'Start Mission')}</button>
+          : ({ cafeteria: 'Call Assembly', medbay: 'Verify Wallet', security: 'Access Security Hub', reactor: 'Enable Confidential Mode', upper_eng: 'Stake NEAR', lower_eng: 'Claim Rewards', electrical: 'Repair Power Grid', storage: 'Ask NEAR AI 3 Questions', comms: 'Buy Merch', o2: 'Deploy AI Agent', admin: 'NEAR Legion', shields: 'Cross-Chain Swap', weapons: 'Buy Meme Coin', navigation: 'Stop Hacker Attack' }[nearTask.room] || 'Start Mission')}</button>
       )}
 
       {showMission && nearTask && nearTask.room === 'medbay' && (
