@@ -10937,10 +10937,12 @@ function MovementDemo() {
       let data = {};
       try { data = await res.json(); } catch (e) { /* non-JSON error page */ }
       if (!res.ok) {
-        // The server actually answered (even if the answer is "no") -
-        // this is a real rejection, not a network failure.
+        // [BUG FIX - LOGGED OUT ON EVERY DEPLOY] Only 401/403 mean "this
+        // session is really invalid". A 500/502/503 (server restarting,
+        // Render cold start, proxy page) used to log the player out too -
+        // now those are retried like a network failure.
         const err = new Error(data.message || 'Session invalid.');
-        err.isAuthRejection = true;
+        if (res.status === 401 || res.status === 403) { err.isAuthRejection = true; throw err; }
         throw err;
       }
       return data;
@@ -11753,50 +11755,89 @@ function MovementDemo() {
     } catch (e) { /* modal just shows unlocked-count as unknown until this succeeds */ }
   }
 
+  // [PLAY PASS - REAL NEAR] Paid in real NEAR on mainnet from the player's own
+  // wallet (HOT / Meteor / Intear) straight to the game's wallet. The player
+  // approves it inside their wallet - the game never touches a key. They first
+  // sign a one-time message so the server knows the paying wallet is theirs.
+  const [playPassStep, setPlayPassStep] = useState('');
+  const paySelectorRef = useRef(null);
+  async function getPayWallet() {
+    if (!paySelectorRef.current) {
+      const selector = await setupWalletSelector({ network: 'mainnet', modules: [setupHotWallet(), setupMeteorWallet(), setupIntearWallet()] });
+      paySelectorRef.current = { selector, modal: setupModal(selector, {}) };
+    }
+    const { selector, modal } = paySelectorRef.current;
+    if (!selector.isSignedIn()) {
+      await new Promise((resolve, reject) => {
+        const sub = selector.on('signedIn', () => { sub.remove(); resolve(); });
+        modal.show();
+        const hide = modal.on ? modal.on('onHide', ({ hideReason } = {}) => { if (hideReason === 'user-triggered') { sub.remove(); reject(new Error('Wallet connection was cancelled.')); } }) : null;
+        void hide;
+      });
+    }
+    const wallet = await selector.wallet();
+    const accounts = await wallet.getAccounts();
+    const accountId = accounts && accounts[0] && accounts[0].accountId;
+    if (!accountId) throw new Error('Your wallet did not share an account.');
+    return { wallet, accountId };
+  }
+  async function claimPlayPassPayment(txHash, payer) {
+    const res = await fetch(`${BACKEND_URL}/play-pass/purchase-mainnet`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, txHash, payerAccountId: payer }) });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      try { localStorage.removeItem('nearSaboteurPlayPassPending'); } catch (e) { /* ignore */ }
+      setLoggedInPlayer((prev) => prev ? { ...prev, hasPlayPass: true } : prev);
+      return null;
+    }
+    if (res.status === 402 || data.status === 'needs_refund') { try { localStorage.removeItem('nearSaboteurPlayPassPending'); } catch (e) { /* ignore */ } }
+    return data.message || 'We could not confirm the payment yet. It is safe - we will check again.';
+  }
   async function handleBuyPlayPass() {
     setPlayPassError('');
-    if (!loggedInPlayer) { setPlayPassError('Please log in first.'); return; }
-    if (loggedInPlayer.walletType !== 'ingame' || !loggedInPlayer.walletAddress) {
-      setPlayPassError('You need an in-game wallet set up to buy Play Pass. Set one up from your Profile first.');
-      return;
-    }
+    if (!loggedInPlayer || !sessionToken) { setPlayPassError('Please log in first.'); return; }
     if (!playPassConfig?.enabled) { setPlayPassError('Play Pass purchases are currently unavailable.'); return; }
-    const notPaused = await checkPoolsNotPaused();
-    if (!notPaused) { setPlayPassError('Payments are temporarily paused. Please try again shortly.'); return; }
     setPlayPassBusy(true);
     try {
-      const amount = playPassConfig.effectivePriceNear;
-      const recipient = playPassConfig.receivingAccountId;
-      if (loggedInPlayer.walletType === 'connected' && walletSelector) {
-        const wallet = await walletSelector.wallet();
-        const outcome = await wallet.signAndSendTransaction({
-          receiverId: recipient,
-          actions: [{ type: 'Transfer', params: { deposit: nearToYocto(String(amount)).toString() } }],
-        });
-        lastPlayPassTxHashRef.current = outcome?.transaction?.hash || outcome?.transaction_outcome?.id || null;
-      } else {
-        const secretKey = await getWalletSecretKey({ label: 'Buy Play Pass', amountNear: String(amount), recipient });
-        try {
-          const { result } = await signAndSendTransaction({
-            signerId: loggedInPlayer.walletAddress,
-            receiverId: recipient,
-            actions: [actions.transfer(nearToYocto(String(amount)))],
-            secretKey,
-            rpcUrl: NEAR_RPC_URL,
-          });
-          lastPlayPassTxHashRef.current = result?.transaction?.hash || result?.transaction_outcome?.id || null;
-        } finally {
-          closeWalletActionPrompt();
-        }
+      setPlayPassStep('Connect your NEAR wallet…');
+      const { wallet, accountId } = await getPayWallet();
+      if (loggedInPlayer.playPassPayerWallet !== accountId) {
+        setPlayPassStep(`Confirm ${accountId} is your wallet (sign the message — it costs nothing)…`);
+        const proof = await verifyWalletWithBackend(accountId, wallet);
+        const link = await fetch(`${BACKEND_URL}/play-pass/link-wallet`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, ...proof }) });
+        const linked = await link.json().catch(() => ({}));
+        if (!link.ok) throw new Error(linked.message || 'Could not confirm your wallet.');
+        setLoggedInPlayer((prev) => prev ? { ...prev, playPassPayerWallet: accountId } : prev);
       }
-      if (!lastPlayPassTxHashRef.current) throw new Error('Could not read the transaction hash. Please try again.');
-      const data = await authFetch('/play-pass/purchase', { sessionToken, txHash: lastPlayPassTxHashRef.current });
-      setLoggedInPlayer((prev) => prev ? { ...prev, hasPlayPass: !!data.hasPlayPass } : prev);
+      const amount = String(playPassConfig.effectivePriceNear);
+      const receiver = playPassConfig.receivingAccountId;
+      setPlayPassStep(`Approve sending ${amount} NEAR to ${receiver} in your wallet…`);
+      const outcome = await wallet.signAndSendTransaction({
+        receiverId: receiver,
+        actions: [{ type: 'Transfer', params: { deposit: nearToYocto(amount).toString() } }],
+      });
+      const txHash = outcome?.transaction?.hash || outcome?.transaction_outcome?.id || null;
+      if (!txHash) throw new Error('Your wallet did not return the transaction. If NEAR left your wallet, Play Pass will switch on automatically once we see it — or contact us from the Inbox.');
+      try { localStorage.setItem('nearSaboteurPlayPassPending', JSON.stringify({ txHash, payer: accountId })); } catch (e) { /* ignore */ }
+      setPlayPassStep('Payment sent — checking it on the NEAR network…');
+      let err = null;
+      for (let i = 0; i < 4; i++) { err = await claimPlayPassPayment(txHash, accountId); if (!err || !/yet|reach|wait/i.test(err)) break; await new Promise((r) => setTimeout(r, 3000)); }
+      if (err) throw new Error(err);
     } catch (e) {
       setPlayPassError(e.message || 'Purchase failed. Please try again.');
     }
+    setPlayPassStep('');
     setPlayPassBusy(false);
   }
+  // A payment that was sent but not confirmed (closed tab, lost network) is retried on the next visit.
+  useEffect(() => {
+    if (!sessionToken || !loggedInPlayer || loggedInPlayer.hasPlayPass) return;
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem('nearSaboteurPlayPassPending') || 'null'); } catch (e) { pending = null; }
+    if (!pending || !pending.txHash) return;
+    claimPlayPassPayment(pending.txHash, pending.payer).then((err) => { if (err) setPlayPassError(err); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken, !!loggedInPlayer]);
+
 
   // [NEW FEATURE - PLAY PASS] variantId null clears back to the plain
   // avatar for playerAvatarId's current color (the "revert" action in
@@ -21242,7 +21283,7 @@ function MovementDemo() {
               <HomeConsole {...consoleShell('pass')} noRail accent="gold" onClose={closePass} escBlocked={showCustomAvatarRequestModal}>
                 <PlayPassScreen mobile={consoleMobile} onClose={closePass} pp={{
                   owned: !!loggedInPlayer?.hasPlayPass, config: playPassConfig, status: playPassStatus,
-                  error: playPassError, busy: playPassBusy, onBuy: handleBuyPlayPass,
+                  error: playPassError, busy: playPassBusy, step: playPassStep, onBuy: handleBuyPlayPass,
                   skins: PREMIUM_AVATARS, passImg: PLAY_PASS_IMG, NameTag: PlayerNameTag,
                   name: loggedInPlayer?.name || playerName,
                   onRequestCustom: () => { setShowCustomAvatarRequestModal(true); loadCustomAvatarRequestConfig(); },

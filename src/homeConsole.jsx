@@ -1214,6 +1214,16 @@ function CloseBtn({ onClose }) {
   return <button type="button" className="hc-closeb" onClick={onClose}><Ico d={P.back} c="#7d8d86" />BACK TO HANGAR<kbd>ESC</kbd></button>;
 }
 
+// [PLAY PASS - REAL NEAR] what you pay, where it goes, and the refund rule
+function PayNote({ cfg }) {
+  return (
+    <div className="hc-note" style={{ textAlign: 'left', fontSize: 11.5, lineHeight: 1.55, padding: '10px 12px', border: '1px solid rgba(255,207,110,.25)', background: 'rgba(255,207,110,.05)', marginTop: 10 }}>
+      <b style={{ color: '#ffcf6e' }}>Real NEAR on mainnet.</b> You pay from your own NEAR wallet (HOT, Meteor or Intear) straight to the game's official wallet <b style={{ color: '#ffcf6e' }}>{cfg.receivingAccountId}</b>. You approve it inside your wallet — the game never sees your keys.
+      <br /><span style={{ color: '#9fb0a8' }}>{cfg.refundPolicy || "If your payment arrives but Play Pass isn't switched on, we send the NEAR back. Once Play Pass is active, purchases are final."}</span>
+    </div>
+  );
+}
+
 export function PlayPassScreen({ mobile, onClose, pp }) {
   const owned = !!pp.owned;
   const total = pp.skins.length;
@@ -1235,10 +1245,12 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
         <div className="hc-price">
           {cfg.discountPercent > 0 && <span className="off">{cfg.discountPercent}% OFF</span>}
           <b>{cfg.effectivePriceNear} NEAR{cfg.discountPercent > 0 && <s>{cfg.priceNear}</s>}</b>
-          <span>ONE-TIME PURCHASE · YOURS FOREVER</span>
+          <span>REAL NEAR · ONE-TIME · YOURS FOREVER</span>
         </div>
         {pp.error && <div className="hc-note hc-err" style={{ textAlign: 'center' }}>{pp.error}</div>}
-        <button type="button" className="hc-buy" disabled={pp.busy} onClick={pp.onBuy}>{pp.busy ? 'CONFIRMING…' : 'BUY PLAY PASS'}</button>
+        {pp.busy && pp.step && <div className="hc-note" style={{ textAlign: 'center', color: '#ffcf6e' }}>{pp.step}</div>}
+        <button type="button" className="hc-buy" disabled={pp.busy} onClick={pp.onBuy}>{pp.busy ? 'WAITING FOR YOUR WALLET…' : `PAY ${cfg.effectivePriceNear} NEAR WITH YOUR WALLET`}</button>
+        <PayNote cfg={cfg} />
       </>
     );
   const lockIco = <svg viewBox="0 0 24 24" fill="none"><path d={LOCK_P} stroke="#9aa0ad" strokeWidth="2.2" strokeLinejoin="round" /></svg>;
@@ -1316,9 +1328,10 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
         {!owned && cfg && cfg.enabled && (
           <div className="hc-mbuy">
             <div className="pr"><b>{cfg.effectivePriceNear} NEAR</b><span>{cfg.discountPercent > 0 ? `${cfg.discountPercent}% OFF · was ${cfg.priceNear}` : 'one-time · forever'}</span></div>
-            <button type="button" className="hc-buy" disabled={pp.busy} onClick={pp.onBuy}>{pp.busy ? 'CONFIRMING…' : 'BUY PLAY PASS'}</button>
+            <button type="button" className="hc-buy" disabled={pp.busy} onClick={pp.onBuy}>{pp.busy ? 'WAITING…' : 'PAY WITH WALLET'}</button>
           </div>
         )}
+        {!owned && cfg && cfg.enabled && <div style={{ padding: '0 16px 10px' }}>{pp.busy && pp.step && <div className="hc-note" style={{ textAlign: 'center', color: '#ffcf6e', marginBottom: 6 }}>{pp.step}</div>}<PayNote cfg={cfg} /></div>}
         {!owned && pp.error && <div className="hc-note hc-err" style={{ textAlign: 'center', padding: '0 16px 10px' }}>{pp.error}</div>}
         {!owned && cfg && !cfg.enabled && <div className="hc-note" style={{ textAlign: 'center', padding: '0 16px 16px' }}>Play Pass purchases are unavailable right now.</div>}
       </div>
