@@ -9568,7 +9568,7 @@ function MatchRewardsCard({ data, myId, onOpenWallet }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
         <span style={{ fontSize: 13, fontWeight: 900, color: SAB_GOLD }}>$SABOTEUR rewards</span>
         <SabChip>TESTNET</SabChip>
-        {me && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: me.tokens > 0 ? SAB_GOLD : '#7d8a92' }}>{me.tokens > 0 ? `You +${fmtSab(me.tokens)}` : (me.guest ? 'Sign in to earn' : 'No reward')}</span>}
+        {me && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: me.tokens > 0 ? SAB_GOLD : '#7d8a92' }}>{me.tokens > 0 ? `You +${fmtSab(me.tokens)}${me.playPass ? ' (2× Play Pass)' : ''}` : (me.guest ? 'Sign in to earn' : 'No reward')}</span>}
       </div>
       <div style={{ fontSize: 10.5, color: data.humans >= 4 ? '#bff5dc' : '#ffdc9a', marginBottom: 6 }}>{tierText}</div>
       <div style={{ maxHeight: 170, overflowY: 'auto' }}>
@@ -9586,7 +9586,7 @@ function MatchRewardsCard({ data, myId, onOpenWallet }) {
               title={(r.backs || []).map((b) => `backed ${b.target}: ${b.correct ? 'right' : 'wrong'}`).join(', ') || 'no backed vote'}>
               {r.backDelta > 0 ? `+${r.backDelta}` : r.backDelta < 0 ? `${r.backDelta}` : '—'}
             </span>
-            <span style={{ width: 64, textAlign: 'right', fontWeight: 900, color: r.tokens > 0 ? SAB_GOLD : '#5a636b' }}>{r.tokens > 0 ? `+${fmtSab(r.tokens)}` : (r.guest ? 'guest' : '0')}</span>
+            <span style={{ width: 64, textAlign: 'right', fontWeight: 900, color: r.tokens > 0 ? SAB_GOLD : '#5a636b' }}>{r.tokens > 0 ? `+${fmtSab(r.tokens)}` : (r.guest ? 'guest' : '0')}{r.playPass && r.tokens > 0 && <small title="Play Pass: 2× $SABOTEUR" style={{ display: 'block', fontSize: 9, color: '#ffcf6e', fontWeight: 800 }}>2× PASS</small>}</span>
           </div>
         ))}
       </div>

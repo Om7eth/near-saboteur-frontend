@@ -859,6 +859,45 @@ function ReportForm({ r }) {
     </div>
   );
 }
+// [INBOX READABILITY] Bigger, brighter text; one sentence per line; NEAR /
+// $SABOTEUR amounts in gold and wallet addresses in a mono chip.
+const INBOX_CSS = `
+.hc-inbox .hc-ml{padding:14px 14px !important;gap:10px}
+.hc-inbox .hc-ml .tt b{font:600 15px var(--disp);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3}
+.hc-inbox .hc-ml .tt span{font:13px/1.45 'IBM Plex Sans',var(--disp),sans-serif;color:#9fb0a8;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin-top:5px}
+.hc-inbox .hc-ml .tt .tg{font-size:10px;margin-bottom:6px}
+.hc-inbox .hc-ml.un .tt span{color:#c3cfc9}
+.hc-inbox .hc-ml small{font-size:11px}
+.hc-msgcard{margin-top:18px;max-width:660px;padding:20px 22px;border:1px solid var(--line);background:rgba(255,255,255,.025);border-radius:6px}
+.hc-msgcard p{margin:0 0 12px;font:16px/1.7 'IBM Plex Sans',var(--disp),sans-serif;color:#e2e9e5;word-break:break-word}
+.hc-msgcard p:last-child{margin-bottom:0}
+.hc-msgcard .amt{color:#ffd75e;font-weight:700;white-space:nowrap}
+.hc-msgcard .wal{font:13px var(--mono);color:#6effc0;background:rgba(110,255,192,.08);border:1px solid rgba(110,255,192,.25);padding:1px 6px;border-radius:4px;word-break:break-all}
+.hc-msgcard img{display:block;max-width:100%;margin-top:14px;border:1px solid var(--line)}
+.hc-m .hc-msgcard{padding:16px;margin-top:14px}.hc-m .hc-msgcard p{font-size:15px}
+`;
+const MSG_TOKEN = /([+−-]?\d[\d,]*(?:\.\d+)?\s?(?:tNEAR|NEAR|\$SABOTEUR|SABOTEUR))|((?:[a-z0-9_-]+\.)+(?:near|testnet|tg)\b|\b[0-9a-f]{64}\b|\b0x[0-9a-fA-F]{40}\b)/g;
+function richLine(text, key) {
+  const out = []; let last = 0; let m;
+  MSG_TOKEN.lastIndex = 0;
+  while ((m = MSG_TOKEN.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(m[1] ? <span key={`${key}a${m.index}`} className="amt">{m[1]}</span> : <span key={`${key}w${m.index}`} className="wal">{m[2]}</span>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+function MessageBody({ body, imageUrl }) {
+  const paras = String(body || '').split(/\n+/).flatMap((para) => para.split(/(?<=[.!?])\s+(?=[A-Z0-9"“(])/)).map((x) => x.trim()).filter(Boolean);
+  return (
+    <div className="hc-msgcard">
+      {paras.length ? paras.map((t, i) => <p key={i}>{richLine(t, i)}</p>) : <p style={{ color: 'var(--dim)' }}>No details in this message.</p>}
+      {imageUrl && <img src={imageUrl} alt="" />}
+    </div>
+  );
+}
+
 export function InboxScreen({ mobile, onClose, messages, onRead, onMarkAll, onDelete, report, startInReport }) {
   const [selId, setSelId] = useState(null);
   const [rep, setRep] = useState(!!startInReport);
@@ -885,7 +924,7 @@ export function InboxScreen({ mobile, onClose, messages, onRead, onMarkAll, onDe
         </div>
         <button type="button" className="hc-gear red" style={{ marginLeft: 'auto' }} onClick={() => { onDelete(sel._id); setSelId(null); if (mobile) setOpen(false); }}><Ico d={P.trash} c="#ff8a8a" />DELETE</button>
       </div>
-      <div className="hc-art">{sel.body}{sel.imageUrl && <img src={sel.imageUrl} alt="" />}</div>
+      <MessageBody body={sel.body} imageUrl={sel.imageUrl} />
     </>
   );
   const repView = (
@@ -898,7 +937,8 @@ export function InboxScreen({ mobile, onClose, messages, onRead, onMarkAll, onDe
   if (mobile) {
     return (
       <MobileWrap open={open}>
-        <div className="hc-page top">
+        <style>{INBOX_CSS}</style>
+        <div className="hc-page top hc-inbox">
           <MobileHead title="INBOX" sub={unread ? `${unread} unread` : 'All caught up'} onBack={onClose} />
           <div className="hc-filters">
             {unread > 0 && <button type="button" className="hc-chip" onClick={onMarkAll}>MARK ALL READ</button>}
@@ -919,7 +959,8 @@ export function InboxScreen({ mobile, onClose, messages, onRead, onMarkAll, onDe
         {unread > 0 && <button type="button" className="hc-gear" onClick={onMarkAll}>MARK ALL AS READ</button>}
         <button type="button" className="hc-gear hi" onClick={() => setRep(true)}><Ico d={P.report} c="#6effc0" />REPORT AN ISSUE</button>
       </DeskHead>
-      <div className="hc-split bt">
+      <style>{INBOX_CSS}</style>
+      <div className="hc-split bt wide hc-inbox">
         <div className="hc-list" style={{ paddingTop: 18 }}>{list}</div>
         <div className="hc-det">{rep ? repView : reading || <div className="hc-empty" style={{ marginTop: 40 }}>Nothing to read yet.</div>}</div>
       </div>
@@ -1240,6 +1281,14 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
         <div className="hc-demo">
           <span className="hc-bub">i think it's red tbh</span>
           <span className="hc-bub gold">IT'S RED, VOTE NOW</span>
+        </div>
+      </div>
+      <div className="hc-feat wide">
+        <h3>2× $SABOTEUR EVERY MATCH</h3>
+        <p>Every match reward in $SABOTEUR testnet tokens is doubled for Play Pass holders. These are testnet tokens: they have no value today, and nothing is promised about the future.</p>
+        <div className="hc-demo" style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <span className="hc-bub">#2 finish · +600 $SABOTEUR</span>
+          <span className="hc-bub gold">WITH PLAY PASS · +1,200 $SABOTEUR</span>
         </div>
       </div>
       <div className="hc-feat wide">
