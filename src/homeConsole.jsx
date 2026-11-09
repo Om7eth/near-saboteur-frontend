@@ -5,6 +5,7 @@
 // all data and actions come in as props from game.jsx (approved mockup:
 // mockups/console-activity-mockup.html).
 import React, { useEffect, useMemo, useState } from 'react';
+import { STICKERS } from './stickers';
 
 const P = {
   activity: 'M3 12h4l2.5-6 4 12 2.5-6H21',
@@ -1109,6 +1110,8 @@ const CSS2 = `
 .hc-bub{align-self:flex-start;max-width:85%;padding:7px 11px;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);font-size:12.5px;color:#e8e8f0}
 .hc-bub.gold{background:linear-gradient(135deg,#ffd75e,#e8a831);border-color:rgba(255,255,255,.4);box-shadow:0 0 12px rgba(255,215,94,.5);color:#241a00;font-weight:800}
 .hc-gif{align-self:flex-end;width:110px;height:70px;border-radius:8px;background:linear-gradient(135deg,#2a2440,#1a1830);border:1px solid rgba(110,255,192,.3);display:flex;align-items:center;justify-content:center;font:800 11px var(--mono);color:rgba(255,255,255,.45);position:relative}
+.hc-stk{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;padding:10px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.06)}
+.hc-stk img{width:100%;aspect-ratio:4/3;object-fit:contain;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
 .hc-gif small{position:absolute;right:5px;bottom:3px;font-size:8px;opacity:.7}
 .hc-frame{width:56px;height:56px;flex-shrink:0;position:relative;background:#06140d;border-radius:10px;display:flex;align-items:center;justify-content:center}
 .hc-frame:before{content:"";position:absolute;inset:2px;border-radius:8px;border:1.5px solid rgba(255,215,80,.85);box-shadow:0 0 9px rgba(255,215,80,.6),inset 0 0 6px rgba(255,215,80,.25)}
@@ -1307,6 +1310,13 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
         </div>
       </div>
       <div className="hc-feat wide">
+        <h3>24 CHAT STICKERS</h3>
+        <p>Send big sticker reactions in Lobby, Meeting and Ghost chat — SUS!, I saw you!, Not me!, Skip! and more. Tap the sticker button next to GIF.</p>
+        <div className="hc-stk">
+          {STICKERS.map((st) => <img key={st.id} src={st.src} alt={st.label} title={st.label} loading="lazy" />)}
+        </div>
+      </div>
+      <div className="hc-feat wide">
         <h3>2× $SABOTEUR EVERY MATCH</h3>
         <p>Every match reward in $SABOTEUR testnet tokens is doubled for Play Pass holders. These are testnet tokens: they have no value today, and nothing is promised about the future.</p>
         <div className="hc-demo" style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -1363,7 +1373,7 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
   }
   return (
     <>
-      <DeskHead title="PLAY PASS" sub="Premium skins, GIFs, gold name tag · one-time purchase">
+      <DeskHead title="PLAY PASS" sub="Premium skins, stickers, GIFs, gold name tag · one-time purchase">
         <CloseBtn onClose={onClose} />
       </DeskHead>
       <div className="hc-pp">

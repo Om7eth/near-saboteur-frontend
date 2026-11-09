@@ -25,6 +25,7 @@ import { createBgm } from './bgm';
 import { HudIcon, HudButton, MissionFloat, MISSION_ICON, HUD_CSS } from './hudKit';
 import { RoleRevealMoment, VoteResultMoment, EjectRevealMoment, SaboteurRevealMoment, AlarmMoment, MOMENT_CSS } from './matchMoments';
 import { PoolGamesScreen, LobbyPoolPanel, setPoolArt } from './poolScreen';
+import { STICKERS, stickerSrc } from './stickers';
 // [POOL v2] Invite links: nearsaboteur.com/?join=KQZT (also /join/KQZT once the
 // host has a "/* -> /index.html" rewrite). Read once on load, then the URL is cleaned.
 function readInviteCodeFromUrl() {
@@ -3396,7 +3397,9 @@ function LegionBonusMission({
 // trending GIFs by default via /gif/trending, same as any GIF picker.
 // "Search KLIPY" placeholder + "Powered by KLIPY" footer are Klipy's own
 // attribution requirements, not optional styling choices.
-function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewportTop = 0 }) {
+function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewportTop = 0, initialTab = 'gifs' }) {
+  // [PLAY PASS - STICKERS] Stickers and GIFs share this sheet as two tabs.
+  const [tab, setTab] = useState(initialTab === 'stickers' ? 'stickers' : 'gifs');
   const [query, setQuery] = useState('');
   const [gifs, setGifs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3450,6 +3453,7 @@ function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewpor
   // initial trending load and every subsequent debounced search.
   const isFirstRunRef = useRef(true);
   useEffect(() => {
+    if (tab !== 'gifs') return; // [PLAY PASS - STICKERS] no GIF fetch until the GIFs tab is opened
     if (isFirstRunRef.current) {
       isFirstRunRef.current = false;
       runSearch('');
@@ -3457,7 +3461,7 @@ function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewpor
     }
     const t = setTimeout(() => { runSearch(query); }, 400);
     return () => clearTimeout(t);
-  }, [query, runSearch]);
+  }, [query, runSearch, tab]);
 
   // [GIF PICKER REDESIGN] Cleaner picker: dimmed backdrop, a taller sheet
   // on phones (no auto keyboard - it used to eat half the sheet), a
@@ -3495,13 +3499,35 @@ function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewpor
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: wide ? '14px 14px 8px' : '8px 12px 6px', flexShrink: 0 }}>
-        <span style={{ fontSize: 15, fontWeight: 900, color: '#fff' }}>GIFs</span>
+        <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 999, padding: 3 }}>
+          {[['stickers', 'Stickers'], ['gifs', 'GIFs']].map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)} style={{
+              padding: '6px 14px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 900,
+              background: tab === k ? '#ffd75e' : 'transparent', color: tab === k ? '#241a00' : '#aab0bb',
+            }}>{label}</button>
+          ))}
+        </div>
         <span style={{ fontSize: 8.5, fontWeight: 900, letterSpacing: 0.5, color: '#241a00', background: '#ffd75e', borderRadius: 4, padding: '1px 5px' }}>PLAY PASS</span>
         <button onClick={onClose} title="Close" style={{
           marginLeft: 'auto', width: 30, height: 30, borderRadius: '50%', border: 'none', cursor: 'pointer',
           background: 'rgba(255,255,255,0.08)', color: '#cfd2da', fontSize: 13,
         }}>✕</button>
       </div>
+      {tab === 'stickers' && (
+        <div className="gif-grid" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 10px 10px', overscrollBehavior: 'contain' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${wide ? 4 : 3}, 1fr)`, gap: 6 }}>
+            {STICKERS.map((st) => (
+              <button key={st.id} className="gif-tile" title={st.label} onClick={() => onSelect({ sticker: st.id })} style={{
+                border: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.03)', borderRadius: 12,
+                padding: 6, cursor: 'pointer', aspectRatio: '4 / 3', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <img src={st.src} alt={st.label} loading="lazy" style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {tab === 'gifs' && (<>
       <div style={{ padding: '0 12px 8px', flexShrink: 0 }}>
         <div style={{ position: 'relative' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
@@ -3571,8 +3597,9 @@ function GifPickerSheet({ onSelect, onClose, customerId, viewportHeight, viewpor
           </div>
         )}
       </div>
+      </>)}
       <div style={{ textAlign: 'center', padding: '5px 0 7px', flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <span style={{ fontSize: 9.5, color: '#5a5f6e' }}>Powered by KLIPY · tap a GIF to send</span>
+        <span style={{ fontSize: 9.5, color: '#5a5f6e' }}>{tab === 'stickers' ? 'Play Pass stickers · tap one to send' : 'Powered by KLIPY · tap a GIF to send'}</span>
       </div>
     </div>
   );
@@ -8389,17 +8416,18 @@ function LobbyScreen({
                 onReply={setLobbyReplyingTo} emptyText="No messages yet - say hi!" fontSize={lobbyWide ? 14 : 13} />
               {showGifLockedHint && (
                 <div style={{ position: 'absolute', bottom: 64, left: 14, zIndex: 6, background: '#1a1f1c', border: '1px solid rgba(255,215,110,0.35)', borderRadius: 8, padding: '6px 10px', fontSize: 10.5, color: '#ffd76e', fontWeight: 700, boxShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>
-                  Play Pass required to send GIFs
+                  Play Pass required for stickers & GIFs
                 </div>
               )}
               <ChatComposer theme="lobby" desktop={lobbyDesktop} autoFocus placeholder={lobbyWide ? 'Message the Lobby… (@ to tag)' : 'Message… (@ to tag)'}
                 mentionables={mentionables} onSend={sendLobbyText}
                 gifLocked={!hasPlayPass}
-                onGif={() => { if (hasPlayPass) setShowLobbyGifPicker(true); else { setShowGifLockedHint(true); setTimeout(() => setShowGifLockedHint(false), 2200); } }}
+                onGif={() => { if (hasPlayPass) setShowLobbyGifPicker('gifs'); else { setShowGifLockedHint(true); setTimeout(() => setShowGifLockedHint(false), 2200); } }}
+                onSticker={() => { if (hasPlayPass) setShowLobbyGifPicker('stickers'); else { setShowGifLockedHint(true); setTimeout(() => setShowGifLockedHint(false), 2200); } }}
                 replyTo={lobbyReplyingTo} onCancelReply={() => setLobbyReplyingTo(null)} />
               {showLobbyGifPicker && (
                 <GifPickerSheet customerId={playerName || 'guest'} viewportHeight={viewportHeight} viewportTop={viewportTop}
-                  onSelect={sendLobbyGifMessage} onClose={() => setShowLobbyGifPicker(false)} />
+                  initialTab={showLobbyGifPicker} onSelect={sendLobbyGifMessage} onClose={() => setShowLobbyGifPicker(false)} />
               )}
             </div>
           </div>
@@ -8890,6 +8918,7 @@ function chatMsgFromServer(d, myId) {
     authorHasPlayPass: !!d.senderHasPlayPass,
     authorHasLegionBadge: !!d.senderHasLegionBadge,
     gifUrl: d.gifUrl || null,
+    sticker: d.sticker || null,
     text: d.text || '',
     isSelf: d.senderId === myId,
     replyTo: d.replyTo || null,
@@ -8996,7 +9025,12 @@ const ChatRow = React.memo(function ChatRow({ m, theme, mentionRe, myName, onRep
   }
   const shouting = m.authorHasPlayPass && isAllCapsMessage(m.text);
   const tagsMe = !m.isSelf && textMentions(m.text, myName);
-  const bubble = m.gifUrl ? (
+  const bubble = m.sticker && stickerSrc(m.sticker) ? (
+    <div>
+      {m.replyTo && <ReplyQuote replyTo={m.replyTo} />}
+      <img src={stickerSrc(m.sticker)} alt="Sticker" loading="lazy" style={{ width: 'min(132px, 38vw)', height: 'auto', display: 'block', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.45))' }} />
+    </div>
+  ) : m.gifUrl ? (
     <div>
       {m.replyTo && <ReplyQuote replyTo={m.replyTo} />}
       <img src={m.gifUrl} alt="GIF" loading="lazy" style={{ maxWidth: 170, maxHeight: 170, borderRadius: 12, display: 'block' }} />
@@ -9042,7 +9076,7 @@ const ChatRow = React.memo(function ChatRow({ m, theme, mentionRe, myName, onRep
         )}
         {!showHead && tagsMe && <div style={{ marginBottom: 2 }}><TaggedYouChip /></div>}
         {onReply ? (
-          <SwipeToReply onReply={() => onReply({ senderName: m.authorName, text: m.text || (m.gifUrl ? 'GIF' : '') })}>
+          <SwipeToReply onReply={() => onReply({ senderName: m.authorName, text: m.text || (m.sticker ? 'Sticker' : m.gifUrl ? 'GIF' : '') })}>
             {bubble}
           </SwipeToReply>
         ) : bubble}
@@ -9194,9 +9228,24 @@ function GifButton({ locked, onClick, theme }) {
   );
 }
 
+// [PLAY PASS - STICKERS] Opens the picker on the Stickers tab.
+function StickerButton({ locked, onClick, theme }) {
+  const t = CHAT_THEMES[theme] || CHAT_THEMES.meeting;
+  return (
+    <button type="button" onClick={onClick} title={locked ? 'Stickers - Play Pass only' : 'Send a sticker'} style={{
+      position: 'relative', width: 38, height: 38, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', padding: 3,
+      border: `1px solid ${locked ? t.inputBorder : 'rgba(255,215,94,0.5)'}`,
+      background: locked ? 'rgba(255,255,255,0.04)' : 'rgba(255,215,94,0.09)',
+    }}>
+      <img src={stickerSrc('sus')} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', filter: locked ? 'grayscale(1) opacity(0.55)' : 'none' }} />
+      {locked && <span style={{ position: 'absolute', top: -6, right: -6, fontSize: 7, fontWeight: 900, borderRadius: 4, padding: '1px 3px', background: '#3a3f48', color: '#cfd2da' }}>🔒</span>}
+    </button>
+  );
+}
+
 // mentionables: [{ id, name, avatarId, avatarVariantId, isBot, hasPlayPass }]
 function ChatComposer({
-  theme = 'meeting', placeholder, mentionables, onSend, gifLocked, onGif, replyTo, onCancelReply,
+  theme = 'meeting', placeholder, mentionables, onSend, gifLocked, onGif, onSticker, replyTo, onCancelReply,
   disabled, disabledText, desktop, maxLength = 200, autoFocus,
 }) {
   const t = CHAT_THEMES[theme] || CHAT_THEMES.meeting;
@@ -9324,6 +9373,7 @@ function ChatComposer({
         </div>
       )}
       <div style={{ display: 'flex', gap: 7, padding: '8px 10px', alignItems: 'flex-end' }}>
+        {onSticker && <StickerButton theme={theme} locked={gifLocked} onClick={onSticker} />}
         {onGif && <GifButton theme={theme} locked={gifLocked} onClick={onGif} />}
         <button type="button" onPointerDown={keepFocus} onClick={openAt} title="Mention someone" style={{
           width: 38, height: 38, borderRadius: '50%', flexShrink: 0, cursor: 'pointer',
@@ -13130,6 +13180,7 @@ function MovementDemo() {
           authorHasPlayPass: !!m.senderHasPlayPass,
           authorHasLegionBadge: !!m.senderHasLegionBadge,
           gifUrl: m.gifUrl || null,
+          sticker: m.sticker || null,
           text: m.text,
           isSelf: m.senderId === socket.id,
           replyTo: m.replyTo || null,
@@ -13179,6 +13230,7 @@ function MovementDemo() {
           authorHasPlayPass: !!m.senderHasPlayPass,
           authorHasLegionBadge: !!m.senderHasLegionBadge,
           gifUrl: m.gifUrl || null,
+          sticker: m.sticker || null,
           text: m.text,
           isSelf: m.senderId === socket.id,
           replyTo: m.replyTo || null,
@@ -13558,6 +13610,7 @@ function MovementDemo() {
             authorHasPlayPass: !!m.senderHasPlayPass,
             authorHasLegionBadge: !!m.senderHasLegionBadge,
             gifUrl: m.gifUrl || null,
+            sticker: m.sticker || null,
             text: m.text,
             isSelf: m.senderId === socket.id,
             replyTo: m.replyTo || null,
@@ -13582,6 +13635,7 @@ function MovementDemo() {
           authorHasPlayPass: !!m.senderHasPlayPass,
           authorHasLegionBadge: !!m.senderHasLegionBadge,
           gifUrl: m.gifUrl || null,
+          sticker: m.sticker || null,
           text: m.text,
           isSelf: m.senderId === socket.id,
           replyTo: m.replyTo || null,
@@ -14286,6 +14340,7 @@ function MovementDemo() {
           authorHasPlayPass: !!data.senderHasPlayPass,
           authorHasLegionBadge: !!data.senderHasLegionBadge,
           gifUrl: data.gifUrl || null,
+          sticker: data.sticker || null,
           text: data.text,
           isSelf: data.senderId === socket.id,
           replyTo: data.replyTo || null, // [NEW FEATURE] reply-to-message
@@ -14308,6 +14363,7 @@ function MovementDemo() {
         authorHasPlayPass: !!data.senderHasPlayPass,
         authorHasLegionBadge: !!data.senderHasLegionBadge,
         gifUrl: data.gifUrl || null,
+        sticker: data.sticker || null,
         text: data.text,
         isSelf: data.senderId === socket.id,
         replyTo: data.replyTo || null,
@@ -14335,6 +14391,7 @@ function MovementDemo() {
         authorHasPlayPass: !!data.senderHasPlayPass,
         authorHasLegionBadge: !!data.senderHasLegionBadge,
         gifUrl: data.gifUrl || null,
+        sticker: data.sticker || null,
         text: data.text,
         isSelf: data.senderId === socket.id,
         replyTo: data.replyTo || null,
@@ -14364,6 +14421,7 @@ function MovementDemo() {
         authorHasPlayPass: !!m.senderHasPlayPass,
         authorHasLegionBadge: !!m.senderHasLegionBadge,
         gifUrl: m.gifUrl || null,
+        sticker: m.sticker || null,
         text: m.text,
         isSelf: m.senderId === socket.id,
         replyTo: m.replyTo || null,
@@ -14974,6 +15032,7 @@ function MovementDemo() {
             authorHasPlayPass: !!m.senderHasPlayPass,
             authorHasLegionBadge: !!m.senderHasLegionBadge,
             gifUrl: m.gifUrl || null,
+            sticker: m.sticker || null,
             text: m.text,
             isSelf: m.senderId === socketRef.current?.id,
             replyTo: m.replyTo || null,
@@ -16813,9 +16872,11 @@ function MovementDemo() {
   // [NEW FEATURE - GIF PICKER] Same idea as the Lobby chat's GIF sender -
   // no draft text required, sends immediately on selection.
   const sendMeetingGifMessage = useCallback((gifUrl) => {
+    // [PLAY PASS - STICKERS] the picker hands us either a GIF url or { sticker: id }
+    const pick = gifUrl && typeof gifUrl === 'object' ? { sticker: gifUrl.sticker } : { gifUrl };
     if (!gifUrl || !meeting || (meeting.stage !== 'chat' && meeting.stage !== 'voting') || !myAlive || !socketRef.current) return;
     socketRef.current.emit('sendChatMessage', {
-      gifUrl,
+      ...pick,
       replyTo: replyingTo ? { senderName: replyingTo.senderName, text: replyingTo.text } : null,
     });
     setReplyingTo(null);
@@ -16841,9 +16902,11 @@ function MovementDemo() {
 
   // [NEW FEATURE - GIF PICKER] Same idea as the other two chats' GIF senders.
   const sendGhostGifMessage = useCallback((gifUrl) => {
+    // [PLAY PASS - STICKERS] the picker hands us either a GIF url or { sticker: id }
+    const pick = gifUrl && typeof gifUrl === 'object' ? { sticker: gifUrl.sticker } : { gifUrl };
     if (!gifUrl || myAlive || !socketRef.current) return;
     socketRef.current.emit('sendGhostChatMessage', {
-      gifUrl,
+      ...pick,
       replyTo: ghostReplyingTo ? { senderName: ghostReplyingTo.senderName, text: ghostReplyingTo.text } : null,
     });
     setGhostReplyingTo(null);
@@ -16867,9 +16930,11 @@ function MovementDemo() {
   // [NEW FEATURE - GIF PICKER] Sends a GIF straight away (no draft text
   // needed) - same reply-context handling as a normal text send.
   const sendLobbyGifMessage = useCallback((gifUrl) => {
+    // [PLAY PASS - STICKERS] the picker hands us either a GIF url or { sticker: id }
+    const pick = gifUrl && typeof gifUrl === 'object' ? { sticker: gifUrl.sticker } : { gifUrl };
     if (!socketRef.current || !gifUrl) return;
     socketRef.current.emit('sendLobbyChatMessage', {
-      gifUrl,
+      ...pick,
       replyTo: lobbyReplyingTo ? { senderName: lobbyReplyingTo.senderName, text: lobbyReplyingTo.text } : null,
     });
     setLobbyReplyingTo(null);
@@ -23882,13 +23947,15 @@ function MovementDemo() {
         const composer = ghostTab ? (
           <ChatComposer key="comp-ghost" theme="ghost" desktop={isDesktopPointer} placeholder="Talk to other ghosts…"
             mentionables={ghostChatKit?.mentionables || []} onSend={sendGhostText}
-            gifLocked={gifLocked} onGif={() => (gifLocked ? openPlayPassUpsell() : setShowGhostGifPicker(true))}
+            gifLocked={gifLocked} onGif={() => (gifLocked ? openPlayPassUpsell() : setShowGhostGifPicker('gifs'))}
+            onSticker={() => (gifLocked ? openPlayPassUpsell() : setShowGhostGifPicker('stickers'))}
             replyTo={ghostReplyingTo} onCancelReply={() => setGhostReplyingTo(null)} />
         ) : (
           <ChatComposer key="comp-meeting" theme="meeting" desktop={isDesktopPointer} autoFocus={wide}
             placeholder={votingOpen ? 'Talk while you vote…' : (wide ? 'Type a message… (@ to tag)' : 'Message… (@ to tag)')}
             mentionables={kit.mentionables} onSend={sendMeetingText}
-            gifLocked={gifLocked} onGif={() => (gifLocked ? openPlayPassUpsell() : setShowMeetingGifPicker(true))}
+            gifLocked={gifLocked} onGif={() => (gifLocked ? openPlayPassUpsell() : setShowMeetingGifPicker('gifs'))}
+            onSticker={() => (gifLocked ? openPlayPassUpsell() : setShowMeetingGifPicker('stickers'))}
             replyTo={replyingTo} onCancelReply={() => setReplyingTo(null)}
             disabled={!myAlive} disabledText="👻 You're dead - the living can't hear you. Talk in the Ghosts tab." />
         );
@@ -23896,11 +23963,11 @@ function MovementDemo() {
           <>
             {showMeetingGifPicker && myAlive && (
               <GifPickerSheet customerId={playerName || 'guest'} viewportHeight={viewportHeight} viewportTop={viewportTop}
-                onSelect={sendMeetingGifMessage} onClose={() => setShowMeetingGifPicker(false)} />
+                initialTab={showMeetingGifPicker} onSelect={sendMeetingGifMessage} onClose={() => setShowMeetingGifPicker(false)} />
             )}
             {showGhostGifPicker && !myAlive && (
               <GifPickerSheet customerId={playerName || 'guest'} viewportHeight={viewportHeight} viewportTop={viewportTop}
-                onSelect={sendGhostGifMessage} onClose={() => setShowGhostGifPicker(false)} />
+                initialTab={showGhostGifPicker} onSelect={sendGhostGifMessage} onClose={() => setShowGhostGifPicker(false)} />
             )}
           </>
         );
@@ -24858,12 +24925,13 @@ function MovementDemo() {
               onReply={setGhostReplyingTo} emptyText="No spirits have spoken yet. Say something only the dead can hear." />
             <ChatComposer theme="ghost" desktop={isDesktopPointer} autoFocus placeholder="Talk to other ghosts…"
               mentionables={ghostChatKit?.mentionables || []} onSend={sendGhostText}
-              gifLocked={!loggedInPlayer?.hasPlayPass} onGif={() => (!loggedInPlayer?.hasPlayPass ? openPlayPassUpsell() : setShowGhostGifPicker(true))}
+              gifLocked={!loggedInPlayer?.hasPlayPass} onGif={() => (!loggedInPlayer?.hasPlayPass ? openPlayPassUpsell() : setShowGhostGifPicker('gifs'))}
+              onSticker={() => (!loggedInPlayer?.hasPlayPass ? openPlayPassUpsell() : setShowGhostGifPicker('stickers'))}
               replyTo={ghostReplyingTo} onCancelReply={() => setGhostReplyingTo(null)} />
           </div>
           {showGhostGifPicker && (
             <GifPickerSheet customerId={playerName || 'guest'} viewportHeight={viewportHeight} viewportTop={viewportTop}
-              onSelect={sendGhostGifMessage} onClose={() => setShowGhostGifPicker(false)} />
+              initialTab={showGhostGifPicker} onSelect={sendGhostGifMessage} onClose={() => setShowGhostGifPicker(false)} />
           )}
         </div>
       )}
