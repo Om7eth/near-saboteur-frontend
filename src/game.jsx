@@ -11760,6 +11760,11 @@ function MovementDemo() {
   // approves it inside their wallet - the game never touches a key. They first
   // sign a one-time message so the server knows the paying wallet is theirs.
   const [playPassStep, setPlayPassStep] = useState('');
+  // [PLAY PASS - REAL NEAR] Hard safety net: real NEAR may only ever go to the
+  // game's official mainnet wallet. If the server says anything else (old
+  // server still deploying, misconfig), buying is blocked instead of sending.
+  const PLAY_PASS_OFFICIAL_WALLET = 'saboteur.near';
+  const playPassPayReady = !!(playPassConfig && playPassConfig.network === 'mainnet' && playPassConfig.receivingAccountId === PLAY_PASS_OFFICIAL_WALLET);
   const paySelectorRef = useRef(null);
   async function getPayWallet() {
     if (!paySelectorRef.current) {
@@ -11796,6 +11801,7 @@ function MovementDemo() {
     setPlayPassError('');
     if (!loggedInPlayer || !sessionToken) { setPlayPassError('Please log in first.'); return; }
     if (!playPassConfig?.enabled) { setPlayPassError('Play Pass purchases are currently unavailable.'); return; }
+    if (!playPassPayReady) { setPlayPassError('Play Pass payments are being updated right now. Please try again in a few minutes.'); return; }
     setPlayPassBusy(true);
     try {
       setPlayPassStep('Connect your NEAR wallet…');
@@ -21283,7 +21289,7 @@ function MovementDemo() {
               <HomeConsole {...consoleShell('pass')} noRail accent="gold" onClose={closePass} escBlocked={showCustomAvatarRequestModal}>
                 <PlayPassScreen mobile={consoleMobile} onClose={closePass} pp={{
                   owned: !!loggedInPlayer?.hasPlayPass, config: playPassConfig, status: playPassStatus,
-                  error: playPassError, busy: playPassBusy, step: playPassStep, onBuy: handleBuyPlayPass,
+                  error: playPassError, busy: playPassBusy, step: playPassStep, payReady: playPassPayReady, onBuy: handleBuyPlayPass,
                   skins: PREMIUM_AVATARS, passImg: PLAY_PASS_IMG, NameTag: PlayerNameTag,
                   name: loggedInPlayer?.name || playerName,
                   onRequestCustom: () => { setShowCustomAvatarRequestModal(true); loadCustomAvatarRequestConfig(); },
