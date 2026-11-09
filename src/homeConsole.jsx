@@ -1215,7 +1215,15 @@ function CloseBtn({ onClose }) {
 }
 
 // [PLAY PASS - REAL NEAR] what you pay, where it goes, and the refund rule
-function PayNote({ cfg, ready }) {
+function PayNote({ cfg, ready, compact }) {
+  const [open, setOpen] = useState(false);
+  if (ready && compact && !open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} style={{ display: 'block', width: '100%', textAlign: 'center', font: '11px var(--mono)', color: '#9fb0a8', padding: '8px 0 2px' }}>
+        <b style={{ color: '#ffcf6e' }}>Real NEAR</b> · paid to <b style={{ color: '#ffcf6e' }}>{cfg.receivingAccountId}</b> · <span style={{ textDecoration: 'underline' }}>How it works ›</span>
+      </button>
+    );
+  }
   if (!ready) {
     return <div className="hc-note" style={{ textAlign: 'center', fontSize: 12, padding: '10px 12px', border: '1px solid rgba(255,207,110,.25)', marginTop: 10 }}>Play Pass payments are being updated. Buying opens again in a few minutes — nothing is charged until then.</div>;
   }
@@ -1347,7 +1355,7 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
             <button type="button" className="hc-buy" disabled={pp.busy || !pp.payReady} onClick={pp.onBuy}>{pp.busy ? 'WAITING…' : !pp.payReady ? 'UPDATING…' : 'PAY WITH WALLET'}</button>
           </div>
         )}
-        {!owned && cfg && cfg.enabled && <div style={{ padding: '0 16px 10px' }}>{pp.busy && pp.step && <div className="hc-note" style={{ textAlign: 'center', color: '#ffcf6e', marginBottom: 6 }}>{pp.step}</div>}<PayNote cfg={cfg} ready={pp.payReady} /></div>}
+        {!owned && cfg && cfg.enabled && <div style={{ padding: '0 16px 10px' }}>{pp.busy && pp.step && <div className="hc-note" style={{ textAlign: 'center', color: '#ffcf6e', marginBottom: 6 }}>{pp.step}</div>}<PayNote cfg={cfg} ready={pp.payReady} compact /></div>}
         {!owned && pp.error && <div className="hc-note hc-err" style={{ textAlign: 'center', padding: '0 16px 10px' }}>{pp.error}</div>}
         {!owned && cfg && !cfg.enabled && <div className="hc-note" style={{ textAlign: 'center', padding: '0 16px 16px' }}>Play Pass purchases are unavailable right now.</div>}
       </div>

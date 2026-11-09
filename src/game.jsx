@@ -14,6 +14,12 @@ import { setupHotWallet } from '@near-wallet-selector/hot-wallet';
 import { setupMeteorWallet } from '@near-wallet-selector/meteor-wallet';
 import { setupIntearWallet } from '@near-wallet-selector/intear-wallet';
 import { KeyPair, actions, nearToYocto, yoctoToNear, teraToGas, viewFunction, viewAccount, signAndSendTransaction } from './nearLite';
+// [BUG FIX - "Unsupported NAJ action"] Wallet Selector v10 only accepts
+// near-api-js shaped actions ({ transfer }, { functionCall }) - the old
+// { type, params } objects made every connected-wallet payment fail.
+const wsTransfer = (yocto) => ({ transfer: { deposit: BigInt(String(yocto)) } });
+const wsCall = (methodName, args, gas, deposit) => ({ functionCall: { methodName, args: new TextEncoder().encode(JSON.stringify(args || {})), gas: BigInt(String(gas)), deposit: BigInt(String(deposit || '0')) } });
+
 import { generateSeedPhrase, parseSeedPhrase } from 'near-seed-phrase';
 import { createBgm } from './bgm';
 import { HudIcon, HudButton, MissionFloat, MISSION_ICON, HUD_CSS } from './hudKit';
@@ -10359,7 +10365,7 @@ function MovementDemo() {
         const wallet = await walletSelector.wallet();
         const outcome = await wallet.signAndSendTransaction({
           receiverId: recipient,
-          actions: [{ type: 'Transfer', params: { deposit: nearToYocto(String(amount)).toString() } }],
+          actions: [wsTransfer(nearToYocto(String(amount)).toString())],
         });
         txHash = outcome?.transaction?.hash || outcome?.transaction_outcome?.id || null;
       } else {
@@ -11635,7 +11641,7 @@ function MovementDemo() {
       const wallet = await walletSelector.wallet();
       return wallet.signAndSendTransaction({
         receiverId,
-        actions: calls.map((c) => ({ type: 'FunctionCall', params: { methodName: c.method, args: c.args, gas: teraToGas(String(c.tgas || 30)).toString(), deposit: c.deposit } })),
+        actions: calls.map((c) => wsCall(c.method, c.args, teraToGas(String(c.tgas || 30)).toString(), c.deposit || '0')),
       });
     }
     const secretKey = await getWalletSecretKey({ label, amountNear: amountText, amountUnit, recipient: recipientForPrompt });
@@ -11691,7 +11697,7 @@ function MovementDemo() {
         const wallet = await walletSelector.wallet();
         await wallet.signAndSendTransaction({
           receiverId: recipient,
-          actions: [{ type: 'Transfer', params: { deposit: nearToYocto(String(amount)).toString() } }],
+          actions: [wsTransfer(nearToYocto(String(amount)).toString())],
         });
       } else {
         const secretKey = await getWalletSecretKey({ label: 'Send NEAR', amountNear: String(amount), recipient });
@@ -11819,7 +11825,7 @@ function MovementDemo() {
       setPlayPassStep(`Approve sending ${amount} NEAR to ${receiver} in your wallet…`);
       const outcome = await wallet.signAndSendTransaction({
         receiverId: receiver,
-        actions: [{ type: 'Transfer', params: { deposit: nearToYocto(amount).toString() } }],
+        actions: [wsTransfer(nearToYocto(amount).toString())],
       });
       const txHash = outcome?.transaction?.hash || outcome?.transaction_outcome?.id || null;
       if (!txHash) throw new Error('Your wallet did not return the transaction. If NEAR left your wallet, Play Pass will switch on automatically once we see it — or contact us from the Inbox.');
@@ -12430,7 +12436,7 @@ function MovementDemo() {
       const wallet = await walletSelector.wallet();
       const outcome = await wallet.signAndSendTransaction({
         receiverId: POOL_CONTRACT_ID,
-        actions: [{ type: 'FunctionCall', params: { methodName, args, gas: (gas || teraToGas('100')).toString(), deposit: depositYocto } }],
+        actions: [wsCall(methodName, args, (gas || teraToGas('100')).toString(), depositYocto)],
       });
       lastPoolTxHashRef.current = outcome?.transaction?.hash || outcome?.transaction_outcome?.id || null;
       const successValue = outcome?.status?.SuccessValue;
