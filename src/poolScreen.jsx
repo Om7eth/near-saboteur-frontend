@@ -337,24 +337,24 @@ function PayWinners({ item, onBack, onMarkPaid, onPayAll, busyRank, mobile }) {
       )}
       <div className="pg-info" style={{ marginBottom: 16 }}><Ico d={P.info} s={18} /><div>Or send each amount yourself and press <b>Mark as paid</b>. The winner gets an Inbox message — marked <b>verified</b> only when we can see the payment on-chain.</div></div>
       {winners.length === 0 ? <div className="pg-empty">No one scored in this pool, so there's no one to pay.</div> : mobile ? winners.map((w) => (
-        <div className="pg-wr" key={w.rank}>
+        <div className="pg-wr" key={w.accountId || w.rank}>
           <span className="rk">{rk(w.rank - 1)}</span>
           <div style={{ minWidth: 0 }}><b>{w.name} · <span style={{ display: 'inline', color: 'var(--g)', font: '600 14px var(--disp)' }}>{fmt(w.amountNear)} NEAR</span></b><span>{w.wallet || 'no wallet given'} · {w.points} pts</span></div>
-          {w.paidAt ? <span className="pg-paid" style={{ font: '600 11px var(--mono)' }}>{w.verifiedAt ? '✓ VERIFIED' : '✓ PAID'}</span> : <span style={{ display: 'flex', gap: 6 }}>{w.wallet && <button type="button" className="pg-gear" onClick={() => copy(w.wallet)}>COPY</button>}<button type="button" className="pg-gear hi" disabled={busyRank === w.rank} onClick={() => onMarkPaid(item.id, w.rank)}>PAID</button></span>}
+          {w.paidAt ? <span className="pg-paid" style={{ font: '600 11px var(--mono)' }}>{w.verifiedAt ? '✓ VERIFIED' : '✓ PAID'}</span> : <span style={{ display: 'flex', gap: 6 }}>{w.wallet && <button type="button" className="pg-gear" onClick={() => copy(w.wallet)}>COPY</button>}<button type="button" className="pg-gear hi" disabled={busyRank === (w.accountId || w.rank)} onClick={() => onMarkPaid(item.id, w.rank, w.accountId)}>PAID</button></span>}
         </div>
       )) : (
         <table>
           <thead><tr><th>Rank</th><th>Player</th><th>Wallet</th><th className="n">Points</th><th className="n">Send</th><th>Status</th><th /></tr></thead>
           <tbody>
             {winners.map((w) => (
-              <tr key={w.rank}>
+              <tr key={w.accountId || w.rank}>
                 <td>{rk(w.rank - 1)}</td>
                 <td style={{ fontFamily: 'var(--disp)', fontSize: 14 }}>{w.name}</td>
                 <td style={{ color: 'var(--c)' }}>{w.wallet || <span style={{ color: '#ffb84d' }}>not given</span>} {w.wallet && <button type="button" className="pg-gear" style={{ marginLeft: 6, padding: '3px 8px' }} onClick={() => copy(w.wallet)}>COPY</button>}</td>
                 <td className="n">{w.points}</td>
                 <td className="n" style={{ color: 'var(--g)', fontWeight: 600 }}>{fmt(w.amountNear)} NEAR</td>
                 <td>{w.paidAt ? <span className="pg-paid">{w.verifiedAt ? '✓ VERIFIED' : '✓ PAID'}</span> : <span className="pg-due">TO PAY</span>}</td>
-                <td>{!w.paidAt && <button type="button" className="pg-gear hi" disabled={busyRank === w.rank} onClick={() => onMarkPaid(item.id, w.rank)}>{busyRank === w.rank ? '…' : 'MARK AS PAID'}</button>}</td>
+                <td>{!w.paidAt && <button type="button" className="pg-gear hi" disabled={busyRank === (w.accountId || w.rank)} onClick={() => onMarkPaid(item.id, w.rank, w.accountId)}>{busyRank === (w.accountId || w.rank) ? '…' : 'MARK AS PAID'}</button>}</td>
               </tr>
             ))}
           </tbody>
@@ -373,7 +373,7 @@ function History({ h, mobile }) {
   const data = h.data;
   if (payId && data) {
     const item = (data.hosted || []).find((x) => x.id === payId);
-    if (item) return <PayWinners item={item} mobile={mobile} busyRank={busyRank} onPayAll={h.payAll} onBack={() => setPayId(null)} onMarkPaid={async (id, rank) => { setBusyRank(rank); await h.markPaid(id, rank); setBusyRank(null); }} />;
+    if (item) return <PayWinners item={item} mobile={mobile} busyRank={busyRank} onPayAll={h.payAll} onBack={() => setPayId(null)} onMarkPaid={async (id, rank, accountId) => { setBusyRank(accountId || rank); await h.markPaid(id, rank, accountId); setBusyRank(null); }} />;
   }
   const hosted = data?.hosted || [], joined = data?.joined || [];
   const given = hosted.reduce((a, x) => a + (x.prizeNear || 0), 0);

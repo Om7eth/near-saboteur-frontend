@@ -18447,8 +18447,9 @@ function MovementDemo() {
       localStorage.setItem('nearSaboteurPayoutPending', JSON.stringify(all));
     } catch (e) { /* no storage */ }
   }
-  async function reportPayout(poolId, rank, txHash, fromWallet) {
-    const res = await fetch(`${BACKEND_URL}/pools/manual/${encodeURIComponent(poolId)}/paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, rank, txHash, fromWallet }) });
+  // [TIE FIX] winners are identified by accountId - tied players share a rank
+  async function reportPayout(poolId, rank, txHash, fromWallet, accountId) {
+    const res = await fetch(`${BACKEND_URL}/pools/manual/${encodeURIComponent(poolId)}/paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, rank, accountId, txHash, fromWallet }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || 'Could not update.');
     return data;
@@ -18470,14 +18471,14 @@ function MovementDemo() {
         outcomes = [];
         for (const t of txs) outcomes.push(await wallet.signAndSendTransaction(t));
       }
-      const receipts = unpaid.map((w, i) => ({ rank: w.rank, txHash: outcomes?.[i]?.transaction?.hash || outcomes?.[i]?.transaction_outcome?.id || null, from: accountId })).filter((r) => r.txHash);
+      const receipts = unpaid.map((w, i) => ({ rank: w.rank, accountId: w.accountId, txHash: outcomes?.[i]?.transaction?.hash || outcomes?.[i]?.transaction_outcome?.id || null, from: accountId })).filter((r) => r.txHash);
       savePayoutReceipts(item.id, receipts);
       step('Payments sent — checking them on the NEAR network…');
       let last = null; const left = [];
       for (const r of receipts) {
         let ok = false;
         for (let k = 0; k < 4 && !ok; k++) {
-          try { last = await reportPayout(item.id, r.rank, r.txHash, r.from); ok = !!last.verified; } catch (e) { /* retry */ }
+          try { last = await reportPayout(item.id, r.rank, r.txHash, r.from, r.accountId); ok = !!last.verified; } catch (e) { /* retry */ }
           if (!ok) await new Promise((res) => setTimeout(res, 3000));
         }
         if (!ok) left.push(r);
@@ -18497,14 +18498,14 @@ function MovementDemo() {
     try { all = JSON.parse(localStorage.getItem('nearSaboteurPayoutPending') || '{}'); } catch (e) { all = {}; }
     Object.entries(all).forEach(async ([poolId, list]) => {
       const left = [];
-      for (const r of list || []) { try { const d = await reportPayout(poolId, r.rank, r.txHash, r.from); if (!d.verified) left.push(r); } catch (e) { left.push(r); } }
+      for (const r of list || []) { try { const d = await reportPayout(poolId, r.rank, r.txHash, r.from, r.accountId); if (!d.verified) left.push(r); } catch (e) { left.push(r); } }
       savePayoutReceipts(poolId, left);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionToken, !!poolHistory.data]);
-  async function markPoolPaid(poolId, rank) {
+  async function markPoolPaid(poolId, rank, accountId) {
     try {
-      const res = await fetch(`${BACKEND_URL}/pools/manual/${encodeURIComponent(poolId)}/paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, rank }) });
+      const res = await fetch(`${BACKEND_URL}/pools/manual/${encodeURIComponent(poolId)}/paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, rank, accountId }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Could not update.');
       setPoolHistory((h) => (h.data ? { ...h, data: { ...h.data, hosted: h.data.hosted.map((x) => (x.id === poolId ? { ...x, winners: data.winners, paidCount: data.winners.filter((w) => w.paidAt).length } : x)) } } : h));
