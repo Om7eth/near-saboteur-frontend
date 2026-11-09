@@ -8097,7 +8097,7 @@ function LobbyScreen({
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 10, color: '#9aa0ad', fontWeight: 700, letterSpacing: 0.3 }}>PLAYERS</span>
-                <span style={{ fontSize: 10, color: '#6effc0', fontWeight: 800 }}>{(roomInfo?.players || []).length} / {MAX_PLAYERS}</span>
+                <span style={{ fontSize: 10, color: '#6effc0', fontWeight: 800 }}>{(roomInfo?.players || []).filter((p) => !p.spectator).length} / {MAX_PLAYERS}</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6, maxHeight: '24vh', overflowY: 'auto' }}>
                 {(roomInfo?.players || []).map(p => (
@@ -8153,7 +8153,7 @@ function LobbyScreen({
               {/* [AI BOTS - NEAR HACKATHON] Free Play only - Pool/Paid rooms
                   never show this (the server refuses it there too). */}
               {!roomInfo?.pool && (() => {
-                const full = (roomInfo?.players || []).length >= MAX_PLAYERS;
+                const full = (roomInfo?.players || []).filter((p) => !p.spectator).length >= MAX_PLAYERS; // [WATCH MODE] watching host takes no seat
                 const disabled = full || addingBot;
                 return (
                   <>
