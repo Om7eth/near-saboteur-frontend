@@ -11855,12 +11855,31 @@ function MovementDemo() {
   const PLAY_PASS_OFFICIAL_WALLET = 'saboteur.near';
   const playPassPayReady = !!(playPassConfig && playPassConfig.network === 'mainnet' && playPassConfig.receivingAccountId === PLAY_PASS_OFFICIAL_WALLET);
   const paySelectorRef = useRef(null);
+  // [WALLET FIX] The pay wallet (HOT / Meteor / Intear) is remembered by the
+  // BROWSER, not by the game account - switching game accounts used to keep
+  // the previous account's wallet. We remember which game account connected
+  // it and disconnect it when a different account (or nobody) is signed in.
+  const PAY_WALLET_OWNER_KEY = 'nearSaboteurPayWalletOwner';
+  const payWalletOwner = () => (loggedInPlayer ? String(loggedInPlayer.username || authEmail || '') : '');
+  async function disconnectPayWallet() {
+    try {
+      if (!paySelectorRef.current) {
+        const selector = await setupWalletSelector({ network: 'mainnet', modules: [setupHotWallet(), setupMeteorWallet(), setupIntearWallet()] });
+        paySelectorRef.current = { selector, modal: setupModal(selector, {}) };
+      }
+      const { selector } = paySelectorRef.current;
+      if (selector.isSignedIn()) { const w = await selector.wallet(); await w.signOut(); }
+    } catch (e) { /* nothing connected */ }
+    try { localStorage.removeItem(PAY_WALLET_OWNER_KEY); } catch (e) { /* no storage */ }
+  }
   async function getPayWallet() {
     if (!paySelectorRef.current) {
       const selector = await setupWalletSelector({ network: 'mainnet', modules: [setupHotWallet(), setupMeteorWallet(), setupIntearWallet()] });
       paySelectorRef.current = { selector, modal: setupModal(selector, {}) };
     }
     const { selector, modal } = paySelectorRef.current;
+    let owner = null; try { owner = localStorage.getItem(PAY_WALLET_OWNER_KEY); } catch (e) { /* no storage */ }
+    if (selector.isSignedIn() && owner !== payWalletOwner()) await disconnectPayWallet(); // connected by another game account
     if (!selector.isSignedIn()) {
       await new Promise((resolve, reject) => {
         const sub = selector.on('signedIn', () => { sub.remove(); resolve(); });
@@ -11873,6 +11892,7 @@ function MovementDemo() {
     const accounts = await wallet.getAccounts();
     const accountId = accounts && accounts[0] && accounts[0].accountId;
     if (!accountId) throw new Error('Your wallet did not share an account.');
+    try { localStorage.setItem(PAY_WALLET_OWNER_KEY, payWalletOwner()); } catch (e) { /* no storage */ }
     return { wallet, accountId };
   }
   async function claimPlayPassPayment(txHash, payer) {
@@ -12709,6 +12729,7 @@ function MovementDemo() {
   // player back to the login screen. Room/game state isn't touched
   // (this screen only exists before a room is ever joined).
   function handleLogout() {
+    disconnectPayWallet(); // [WALLET FIX] the next account on this browser must pick its own wallet
     if (authEmail) {
       fetch(`${BACKEND_URL}/auth/logout`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
