@@ -12516,6 +12516,14 @@ function MovementDemo() {
         actions: [wsCall(methodName, args, (gas || teraToGas('100')).toString(), depositYocto)],
       });
       lastPoolTxHashRef.current = outcome?.transaction?.hash || outcome?.transaction_outcome?.id || null;
+      // [FUNDS SAFETY] some wallets hand back a FAILED transaction instead of
+      // throwing - never treat that as success (it would look paid when it isn't)
+      const failure = outcome?.status?.Failure || (outcome?.receipts_outcome || []).map((r) => r?.outcome?.status?.Failure).find(Boolean);
+      if (failure) {
+        const kind = failure?.ActionError?.kind;
+        const msg = kind?.FunctionCallError?.ExecutionError || (kind ? Object.keys(kind)[0] : null) || 'The transaction failed on-chain.';
+        throw new Error(String(msg).replace(/^Smart contract panicked: /, ''));
+      }
       const successValue = outcome?.status?.SuccessValue;
       if (successValue === undefined || successValue === null || successValue === '') return null;
       try { return JSON.parse(atob(successValue)); } catch (e) { return null; }
@@ -15240,6 +15248,12 @@ function MovementDemo() {
     if (!pool || pool.state === 'Locked') return;
     setPoolLockBusy(true);
     try {
+      // [FUNDS SAFETY] server first registers or refunds anyone who paid but isn't in the room
+      const prep = await new Promise((resolve) => {
+        const t = setTimeout(() => resolve({ ok: false, message: 'The server did not answer - try again.' }), 20000);
+        socketRef.current.emit('preparePoolLock', {}, (r) => { clearTimeout(t); resolve(r || { ok: false }); });
+      });
+      if (!prep.ok) throw new Error(prep.message || 'Could not check the pool before starting.');
       await callPoolContract('lock_participation', { pool_id: Number(pool.onChainPoolId) }, { label: 'Record Pool On-Chain' });
       await new Promise((resolve) => {
         socketRef.current.emit('confirmPoolLocked');
@@ -18405,6 +18419,73 @@ function MovementDemo() {
       setPoolHistory({ data, loading: false, error: '' });
     } catch (e) { setPoolHistory((h) => ({ ...h, loading: false, error: e.message })); }
   }
+  // [POOL v2 - ONE-CLICK PAYOUT] Real-NEAR pool: the host pays every unpaid
+  // winner from their own mainnet wallet in ONE approval (one transfer per
+  // winner, sent together), straight to the wallet each winner gave when
+  // joining. The server then checks each transaction on mainnet before
+  // marking that prize paid + verified. Nothing passes through the game.
+  function savePayoutReceipts(poolId, list) {
+    try {
+      const all = JSON.parse(localStorage.getItem('nearSaboteurPayoutPending') || '{}');
+      if (list.length) all[poolId] = list; else delete all[poolId];
+      localStorage.setItem('nearSaboteurPayoutPending', JSON.stringify(all));
+    } catch (e) { /* no storage */ }
+  }
+  async function reportPayout(poolId, rank, txHash, fromWallet) {
+    const res = await fetch(`${BACKEND_URL}/pools/manual/${encodeURIComponent(poolId)}/paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, rank, txHash, fromWallet }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || 'Could not update.');
+    return data;
+  }
+  async function payAllPoolWinners(item, onStep) {
+    const unpaid = (item.winners || []).filter((w) => !w.paidAt && w.wallet && Number(w.amountNear) > 0);
+    if (!unpaid.length) return;
+    const step = onStep || (() => {});
+    try {
+      step('Connect the NEAR wallet you will pay from…');
+      const { wallet, accountId } = await getPayWallet();
+      const total = unpaid.reduce((a, w) => a + Number(w.amountNear), 0);
+      step(`Approve ${unpaid.length} payment${unpaid.length > 1 ? 's' : ''} · ${Math.round(total * 1000) / 1000} NEAR in your wallet…`);
+      const txs = unpaid.map((w) => ({ receiverId: w.wallet, actions: [wsTransfer(nearToYocto(String(w.amountNear)).toString())] }));
+      let outcomes;
+      if (typeof wallet.signAndSendTransactions === 'function') {
+        outcomes = await wallet.signAndSendTransactions({ transactions: txs });
+      } else {
+        outcomes = [];
+        for (const t of txs) outcomes.push(await wallet.signAndSendTransaction(t));
+      }
+      const receipts = unpaid.map((w, i) => ({ rank: w.rank, txHash: outcomes?.[i]?.transaction?.hash || outcomes?.[i]?.transaction_outcome?.id || null, from: accountId })).filter((r) => r.txHash);
+      savePayoutReceipts(item.id, receipts);
+      step('Payments sent — checking them on the NEAR network…');
+      let last = null; const left = [];
+      for (const r of receipts) {
+        let ok = false;
+        for (let k = 0; k < 4 && !ok; k++) {
+          try { last = await reportPayout(item.id, r.rank, r.txHash, r.from); ok = !!last.verified; } catch (e) { /* retry */ }
+          if (!ok) await new Promise((res) => setTimeout(res, 3000));
+        }
+        if (!ok) left.push(r);
+      }
+      savePayoutReceipts(item.id, left);
+      if (last) setPoolHistory((h) => (h.data ? { ...h, data: { ...h.data, hosted: h.data.hosted.map((x) => (x.id === item.id ? { ...x, winners: last.winners, paidCount: last.winners.filter((w) => w.paidAt).length } : x)) } } : h));
+      if (receipts.length < unpaid.length) throw new Error('Your wallet did not return every transaction. Check your wallet history, then mark the missing ones as paid.');
+      if (left.length) throw new Error(`Sent, but ${left.length} payment${left.length > 1 ? 's are' : ' is'} not verified yet. We'll check again next time you open this page.`);
+    } catch (e) {
+      setPoolHistory((h) => ({ ...h, error: e.message || 'Payment failed.' }));
+    } finally { step(''); }
+  }
+  // payouts sent but not yet verified (closed tab, slow network) are re-checked on the next visit
+  useEffect(() => {
+    if (!sessionToken || !poolHistory.data) return;
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem('nearSaboteurPayoutPending') || '{}'); } catch (e) { all = {}; }
+    Object.entries(all).forEach(async ([poolId, list]) => {
+      const left = [];
+      for (const r of list || []) { try { const d = await reportPayout(poolId, r.rank, r.txHash, r.from); if (!d.verified) left.push(r); } catch (e) { left.push(r); } }
+      savePayoutReceipts(poolId, left);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken, !!poolHistory.data]);
   async function markPoolPaid(poolId, rank) {
     try {
       const res = await fetch(`${BACKEND_URL}/pools/manual/${encodeURIComponent(poolId)}/paid`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, rank }) });
@@ -21046,7 +21127,7 @@ function MovementDemo() {
                   savedWallet: loggedInPlayer?.payoutWallet || '',
                   busy: poolJoinBusy, error: poolJoinError || poolError, onJoin: joinPoolV2,
                 }}
-                history={{ data: poolHistory.data, loading: poolHistory.loading, error: poolHistory.error, load: loadPoolHistory, markPaid: markPoolPaid }}
+                history={{ data: poolHistory.data, loading: poolHistory.loading, error: poolHistory.error, load: loadPoolHistory, markPaid: markPoolPaid, payAll: payAllPoolWinners }}
               />
             </HomeConsole>
           )}

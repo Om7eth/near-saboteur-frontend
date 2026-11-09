@@ -307,8 +307,11 @@ function JoinPanel({ pool, j, mobile }) {
 }
 
 /* ---------------- HISTORY + PAY ---------------- */
-function PayWinners({ item, onBack, onMarkPaid, busyRank, mobile }) {
+function PayWinners({ item, onBack, onMarkPaid, onPayAll, busyRank, mobile }) {
   const winners = item.winners || [];
+  const [payStep, setPayStep] = useState('');
+  const toPay = winners.filter((w) => !w.paidAt && w.wallet && w.amountNear > 0);
+  const toPayTotal = toPay.reduce((a, w) => a + (w.amountNear || 0), 0);
   const total = winners.reduce((a, w) => a + (w.amountNear || 0), 0);
   const paid = winners.filter((w) => w.paidAt).reduce((a, w) => a + (w.amountNear || 0), 0);
   const copy = (t) => { try { navigator.clipboard.writeText(t); } catch (e) { /* no clipboard */ } };
@@ -324,12 +327,20 @@ function PayWinners({ item, onBack, onMarkPaid, busyRank, mobile }) {
         <div><b>{fmt(total - paid)} NEAR</b><span>LEFT</span></div>
         <div><b>{winners.filter((w) => w.paidAt).length} / {winners.length}</b><span>WINNERS PAID</span></div>
       </div>
-      <div className="pg-info" style={{ marginBottom: 16 }}><Ico d={P.info} s={18} /><div>Send each amount from your own NEAR wallet, then press <b>Mark as paid</b>. The winner gets an Inbox message.</div></div>
+      {toPay.length > 0 && onPayAll && (
+        <div style={{ marginBottom: 14 }}>
+          <button type="button" className="pg-big gold" disabled={!!payStep} onClick={() => onPayAll(item, setPayStep)}>
+            {payStep ? 'PLEASE WAIT…' : `PAY ALL WINNERS · ${fmt(toPayTotal)} NEAR`}
+          </button>
+          <div className="pg-sub" style={{ marginTop: 6 }}>{payStep || `One approval in your NEAR wallet sends ${toPay.length === 1 ? 'the prize' : `all ${toPay.length} prizes`} straight to each winner's wallet. We check every payment on the NEAR blockchain.`}</div>
+        </div>
+      )}
+      <div className="pg-info" style={{ marginBottom: 16 }}><Ico d={P.info} s={18} /><div>Or send each amount yourself and press <b>Mark as paid</b>. The winner gets an Inbox message — marked <b>verified</b> only when we can see the payment on-chain.</div></div>
       {winners.length === 0 ? <div className="pg-empty">No one scored in this pool, so there's no one to pay.</div> : mobile ? winners.map((w) => (
         <div className="pg-wr" key={w.rank}>
           <span className="rk">{rk(w.rank - 1)}</span>
           <div style={{ minWidth: 0 }}><b>{w.name} · <span style={{ display: 'inline', color: 'var(--g)', font: '600 14px var(--disp)' }}>{fmt(w.amountNear)} NEAR</span></b><span>{w.wallet || 'no wallet given'} · {w.points} pts</span></div>
-          {w.paidAt ? <span className="pg-paid" style={{ font: '600 11px var(--mono)' }}>✓ PAID</span> : <span style={{ display: 'flex', gap: 6 }}>{w.wallet && <button type="button" className="pg-gear" onClick={() => copy(w.wallet)}>COPY</button>}<button type="button" className="pg-gear hi" disabled={busyRank === w.rank} onClick={() => onMarkPaid(item.id, w.rank)}>PAID</button></span>}
+          {w.paidAt ? <span className="pg-paid" style={{ font: '600 11px var(--mono)' }}>{w.verifiedAt ? '✓ VERIFIED' : '✓ PAID'}</span> : <span style={{ display: 'flex', gap: 6 }}>{w.wallet && <button type="button" className="pg-gear" onClick={() => copy(w.wallet)}>COPY</button>}<button type="button" className="pg-gear hi" disabled={busyRank === w.rank} onClick={() => onMarkPaid(item.id, w.rank)}>PAID</button></span>}
         </div>
       )) : (
         <table>
@@ -342,7 +353,7 @@ function PayWinners({ item, onBack, onMarkPaid, busyRank, mobile }) {
                 <td style={{ color: 'var(--c)' }}>{w.wallet || <span style={{ color: '#ffb84d' }}>not given</span>} {w.wallet && <button type="button" className="pg-gear" style={{ marginLeft: 6, padding: '3px 8px' }} onClick={() => copy(w.wallet)}>COPY</button>}</td>
                 <td className="n">{w.points}</td>
                 <td className="n" style={{ color: 'var(--g)', fontWeight: 600 }}>{fmt(w.amountNear)} NEAR</td>
-                <td>{w.paidAt ? <span className="pg-paid">✓ PAID</span> : <span className="pg-due">TO PAY</span>}</td>
+                <td>{w.paidAt ? <span className="pg-paid">{w.verifiedAt ? '✓ VERIFIED' : '✓ PAID'}</span> : <span className="pg-due">TO PAY</span>}</td>
                 <td>{!w.paidAt && <button type="button" className="pg-gear hi" disabled={busyRank === w.rank} onClick={() => onMarkPaid(item.id, w.rank)}>{busyRank === w.rank ? '…' : 'MARK AS PAID'}</button>}</td>
               </tr>
             ))}
@@ -362,7 +373,7 @@ function History({ h, mobile }) {
   const data = h.data;
   if (payId && data) {
     const item = (data.hosted || []).find((x) => x.id === payId);
-    if (item) return <PayWinners item={item} mobile={mobile} busyRank={busyRank} onBack={() => setPayId(null)} onMarkPaid={async (id, rank) => { setBusyRank(rank); await h.markPaid(id, rank); setBusyRank(null); }} />;
+    if (item) return <PayWinners item={item} mobile={mobile} busyRank={busyRank} onPayAll={h.payAll} onBack={() => setPayId(null)} onMarkPaid={async (id, rank) => { setBusyRank(rank); await h.markPaid(id, rank); setBusyRank(null); }} />;
   }
   const hosted = data?.hosted || [], joined = data?.joined || [];
   const given = hosted.reduce((a, x) => a + (x.prizeNear || 0), 0);
