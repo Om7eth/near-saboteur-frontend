@@ -1317,6 +1317,19 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
           </div>
         </div>
       </div>
+      <div className="hc-feat wide" style={{ borderStyle: 'dashed', borderColor: 'rgba(255,215,94,.35)' }}>
+        <h3>MORE PERKS COMING · INCLUDED</h3>
+        <p>New premium features are added to Play Pass over time. If you have Play Pass, each new perk unlocks for you automatically — no extra payment.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 8 }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="hc-demo" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', minHeight: 84, opacity: 1 - (i - 1) * 0.18 }}>
+              <span style={{ width: 22, height: 22, display: 'block' }}>{lockIco}</span>
+              <span style={{ font: '600 10px var(--mono)', letterSpacing: '.14em', color: '#ffd75e' }}>NEW PERK · SOON</span>
+            </div>
+          ))}
+        </div>
+        <p style={{ margin: '12px 0 0', fontSize: 12 }}>Got an idea for a perk? Send it from <b style={{ color: '#cfd8d3' }}>Inbox → Report an issue → Feedback</b>.</p>
+      </div>
     </div>
   );
   if (mobile) {
