@@ -1468,81 +1468,279 @@ export function FreePlayScreen({ mobile, onClose, f }) {
   );
 }
 
-/* ---------------- PAID GAMES (PC) ---------------- */
-// Same two-column console layout as Free Play: create on the left, live
-// paid games on the right. Phones keep the original tall art screen.
-export function PaidGamesScreen({ onClose, f }) {
+/* ---------------- PAID GAMES ---------------- */
+// Testnet only (test NEAR). PC: settings | live pot calculator | live games,
+// plus a History tab. Phone: Create / Live / History tabs.
+const PAID_CSS = `
+.pd{--g:#ffcf6e;flex:1;display:flex;flex-direction:column;min-height:0;color:#e6ece9}
+.pd-top{display:flex;align-items:center;gap:6px;padding:12px 24px;border-bottom:1px solid var(--line);flex-shrink:0}
+.pd-top h1{margin:0 18px 0 0;font:700 19px var(--disp);letter-spacing:.18em;display:flex;align-items:center;gap:10px}
+.pd-top h1 i{width:30px;height:30px;background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 10px rgba(255,200,60,.5))}
+.pd-tab{font:700 11.5px var(--disp) !important;letter-spacing:.14em;padding:8px 13px !important;color:#6f8079 !important;border:1px solid transparent !important}
+.pd-tab.on{color:var(--g) !important;border-color:rgba(255,207,110,.45) !important;background:rgba(255,207,110,.08) !important}
+.pd-tn{margin-left:auto;font:600 10.5px var(--mono);padding:5px 9px;border:1px solid rgba(255,207,110,.4);color:var(--g);letter-spacing:.12em}
+.pd-cols{flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,370px) minmax(0,1fr);min-height:0}
+.pd-cols>section{padding:20px 24px;overflow:auto;display:flex;flex-direction:column;gap:15px;min-height:0}
+.pd-cols>section+section{border-left:1px solid var(--line)}
+.pd h2{margin:0;font:700 15.5px var(--disp);letter-spacing:.2em}
+.pd .k{font:600 10.5px var(--mono);letter-spacing:.14em;color:var(--dim);margin-bottom:7px;display:flex;justify-content:space-between}
+.pd .k b{color:var(--g);font-weight:600}.pd .k small{color:#46534e;font-size:10px;letter-spacing:.06em}
+.pd-seg{display:grid;gap:7px}
+.pd-seg button{height:42px;border:1px solid rgba(255,255,255,.1) !important;border-radius:6px;font:700 13px var(--disp) !important;color:#6f8079 !important}
+.pd-seg button.on{border-color:rgba(255,207,110,.6) !important;background:rgba(255,207,110,.1) !important;color:var(--g) !important}
+.pd-fee{display:flex;align-items:center;gap:10px;border:1px solid rgba(255,207,110,.4);border-radius:6px;background:rgba(0,0,0,.45);padding:0 12px}
+.pd-fee img{width:22px;height:22px;border-radius:50%}
+.pd-fee input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff7e0;font:600 21px var(--disp);padding:11px 0}
+.pd-fee span{font:600 12px var(--mono);color:var(--g)}
+.pd-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pd-chips button{font:600 11px var(--mono) !important;padding:5px 10px !important;border:1px solid rgba(255,255,255,.1) !important;color:#9fb0a8 !important;border-radius:4px}
+.pd-chips button.on{border-color:rgba(255,207,110,.5) !important;color:var(--g) !important}
+.pd-bal{display:flex;justify-content:space-between;gap:8px;font:11.5px var(--mono);color:var(--dim);padding:9px 12px;border:1px dashed rgba(255,255,255,.12)}
+.pd-bal b{color:#fff7e0;font-weight:600}.pd-bal .ok{color:var(--m)}.pd-bal .no{color:#ff9a8a}
+.pd-cta{width:100%;height:54px;display:flex !important;align-items:center;justify-content:center;font:700 14.5px var(--disp) !important;letter-spacing:.2em;color:#1c1203 !important;background:linear-gradient(135deg,#ffe08f,#ffcf6e 55%,#c98a1e) !important;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));flex-shrink:0}
+.pd-cta:disabled{opacity:.45;filter:grayscale(.4)}
+.pd-pot{text-align:center;padding:22px 16px;border:1px solid rgba(255,207,110,.4);background:radial-gradient(120% 80% at 50% 0,rgba(255,207,110,.14),transparent 70%);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+.pd-pot .coin{width:58px;height:58px;margin:0 auto;background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(0 0 16px rgba(255,200,60,.5))}
+.pd-pot .big{font:700 44px var(--disp);color:#fff;margin:6px 0 2px}.pd-pot .big small{font:600 15px var(--mono);color:var(--g)}
+.pd-pot .sub{font:11px var(--mono);color:var(--dim)}
+.pd-places{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.pd-places div{padding:10px 6px;border:1px solid var(--line);background:rgba(0,0,0,.3)}
+.pd-places b{display:block;font:700 18px var(--disp)}.pd-places span{font:10px var(--mono);color:var(--dim)}
+.pd-range{width:100%;margin-top:16px;accent-color:#ffcf6e}
+.pd-ends{display:flex;justify-content:space-between;font:10.5px var(--mono);color:var(--dim);margin-top:2px}
+.pd-row{width:100%;display:grid !important;grid-template-columns:34px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px !important;border:1px solid var(--line) !important;background:rgba(255,255,255,.02) !important;text-align:left;margin-bottom:8px}
+.pd-row:hover{border-color:rgba(255,207,110,.4) !important}
+.pd-row .ic{width:32px;height:32px;background-size:contain;background-repeat:no-repeat;background-position:center}
+.pd-row .n{font:600 15px var(--disp);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pd-row .s{font:11px var(--mono);color:var(--dim);margin-top:3px}
+.pd-row .pt{text-align:right}.pd-row .pt b{display:block;font:700 15.5px var(--disp);color:var(--g)}.pd-row .pt small{font:10.5px var(--mono);color:var(--dim)}
+.pd-tag{font:600 9.5px var(--mono);padding:2px 6px;margin-left:6px;border-radius:3px;letter-spacing:.06em}
+.pd-tag.mine{background:rgba(110,255,192,.14);color:var(--m)}.pd-tag.open{background:rgba(255,207,110,.14);color:var(--g)}
+.pd-tag.paid{background:rgba(110,255,192,.14);color:var(--m)}.pd-tag.refund{background:rgba(110,200,255,.14);color:#6ec8ff}.pd-tag.live{background:rgba(255,207,110,.14);color:var(--g)}
+.pd-empty{padding:30px 12px;text-align:center;font:12.5px var(--mono);color:var(--dim);border:1px dashed rgba(255,255,255,.12);line-height:1.6}
+.pd-hint{font:12px/1.5 var(--disp);color:#5d6d66;margin:0}
+.pd-err{font:12px var(--mono);color:#ff8a8a;text-align:center}
+.pd-hist{flex:1;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);min-height:0}
+.pd-hist>section{padding:20px 24px;overflow:auto;min-height:0}.pd-hist>section+section{border-left:1px solid var(--line)}
+.pd-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.pd-stats div{padding:10px 12px;border:1px solid var(--line);background:rgba(255,255,255,.02)}.pd-stats b{display:block;font:700 20px var(--disp)}.pd-stats span{font:10px var(--mono);color:var(--dim);letter-spacing:.1em}
+.pd-filt{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.pd-filt button{font:600 10.5px var(--mono) !important;padding:5px 10px !important;border:1px solid rgba(255,255,255,.1) !important;color:#8a9a93 !important;letter-spacing:.08em}
+.pd-filt button.on{border-color:rgba(255,207,110,.5) !important;color:var(--g) !important;background:rgba(255,207,110,.07) !important}
+.pd-h{width:100%;display:grid !important;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px 14px !important;border:1px solid var(--line) !important;background:rgba(255,255,255,.02) !important;margin-bottom:8px;text-align:left}
+.pd-h.sel{border-color:rgba(255,207,110,.55) !important;background:rgba(255,207,110,.05) !important}
+.pd-h .n{font:600 15px var(--disp)}.pd-h .s{font:11px var(--mono);color:var(--dim);margin-top:3px}
+.pd-h .r{text-align:right}.pd-h .r b{display:block;font:700 15px var(--disp)}.pd-h .r small{font:10.5px var(--mono)}
+.pd .won{color:var(--m)}.pd .lost{color:#8a9590}.pd .ref{color:#6ec8ff}
+.pd-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 14px}
+.pd-meta div{padding:9px 10px;border:1px solid var(--line)}.pd-meta b{display:block;font:600 15px var(--disp)}.pd-meta span{font:9.5px var(--mono);color:var(--dim);letter-spacing:.1em}
+.pd-st{width:100%;border-collapse:collapse;font:12.5px var(--mono)}
+.pd-st th{text-align:left;font:600 9.5px var(--mono);color:var(--dim);letter-spacing:.12em;padding:6px;border-bottom:1px solid var(--line)}
+.pd-st td{padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.04)}.pd-st td img{width:20px;vertical-align:middle;margin-right:6px}
+.pd-st tr.me td{background:rgba(110,255,192,.06)}.pd-st .pz{color:var(--g);font-weight:600;text-align:right}
+.pd-tx{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:14px;padding:10px 12px;border:1px solid rgba(110,255,192,.3);background:rgba(110,255,192,.05);font:11.5px var(--mono);color:#b8c4bf}
+.pd-tx a{color:var(--m)}
+.pd-m .pd-top{padding:10px 14px}.pd-m .pd-top h1{font-size:15px;margin-right:auto}
+.pd-mt{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--line);flex-shrink:0}
+.pd-mt button{padding:12px 0 !important;font:700 11.5px var(--disp) !important;letter-spacing:.14em;color:#6f8079 !important}
+.pd-mt button.on{color:var(--g) !important;box-shadow:inset 0 -2px 0 var(--g)}
+.pd-mb{flex:1;overflow:auto;padding:14px 16px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
+.pd-potm{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid rgba(255,207,110,.35);background:rgba(255,207,110,.06)}
+.pd-potm b{font:700 19px var(--disp);color:#fff}.pd-potm span{font:10.5px var(--mono);color:var(--dim)}
+`;
+const PD_SPLIT = [50, 30, 20];
+const r3 = (x) => Math.round(x * 1000) / 1000;
+const fmtDay = (d) => { try { return new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch (e) { return ''; } };
+
+function PaidHistory({ f, mobile }) {
+  const h = f.history;
+  const [filt, setFilt] = useState('all');
+  const [selId, setSelId] = useState(null);
+  useEffect(() => { if (!h.data && !h.loading) h.load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  const all = [...((h.data && h.data.hosted) || []), ...((h.data && h.data.joined) || [])]
+    .filter((x) => x.kind === 'auto' && x.paid)
+    .filter((x, i, arr) => arr.findIndex((y) => y.id === x.id) === i)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const list = all.filter((x) => filt === 'all' || (filt === 'hosted' && x.hosted) || (filt === 'joined' && !x.hosted) || (filt === 'won' && x.myRank));
+  const won = r3(all.reduce((a, x) => a + (x.myPrize || 0), 0));
+  const top3 = all.filter((x) => x.myRank).length;
+  const sel = list.find((x) => x.id === selId) || (mobile ? null : list[0]);
+  const status = (x) => (x.state === 'Distributed' ? ['paid', 'PAID OUT'] : x.state === 'Refunded' ? ['refund', 'REFUNDED'] : ['live', x.state === 'Locked' ? 'LIVE' : 'OPEN']);
+  const result = (x) => {
+    if (x.state === 'Refunded') return <><b className="ref">{x.entryFeeNear} back</b><small className="ref">refunded</small></>;
+    if (x.state !== 'Distributed') return <><b>{x.matchesPlayed}/{x.maxMatches}</b><small style={{ color: 'var(--g)' }}>in progress</small></>;
+    if (x.myRank) return <><b className="won">#{x.myRank} · +{x.myPrize}</b><small className="won">tNEAR</small></>;
+    return <><b className="lost">{x.iPaidIn ? 'No prize' : 'Hosted'}</b><small className="lost">{x.iPaidIn ? `−${x.entryFeeNear}` : 'did not play'}</small></>;
+  };
+  const detail = (x) => {
+    const nM = Math.max(x.matchesPlayed || 0, ...(x.standings || []).map((e) => (e.matches || []).length), 0);
+    const prizeOf = (name) => (x.winners || []).find((w) => w.name === name);
+    return (
+      <div>
+        <div className="k" style={{ color: 'var(--g)', marginBottom: 2 }}>{fmtDay(x.createdAt)} · {x.hosted ? 'HOSTED BY YOU' : 'YOU JOINED'}</div>
+        <div style={{ font: '700 21px var(--disp)' }}>{x.name}</div>
+        <div className="pd-meta"><div><b>{x.matchesPlayed}/{x.maxMatches}</b><span>MATCHES</span></div><div><b>{x.players}</b><span>PLAYERS</span></div><div><b>{x.entryFeeNear}</b><span>ENTRY tNEAR</span></div><div><b style={{ color: 'var(--g)' }}>{x.potNear}</b><span>POT tNEAR</span></div></div>
+        {(x.standings || []).length > 0 ? (
+          <table className="pd-st"><tbody>
+            <tr><th>#</th><th>PLAYER</th>{!mobile && Array.from({ length: nM }, (_, k) => <th key={k}>M{k + 1}</th>)}<th>TOTAL</th><th style={{ textAlign: 'right' }}>PRIZE</th></tr>
+            {x.standings.map((e, i) => { const w = prizeOf(e.name); return (
+              <tr key={i} className={e.me ? 'me' : ''}><td>{i + 1}</td><td>{e.avatarId && f.avatarImg ? <img src={f.avatarImg(e.avatarId)} alt="" /> : null}{e.me ? 'You' : e.name}</td>
+                {!mobile && Array.from({ length: nM }, (_, k) => <td key={k}>{(e.matches || [])[k] != null ? `+${e.matches[k]}` : '—'}</td>)}
+                <td><b>{e.total}</b></td><td className="pz" style={w ? undefined : { color: '#5d6d66' }}>{w ? w.amountNear : '—'}</td></tr>
+            ); })}
+          </tbody></table>
+        ) : <p className="pd-hint">{x.state === 'Refunded' ? 'No match was finished, so every entry fee went back.' : 'Standings show up here once the game pays out.'}</p>}
+        {x.payoutTxHash && <div className="pd-tx"><span>Paid by the contract{x.finishedAt ? ` · ${fmtDay(x.finishedAt)}` : ''}</span><a href={`${f.explorer}/txns/${x.payoutTxHash}`} target="_blank" rel="noreferrer">View on NEAR explorer ↗</a></div>}
+        {x.state !== 'Distributed' && x.state !== 'Refunded' && x.roomCode && <button type="button" className="pd-cta" style={{ marginTop: 14 }} onClick={() => f.onRejoin(x)}>OPEN THIS GAME »</button>}
+      </div>
+    );
+  };
+  const listEl = (
+    <>
+      <div className="pd-stats"><div><b>{all.length}</b><span>PLAYED</span></div><div><b className="won">+{won}</b><span>tNEAR WON</span></div><div><b>{top3}</b><span>TOP-3 FINISHES</span></div></div>
+      <div className="pd-filt">{['all', 'joined', 'hosted', 'won'].map((k) => <button type="button" key={k} className={filt === k ? 'on' : ''} onClick={() => setFilt(k)}>{k.toUpperCase()}</button>)}</div>
+      {h.loading && !h.data && <p className="pd-hint">Loading your paid games…</p>}
+      {h.error && <p className="pd-err">{h.error}</p>}
+      {h.data && list.length === 0 && <div className="pd-empty">{all.length ? 'Nothing in this filter yet.' : 'No paid games yet. Create one or join a live game — every result lands here.'}</div>}
+      {list.map((x) => { const [cls, txt] = status(x); return (
+        <React.Fragment key={x.id}>
+          <button type="button" className={`pd-h ${sel && sel.id === x.id ? 'sel' : ''}`} onClick={() => setSelId(sel && sel.id === x.id && mobile ? null : x.id)}>
+            <div style={{ minWidth: 0 }}><div className="n">{x.name}<span className={`pd-tag ${cls}`}>{txt}</span></div>
+              <div className="s">{fmtDay(x.createdAt)} · {x.matchesPlayed}/{x.maxMatches} matches · {x.players} players · {x.entryFeeNear} each{x.hosted ? ' · you hosted' : ''}</div></div>
+            <div className="r">{result(x)}</div>
+          </button>
+          {mobile && sel && sel.id === x.id && <div style={{ padding: '4px 4px 14px' }}>{detail(x)}</div>}
+        </React.Fragment>
+      ); })}
+    </>
+  );
+  if (mobile) return <div className="pd-mb">{listEl}</div>;
+  return (
+    <div className="pd-hist">
+      <section><h2 style={{ marginBottom: 14 }}>YOUR PAID GAMES</h2>{listEl}</section>
+      <section>{sel ? detail(sel) : <div className="pd-empty">Pick a game on the left to see its standings and payout.</div>}</section>
+    </div>
+  );
+}
+
+export function PaidGamesScreen({ mobile, onClose, f }) {
+  const [mTab, setMTab] = useState('create');
+  const [crowd, setCrowd] = useState(6);
   const fee = parseFloat(f.fee) || 0;
   const ready = !!f.matches && fee > 0;
-  const gold = '#ffcf6e';
-  return (
+  const bal = f.balance != null ? Number(f.balance) : null;
+  const enough = bal == null ? null : bal >= fee + 0.05; // a little extra for gas
+  const pot = r3(fee * crowd * 0.95);
+  const places = PD_SPLIT.map((p) => r3(pot * p / 100));
+  const coinBg = { backgroundImage: `url(${f.coinImg})` };
+  const create = (
     <>
-      <div className="hc-banner" style={{ background: 'radial-gradient(120% 140% at 20% 0%, rgba(255,207,110,.22), transparent 60%), #070604' }}>
-        <div style={{ position: 'absolute', left: 28, top: '50%', transform: 'translateY(-55%)', display: 'flex', alignItems: 'center', gap: 18, zIndex: 1 }}>
-          <div aria-hidden="true" style={{ width: 64, height: 64, flexShrink: 0, background: `url(${f.coinImg}) center / contain no-repeat`, filter: 'drop-shadow(0 0 18px rgba(255,200,60,.55))' }} />
-          <div>
-            <div style={{ font: '600 11px var(--mono)', letterSpacing: '.24em', color: gold }}>CREATE OR JOIN</div>
-            <div style={{ font: '700 40px var(--disp)', letterSpacing: '.08em', color: '#fff', lineHeight: 1.05 }}>PAID GAMES</div>
-          </div>
+      <div><div className="k"><span><b>01</b> · GAME NAME</span><small>OPTIONAL · {f.name.length}/40</small></div>
+        <input className="hc-in" maxLength={40} placeholder="Friday High Rollers" value={f.name} onChange={(e) => f.setName(e.target.value)} /></div>
+      <div><div className="k"><span><b>02</b> · MATCHES</span><small>DEFAULT 3</small></div>
+        <div className="pd-seg" style={{ gridTemplateColumns: 'repeat(5,1fr)' }}>{[1, 2, 3, 4, 5].map((n) => <button type="button" key={n} className={f.matches === n ? 'on' : ''} onClick={() => f.setMatches(n)}>{n}</button>)}</div>
+        <p className="pd-hint" style={{ marginTop: 6 }}>Points from every match add up — the top 3 totals win.</p></div>
+      <div><div className="k"><span><b>03</b> · ENTRY FEE PER PLAYER</span><small>YOU PAY IT TOO</small></div>
+        <div className="pd-fee"><img src={f.nearImg} alt="NEAR" /><input type="number" min="0" step="0.05" inputMode="decimal" placeholder="0.00" aria-label="Entry fee in test NEAR" value={f.fee} onChange={(e) => f.setFee(e.target.value)} /><span>tNEAR</span></div>
+        <div className="pd-chips">{[0.1, 0.25, 0.5, 1, 2].map((v) => <button type="button" key={v} className={fee === v ? 'on' : ''} onClick={() => f.setFee(String(v))}>{v}</button>)}</div></div>
+      <div><div className="k"><span><b>04</b> · WHO CAN JOIN</span></div>
+        <div className="pd-seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <button type="button" className={!f.isPrivate ? 'on' : ''} onClick={() => f.setPrivate(false)}>PUBLIC</button>
+          <button type="button" className={f.isPrivate ? 'on' : ''} onClick={() => f.setPrivate(true)}>PRIVATE</button>
         </div>
-        <div className="bh"><p>EVERY PLAYER PAYS THE ENTRY FEE · <em style={{ color: gold }}>TOP 3 SPLIT THE POT</em> · TESTNET NEAR</p></div>
-        <CloseBtn onClose={onClose} />
+        <p className="pd-hint" style={{ marginTop: 6 }}>{f.isPrivate ? 'Hidden from the list. Share the invite link from the lobby — you approve each player before they pay.' : 'Listed under Live Games — anyone can pay the fee and join. You can still share the invite link.'}</p></div>
+      <div className="pd-bal">
+        <span>Your test wallet: <b>{bal == null ? '—' : `${bal.toFixed(2)} tNEAR`}</b></span>
+        {bal != null && fee > 0 && <span className={enough ? 'ok' : 'no'}>{enough ? 'enough for your entry ✓' : 'not enough — top up first'}</span>}
       </div>
-      <div className="hc-fp">
-        <section>
-          <div className="hc-fh"><h2>CREATE A PAID GAME</h2></div>
-          <div className="hc-fl">
-            <label htmlFor="hcPdName"><span><b>01</b> · GAME NAME</span><small>OPTIONAL · {f.name.length}/40</small></label>
-            <input id="hcPdName" className="hc-in" maxLength={40} placeholder="Friday High Rollers" value={f.name} onChange={(e) => f.setName(e.target.value)} />
-          </div>
-          <div className="hc-fl">
-            <div className="lb"><span><b>02</b> · MATCHES</span><small>TOTAL POINTS ACROSS ALL MATCHES WIN</small></div>
-            <div className="hc-acc" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-              {[1, 2, 3].map((n) => <button type="button" key={n} className={f.matches === n ? 'on' : ''} onClick={() => f.setMatches(n)}>{n} MATCH{n > 1 ? 'ES' : ''}</button>)}
-            </div>
-          </div>
-          <div className="hc-fl">
-            <label htmlFor="hcPdFee"><span><b>03</b> · ENTRY FEE PER PLAYER</span><small>YOU PAY IT TOO IF YOU PLAY</small></label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid rgba(255,207,110,.35)', borderRadius: 6, background: 'rgba(0,0,0,.4)', padding: '0 12px' }}>
-              <img src={f.nearImg} alt="NEAR" style={{ width: 20, height: 20, borderRadius: '50%' }} />
-              <input id="hcPdFee" type="number" min="0" step="0.1" inputMode="decimal" placeholder="0.00" value={f.fee} onChange={(e) => f.setFee(e.target.value)}
-                style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: '#fff7e0', font: '600 18px var(--disp)', padding: '11px 0' }} />
-              <span style={{ font: '600 12px var(--mono)', color: gold }}>tNEAR</span>
-            </div>
-            <p className="hc-hint">Pot = entry fee × players. The contract keeps 5% and pays the top 3 automatically: 50% / 30% / 20%.</p>
-          </div>
-          {f.error && <div className="hc-note hc-err" style={{ textAlign: 'center', marginBottom: 10 }}>{f.error}</div>}
-          <style>{'.hc-create.gold{background:linear-gradient(135deg,#ffe08f,#ffcf6e 55%,#c98a1e) !important;color:#1c1203 !important}'}</style>
-          <button type="button" className={`hc-create${ready && !f.busy ? ' gold' : ''}`} disabled={f.busy || !ready} onClick={f.onCreate}>
-            {f.busy ? 'CONFIRM IN YOUR WALLET…' : ready ? 'CREATE PAID GAME »' : 'PICK MATCHES + ENTRY FEE'}
+      {f.error && <div className="pd-err">{f.error}</div>}
+      <button type="button" className="pd-cta" disabled={f.busy || !ready || enough === false} onClick={f.onCreate}>
+        {f.busy ? 'CONFIRM IN YOUR WALLET…' : ready ? 'CREATE PAID GAME »' : 'PICK AN ENTRY FEE'}
+      </button>
+      {f.pending && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+          <button type="button" onClick={f.onRetry} style={{ color: 'var(--g)', textDecoration: 'underline', font: '12px var(--mono)' }}>Retry room setup (game #{f.pending}) — won't charge again</button>
+          <button type="button" onClick={f.onReport} style={{ color: f.reportStatus === 'sent' ? '#6effc0' : '#ff9a9a', textDecoration: 'underline', font: '11.5px var(--mono)' }}>
+            {f.reportStatus === 'sending' ? 'Reporting…' : f.reportStatus === 'sent' ? '✓ Reported — we’ll sort this out' : 'Still stuck? Report this payment'}
           </button>
-          {f.pending && (
-            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
-              <button type="button" onClick={f.onRetry} style={{ color: gold, textDecoration: 'underline', font: '12px var(--mono)' }}>Retry room setup (game #{f.pending}) — won't charge again</button>
-              <button type="button" onClick={f.onReport} style={{ color: f.reportStatus === 'sent' ? '#6effc0' : '#ff9a9a', textDecoration: 'underline', font: '11.5px var(--mono)' }}>
-                {f.reportStatus === 'sending' ? 'Reporting…' : f.reportStatus === 'sent' ? '✓ Reported — we’ll sort this out' : 'Still stuck? Report this payment'}
-              </button>
-            </div>
-          )}
-        </section>
-        <section>
-          <div className="hc-fh"><h2>LIVE PAID GAMES</h2><em>{f.items.length} OPEN</em></div>
-          {f.loading && <div className="hc-hint" style={{ marginBottom: 10 }}>Checking for live games…</div>}
-          {f.items.length > 0 ? f.items.map((it) => (
-            <button type="button" key={it.key} className="hc-rm" onClick={it.onClick}>
-              <img src={f.coinImg} alt="" style={{ width: 30 }} />
-              <div className="t">
-                <b><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title || 'Paid Game'}</span><small style={{ color: it.mine ? '#6effc0' : gold }}>{it.tag}</small></b>
-                <div className="hc-seats"><span>{it.metaLeft}</span><span style={{ color: gold }}>{it.metaRight}</span></div>
-              </div>
-              <Ico d={P.chev} c="#5d6d66" s={16} />
-            </button>
-          )) : !f.loading && (
-            <div className="hc-empty">No live paid games yet.<br />Create one on the left — it shows up here for everyone.</div>
-          )}
-        </section>
-      </div>
+        </div>
+      )}
     </>
+  );
+  const potCard = (
+    <div className="pd-pot">
+      <div className="coin" style={coinBg} />
+      <div className="k" style={{ justifyContent: 'center', color: 'var(--g)', margin: '8px 0 0' }}>IF {crowd} PLAYERS JOIN</div>
+      <div className="big">{pot} <small>tNEAR</small></div>
+      <div className="sub">{fee || 0} × {crowd} players − 5% fee</div>
+      <div className="pd-places">
+        {places.map((v, i) => <div key={i}><b style={{ color: ['#ffd75e', '#c9d3d9', '#d9965c'][i] }}>{v}</b><span>{['1ST', '2ND', '3RD'][i]} · {PD_SPLIT[i]}%</span></div>)}
+      </div>
+      <input className="pd-range" type="range" min={3} max={10} value={crowd} onChange={(e) => setCrowd(Number(e.target.value))} aria-label="Number of players" />
+      <div className="pd-ends"><span>3 players</span><span>10 players</span></div>
+    </div>
+  );
+  const live = (
+    <>
+      {f.loading && f.items.length === 0 && <p className="pd-hint">Checking for live games…</p>}
+      {f.items.length > 0 ? f.items.map((it) => (
+        <button type="button" key={it.key} className="pd-row" onClick={it.onClick}>
+          <span className="ic" style={coinBg} />
+          <div style={{ minWidth: 0 }}><div className="n">{it.title || 'Paid Game'}<span className={`pd-tag ${it.mine ? 'mine' : 'open'}`}>{it.mine ? "YOU'RE IN" : 'OPEN'}</span></div><div className="s">{it.metaLeft}</div></div>
+          <div className="pt"><b>{it.fee} tNEAR</b><small>per player</small></div>
+        </button>
+      )) : !f.loading && <div className="pd-empty">No live paid games yet.<br />{mobile ? 'Create one in the first tab.' : 'Create one on the left — it shows up here for everyone.'}</div>}
+      <p className="pd-hint">Private games aren't listed — open their invite link, or enter the code on Home.</p>
+    </>
+  );
+  const head = (tabs) => (
+    <div className="pd-top">
+      <h1><i style={coinBg} />PAID GAMES</h1>
+      {tabs}
+      <span className="pd-tn">{mobile ? 'TESTNET' : 'TESTNET · TEST NEAR ONLY'}</span>
+      {!mobile && <CloseBtn onClose={onClose} />}
+      {mobile && <button type="button" onClick={onClose} aria-label="Back" style={{ marginLeft: 8, color: 'var(--m)', font: '600 12px var(--mono)' }}>✕</button>}
+    </div>
+  );
+  if (mobile) {
+    return (
+      <MobileWrap open={false}><div className="hc-page top"><div className="pd pd-m">
+        <style>{PAID_CSS}</style>
+        {head(null)}
+        <div className="pd-mt">
+          {[['create', 'CREATE'], ['live', `LIVE · ${f.items.length}`], ['hist', 'HISTORY']].map(([k, t]) => <button type="button" key={k} className={mTab === k ? 'on' : ''} onClick={() => setMTab(k)}>{t}</button>)}
+        </div>
+        {mTab === 'hist' ? <PaidHistory f={f} mobile /> : (
+          <div className="pd-mb">
+            {mTab === 'create' ? <>
+              {create.props.children.slice(0, 4)}
+              <div className="pd-potm"><div><span>POT IF {crowd} JOIN</span><br /><b>{pot} tNEAR</b></div><div style={{ textAlign: 'right' }}><span>1ST / 2ND / 3RD</span><br /><b style={{ fontSize: 14, color: 'var(--g)' }}>{places.join(' · ')}</b></div></div>
+              <input className="pd-range" type="range" min={3} max={10} value={crowd} onChange={(e) => setCrowd(Number(e.target.value))} aria-label="Number of players" style={{ marginTop: -6 }} />
+              {create.props.children.slice(4)}
+            </> : live}
+          </div>
+        )}
+      </div></div></MobileWrap>
+    );
+  }
+  return (
+    <div className="pd">
+      <style>{PAID_CSS}</style>
+      {head(<>
+        <button type="button" className={`pd-tab ${f.tab !== 'hist' ? 'on' : ''}`} onClick={() => f.setTab('play')}>CREATE &amp; JOIN</button>
+        <button type="button" className={`pd-tab ${f.tab === 'hist' ? 'on' : ''}`} onClick={() => f.setTab('hist')}>HISTORY</button>
+      </>)}
+      {f.tab === 'hist' ? <PaidHistory f={f} /> : (
+        <div className="pd-cols">
+          <section><h2>CREATE A PAID GAME</h2>{create}</section>
+          <section style={{ background: 'rgba(255,207,110,.02)' }}>
+            <h2>THE POT</h2>
+            {potCard}
+            <p className="pd-hint" style={{ textAlign: 'center' }}>Drag to see the pot for any room size. The contract holds every entry fee and pays the top 3 the moment the last match ends.</p>
+          </section>
+          <section><h2>LIVE GAMES <span className="pd-tag open" style={{ verticalAlign: 'middle' }}>{f.items.length} OPEN</span></h2>{live}</section>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -7294,112 +7294,56 @@ function LobbyScreen({
       {/* [NEW POOL SYSTEM] Final result - shown to everyone in the room
           once every participant has confirmed and the backend's oracle
           has (attempted to) call distribute_prizes. */}
-      {poolFinalResult && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 60,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        }}>
-          <div style={{
-            width: '100%', maxWidth: 320, background: 'linear-gradient(160deg, #1a1508, #0a0805)',
-            border: '1px solid rgba(255,215,80,0.4)', borderRadius: 16, padding: '22px 18px',
-          }}>
-            <h2 style={{ fontSize: 16, fontWeight: 900, color: '#ffd75e', margin: '0 0 4px', textAlign: 'center' }}>
-              {poolFinalResult.success ? 'Pool Complete' : 'Payout Delayed'}
-            </h2>
-            <p style={{ fontSize: 10, color: '#9aa0ad', margin: '0 0 14px', textAlign: 'center' }}>
-              {poolFinalResult.success
-                ? 'Prizes have been sent on-chain.'
-                : `Payout didn't go through yet (${poolFinalResult.error || 'unknown error'}) - it'll be sorted out shortly, your funds are safe on-chain either way.`}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(() => {
-                // [NEW FEATURE - SHOW NEAR VALUE, NOT JUST %] Replicates
-                // distribute_prizes_internal's exact math (lib.rs) so
-                // what's shown here always matches what actually moves
-                // on-chain: 5% platform fee off the top, then the
-                // remainder splits 50/30/20 across however many winners
-                // there actually are (redistributed proportionally if
-                // fewer than 3 - e.g. only 2 winners means 62.5%/37.5%,
-                // not 50%/30% with 20% vanishing).
-                const pool = roomInfo?.pool;
-                const numOnChainParticipants = (pool?.onChainParticipantAccountIds || []).length;
-                const totalFundNear = pool
-                  ? (pool.hostFunded ? Number(pool.entryFeeNear || 0) : Number(pool.entryFeeNear || 0) * numOnChainParticipants)
-                  : 0;
-                const platformCutNear = totalFundNear * 0.05;
-                const payoutPoolNear = totalFundNear - platformCutNear;
-                const splitPctAll = [50, 30, 20];
-                const winnerAccountIds = poolFinalResult.rankedWinnerAccountIds || poolFinalResult.rankedWinners || [];
-                const splitTotal = splitPctAll.slice(0, winnerAccountIds.length).reduce((a, b) => a + b, 0) || 1;
-                return (
-                  <>
-                    {pool && (
-                      <div style={{ textAlign: 'center', marginBottom: 2 }}>
-                        <span style={{ fontSize: 10, color: '#9aa0ad' }}>Total reward pool: </span>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: '#ffd75e' }}>{totalFundNear.toFixed(2)} NEAR</span>
+      {poolFinalResult && (() => {
+        // [RESULT BANNER] Your own result first, then who won what - amounts
+        // come straight from the server (same math the contract used).
+        const r = poolFinalResult;
+        const pool = roomInfo?.pool;
+        const manual = !!r.manual || pool?.mode === 'manual';
+        const meId = roomInfo?.players?.find((p) => p.id === socket?.id)?.accountId;
+        const winners = Array.isArray(r.winners) ? r.winners : [];
+        const mine = winners.find((w) => w.accountId === meId);
+        const iPlayed = !!(meId && ((pool?.onChainParticipantAccountIds || []).includes(meId) || (pool?.participantAccountIds || []).includes(meId)));
+        const unit = manual ? 'NEAR' : 'tNEAR';
+        const medal = ['#ffd75e', '#c9d3d9', '#d9965c'];
+        const nameOf = (w) => {
+          const lb = roomInfo?.roomLeaderboard?.find((e) => e.accountId === w.accountId);
+          return lb?.username ? `@${lb.username}` : (w.name || lb?.name || 'Player');
+        };
+        const headline = !r.success ? 'Payout delayed'
+          : mine ? `You finished #${mine.rank}` : iPlayed ? 'No prize this time' : (manual ? 'Winners decided' : 'Prizes sent');
+        const sub = !r.success ? `The payout didn't go through yet (${r.error || 'unknown error'}). Your entry is safe on-chain — it will be retried.`
+          : mine ? (manual ? `Your prize: ${mine.amountNear} NEAR. The host pays it by hand — you'll get an Inbox message when it's sent.` : `You won ${mine.amountNear} tNEAR — it's already in your wallet.`)
+            : iPlayed ? 'Only the top 3 totals win a share of the pot. Better luck next game!' : '';
+        const explorer = r.payoutTxHash ? `https://${POOL_NEAR_NETWORK === 'testnet' ? 'testnet.' : ''}nearblocks.io/txns/${r.payoutTxHash}` : null;
+        return (
+          <div onClick={(e) => { if (e.target === e.currentTarget) onClosePoolFinalResult(); }} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ width: '100%', maxWidth: 440, zoom: lobbyHudK, color: '#e6ece9', background: 'radial-gradient(120% 70% at 50% 0, rgba(255,207,110,0.16), transparent 70%), #0a0805', border: '1px solid rgba(255,207,110,0.45)', clipPath: 'polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))', padding: '22px 20px 18px', textAlign: 'center' }}>
+              <img src={POINT_COIN_IMG} alt="" style={{ width: 54, height: 'auto', filter: 'drop-shadow(0 0 16px rgba(255,200,60,0.55))' }} />
+              <div style={{ font: "600 10.5px 'IBM Plex Mono', monospace", letterSpacing: 3, color: '#ffcf6e', marginTop: 6 }}>{pool?.poolName ? pool.poolName.toUpperCase() : (pool?.hostFunded === false ? 'PAID GAME' : 'POOL GAME')} · FINAL</div>
+              <h2 style={{ margin: '6px 0 6px', font: "700 28px 'Space Grotesk', sans-serif", color: mine ? '#6effc0' : '#fff' }}>{headline}</h2>
+              {mine && r.success && <div style={{ font: "700 34px 'Space Grotesk', sans-serif", color: '#ffd75e', margin: '0 0 4px' }}>+{mine.amountNear} <span style={{ fontSize: 15, fontFamily: "'IBM Plex Mono', monospace" }}>{unit}</span></div>}
+              {sub && <p style={{ margin: '0 0 14px', fontSize: 13, color: '#aeb9b4', lineHeight: 1.5 }}>{sub}</p>}
+              {winners.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+                  {winners.map((w) => (
+                    <div key={w.accountId || w.rank} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 10px', border: `1px solid ${w.accountId === meId ? 'rgba(110,255,192,0.5)' : 'rgba(255,255,255,0.08)'}`, background: w.accountId === meId ? 'rgba(110,255,192,0.07)' : 'rgba(255,255,255,0.03)' }}>
+                      <b style={{ font: "700 16px 'Space Grotesk', sans-serif", color: medal[w.rank - 1] || '#9aa0ad' }}>#{w.rank}</b>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ font: "600 14px 'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(w)}{w.accountId === meId ? ' (you)' : ''}</div>
+                        <div style={{ font: "10.5px 'IBM Plex Mono', monospace", color: '#7d8d86' }}>{w.points} pts</div>
                       </div>
-                    )}
-                    {winnerAccountIds.map((accountId, i) => {
-                      // [BUG FIX - SHOWED "PLAYER" INSTEAD OF A REAL NAME]
-                      // By the time this final popup renders, a winner
-                      // may have already left the room (very possible
-                      // now with auto-confirm-on-leave) - roomInfo.players
-                      // only has whoever's still actually present, so this
-                      // kept falling back to the generic "Player"
-                      // placeholder. roomLeaderboard entries persist even
-                      // after someone leaves (snapshotRoomLeaderboardOn
-                      // Departure), so they're the reliable source here.
-                      const p = roomInfo?.players?.find((pl) => pl.accountId === accountId);
-                      const lbEntry = roomInfo?.roomLeaderboard?.find((e) => e.accountId === accountId);
-                      const points = poolFinalResult.leaderboard?.[accountId] || 0;
-                      const pct = splitPctAll[i] || 0;
-                      const nearShare = payoutPoolNear * pct / splitTotal;
-                      // [NEW FEATURE] Username as the primary displayed
-                      // identity, per Om7eth's explicit request - falls
-                      // back to their display name, then the generic
-                      // placeholder only if truly nothing is known.
-                      const primaryName = lbEntry?.username ? `@${lbEntry.username}` : (p?.name || lbEntry?.name || 'Player');
-                      const hasLegionBadge = p?.hasLegionBadge || lbEntry?.hasLegionBadge;
-                      return (
-                        <div key={accountId} style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          background: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 10px',
-                        }}>
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              #{i + 1} {primaryName}
-                              {hasLegionBadge && <LegionBadge size={11} />}
-                            </div>
-                            {lbEntry?.username && (p?.name || lbEntry?.name) && (
-                              <div style={{ fontSize: 9.5, color: '#7fd9b8' }}>{p?.name || lbEntry?.name}</div>
-                            )}
-                            <div style={{ fontSize: 9.5, color: '#9aa0ad' }}>{points} pts</div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: '#ffd75e' }}>{nearShare.toFixed(3)} NEAR</div>
-                            <div style={{ fontSize: 9.5, color: '#9aa0ad' }}>{(pct / splitTotal * 100).toFixed(0)}% share</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                );
-              })()}
-              {(!(poolFinalResult.rankedWinnerAccountIds || poolFinalResult.rankedWinners) || (poolFinalResult.rankedWinnerAccountIds || poolFinalResult.rankedWinners).length === 0) && (
-                <p style={{ fontSize: 11, color: '#9aa0ad', textAlign: 'center', margin: 0 }}>Nobody scored any points this pool - no prizes to distribute.</p>
-              )}
+                      <b style={{ font: "700 15px 'Space Grotesk', sans-serif", color: '#ffd75e' }}>{w.amountNear} {unit}</b>
+                    </div>
+                  ))}
+                </div>
+              ) : r.success && <p style={{ fontSize: 12, color: '#9aa0ad', margin: 0 }}>Nobody scored any points — no prizes to share.</p>}
+              {explorer && <a href={explorer} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 12, font: "11.5px 'IBM Plex Mono', monospace", color: '#6effc0' }}>View the payout on NEAR explorer ↗</a>}
+              <button type="button" onClick={onClosePoolFinalResult} style={{ width: '100%', marginTop: 16, padding: '12px 0', border: 'none', cursor: 'pointer', background: '#ffcf6e', color: '#1c1203', font: "700 13px 'Space Grotesk', sans-serif", letterSpacing: 2 }}>OK</button>
             </div>
-            <button
-              onClick={onClosePoolFinalResult}
-              style={{
-                width: '100%', marginTop: 16, padding: '10px 0', borderRadius: 8,
-                background: 'transparent', color: '#ffd75e', border: '1px solid rgba(255,215,80,0.4)',
-                fontSize: 13, fontWeight: 700,
-              }}
-            >Close</button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {poolError && (
         <div
@@ -10621,7 +10565,9 @@ function MovementDemo() {
   // contract calls and the exact same room-linking step; only the
   // host_funded flag and which screen you reach them from differ.
   const [paidGameName, setPaidGameName] = useState('');
-  const [paidMaxMatches, setPaidMaxMatches] = useState(1);
+  const [paidMaxMatches, setPaidMaxMatches] = useState(3); // [PAID GAMES] 1-5, default 3
+  const [paidPrivate, setPaidPrivate] = useState(false);
+  const [paidTab, setPaidTab] = useState('play'); // 'play' | 'hist'
   const [paidEntryFee, setPaidEntryFee] = useState('');
   const [paidCreateBusy, setPaidCreateBusy] = useState(false);
   const [paidCreateError, setPaidCreateError] = useState('');
@@ -20987,7 +20933,7 @@ function MovementDemo() {
                     if (onChainPoolId == null) throw new Error('Game created, but could not read its ID back. Check your wallet history.');
                     const linkConfig = { poolName: paidGameName.trim(), maxMatches: paidMaxMatches, entryFeeNear: fee, hostFunded: false, onChainPoolId, createTxHash: lastPoolTxHashRef.current };
                     try {
-                      await handleCreateRoom(true, linkConfig);
+                      await handleCreateRoom(!paidPrivate, linkConfig);
                       try {
                         localStorage.setItem('nearSaboteurPoolId', String(onChainPoolId));
                         localStorage.removeItem('nearSaboteurRoomCode');
@@ -21037,7 +20983,7 @@ function MovementDemo() {
                         console.error('Host auto-entry-fee payment failed:', hostEntryErr);
                       }
                       setPendingPaidLink(null);
-                      setPaidGameName(''); setPaidEntryFee(''); setPaidMaxMatches(1);
+                      setPaidGameName(''); setPaidEntryFee(''); setPaidMaxMatches(3); setPaidPrivate(false);
                       setHomeModal(null);
                       setScreen('lobby');
                     } catch (linkErr) {
@@ -21077,7 +21023,7 @@ function MovementDemo() {
                     title: p.poolName,
                     tag: 'ENTER',
                     metaLeft: `${p.matchesPlayed}/${p.maxMatches} matches${p.isHost ? ' · you\u2019re host' : ''}`,
-                    metaRight: `${p.entryFeeNear} NEAR / player`,
+                    metaRight: `${p.entryFeeNear} NEAR / player`, fee: p.entryFeeNear,
                   })),
                   ...publicLivePools.filter(p => !p.hostFunded).map((p) => ({
                     key: p.onChainPoolId,
@@ -21085,240 +21031,30 @@ function MovementDemo() {
                     mine: false,
                     title: p.poolName,
                     tag: 'OPEN',
-                    metaLeft: `${p.maxMatches} match${p.maxMatches > 1 ? 'es' : ''} · ${p.playerCount} in room`,
-                    metaRight: `${p.entryFeeNear} NEAR / player`,
+                    metaLeft: `${p.maxMatches} match${p.maxMatches > 1 ? 'es' : ''} · ${p.playerCount} in room${p.hostName ? ` · host ${p.hostName}` : ''}`,
+                    metaRight: `${p.entryFeeNear} NEAR / player`, fee: p.entryFeeNear,
                   })),
                 ];
-            if (!consoleMobile) {
-              return (
-                <HomeConsole {...consoleShell('paid')} noRail onClose={() => setHomeModal(null)}>
-                  <PaidGamesScreen onClose={() => setHomeModal(null)} f={{
-                    coinImg: POINT_COIN_IMG, nearImg: NEAR_LOGO_IMG,
-                    name: paidGameName, setName: setPaidGameName,
-                    matches: paidMaxMatches, setMatches: setPaidMaxMatches,
-                    fee: paidEntryFee, setFee: setPaidEntryFee,
-                    busy: paidCreateBusy, error: paidCreateError, onCreate: createPaidGame,
-                    pending: pendingPaidLink ? pendingPaidLink.onChainPoolId : null, onRetry: retryPaidSetup, onReport: reportPaidStuck, reportStatus: stuckReportStatus,
-                    items: paidItems, loading: livePoolsLoading,
-                  }} />
-                </HomeConsole>
-              );
-            }
+            const closePaid = () => setHomeModal(null);
             return (
-            <GameModeScreen bgImage={CREATE_PAID_BG_IMG} ratio={941 / 1672} onClose={() => setHomeModal(null)}>
-              <input
-                value={paidGameName} onChange={(e) => setPaidGameName(e.target.value)} maxLength={40}
-                placeholder="Paid game name (optional)"
-                style={{
-                  position: 'absolute', top: '22.61%', height: '4.61%', left: '9.25%', width: '81.30%',
-                  background: 'transparent', border: 'none', outline: 'none', WebkitAppearance: 'none',
-                  color: '#eafffb', fontSize: '2.3vh', fontFamily: 'inherit', padding: '0 3%',
-                }}
-              />
-              {[
-                { n: 1, left: '9.25%', width: '25.4%' },
-                { n: 2, left: '37.09%', width: '25.4%' },
-                { n: 3, left: '64.93%', width: '25.61%' },
-              ].map(({ n, left, width }) => (
-                <div key={n} onClick={() => setPaidMaxMatches(n)}
-                  style={{
-                    position: 'absolute', top: '31.82%', height: '5.26%', left, width,
-                    borderRadius: 6, cursor: 'pointer',
-                    background: paidMaxMatches === n ? 'rgba(110,255,192,0.16)' : 'transparent',
-                    boxShadow: paidMaxMatches === n ? '0 0 8px rgba(110,255,192,0.55), inset 0 0 6px rgba(110,255,192,0.3)' : 'none',
-                    border: paidMaxMatches === n ? '1px solid rgba(110,255,192,0.7)' : '1px solid transparent',
-                  }}
-                />
-              ))}
-              {/* Per-player entry fee - Paid Games never has a funding
-                  toggle; every player (host included, if they want to play)
-                  pays this amount via participate() when they join. */}
-              <input
-                type="number" min="0" step="0.1" inputMode="decimal"
-                value={paidEntryFee} onChange={(e) => setPaidEntryFee(e.target.value)}
-                placeholder="0.00"
-                style={{
-                  position: 'absolute', top: '41.63%', height: '4.90%', left: '20.83%', width: '69.71%',
-                  background: 'transparent', border: 'none', outline: 'none', WebkitAppearance: 'none',
-                  color: '#eafffb', fontSize: '2.3vh', fontFamily: 'inherit', padding: '0 3%',
-                }}
-              />
-              <div
-                onClick={async () => {
-                  if (paidCreateBusy) return;
-                  const fee = parseFloat(paidEntryFee) || 0;
-                  if (!paidMaxMatches || fee <= 0) { setPaidCreateError('Pick a match count and an entry fee first.'); return; }
-                  setPaidCreateError('');
-                  setPaidCreateBusy(true);
-                  if (!(await checkPoolsNotPaused())) {
-                    setPaidCreateError('Pool/Paid games are temporarily paused right now — try again in a bit.');
-                    setPaidCreateBusy(false);
-                    return;
-                  }
-                  try {
-                    const entryFeeYocto = nearToYocto(String(fee));
-                    // Entry-fee pools attach nothing at creation - the host
-                    // pays gas only; every participant (host included, if
-                    // they want to play) pays their own share via
-                    // participate() afterwards. See create_pool's own
-                    // comment on the contract for why.
-                    const onChainPoolId = await callPoolContract('create_pool', {
-                      name: paidGameName.trim() || 'Paid Game',
-                      max_matches: paidMaxMatches,
-                      entry_fee: entryFeeYocto.toString(),
-                      host_funded: false,
-                    }, { depositYocto: '0', label: 'Create Paid Game' });
-                    if (onChainPoolId == null) throw new Error('Game created, but could not read its ID back. Check your wallet history.');
-                    const linkConfig = { poolName: paidGameName.trim(), maxMatches: paidMaxMatches, entryFeeNear: fee, hostFunded: false, onChainPoolId, createTxHash: lastPoolTxHashRef.current };
-                    try {
-                      await handleCreateRoom(true, linkConfig);
-                      try {
-                        localStorage.setItem('nearSaboteurPoolId', String(onChainPoolId));
-                        localStorage.removeItem('nearSaboteurRoomCode');
-                      } catch (e) { /* localStorage unavailable */ }
-                      // [BUG FIX - HOST NEVER PAID OR GOT REGISTERED, FOR
-                      // REAL THIS TIME] The host picks this exact entry
-                      // fee for everyone, including themselves if they
-                      // intend to play - but create_pool itself
-                      // deliberately charges nobody for an entry-fee game
-                      // (every participant pays their own share via
-                      // participate()). Without this, the host sat in
-                      // their own room forever unregistered on-chain
-                      // (never in onChainParticipantAccountIds), so even
-                      // if they won the whole thing outright,
-                      // distributePoolPrizes would correctly (if
-                      // unhelpfully) skip them entirely - no share, ever.
-                      // [ORDERING BUG FIX] This has to happen AFTER
-                      // handleCreateRoom above, not before it - an
-                      // earlier version of this fix tried to pay+register
-                      // right after create_pool, but confirmParticipated
-                      // looks up the room by its onChainPoolId link, and
-                      // that room doesn't actually exist on the backend
-                      // until handleCreateRoom (right above) finishes. The
-                      // on-chain payment silently succeeded every time,
-                      // but the registration that actually makes the host
-                      // an eligible winner was silently failing right
-                      // after - the fee was taken, but the host still
-                      // never showed up as a winner.
-                      try {
-                        await callPoolContract('participate', { pool_id: Number(onChainPoolId) }, {
-                          depositYocto: entryFeeYocto.toString(),
-                          label: `Enter "${paidGameName.trim() || 'Paid Game'}" (as host)`,
-                        });
-                        const hostEntrySocket = await ensureSocketConnected();
-                        await new Promise((resolve, reject) => {
-                          hostEntrySocket.emit('confirmParticipated', { onChainPoolId, sessionToken, txHash: lastPoolTxHashRef.current }, (res) => {
-                            if (!res || res.ok === false) { reject(new Error(res?.message || 'Paid, but could not register your entry.')); return; }
-                            resolve();
-                          });
-                        });
-                      } catch (hostEntryErr) {
-                        // Don't block the whole flow on this one step -
-                        // the room is already created and playable either
-                        // way, and the "Pay Entry Fee" button inside Pool
-                        // Details (Lobby) is still there as a fallback if
-                        // this specific step failed or was rejected.
-                        console.error('Host auto-entry-fee payment failed:', hostEntryErr);
-                      }
-                      setPendingPaidLink(null);
-                      setPaidGameName(''); setPaidEntryFee(''); setPaidMaxMatches(1);
-                      setHomeModal(null);
-                      setScreen('lobby');
-                    } catch (linkErr) {
-                      setPendingPaidLink(linkConfig);
-                      throw new Error(`Your game was created on-chain (#${onChainPoolId}), but setting up the room failed: ${linkErr.message || 'unknown error'}. Reopen Paid Games to retry - this will NOT charge you again.`);
-                    }
-                  } catch (e) {
-                    setPaidCreateError(e.message || 'Failed to create the game on-chain.');
-                  }
-                  setPaidCreateBusy(false);
-                }}
-                style={{
-                  position: 'absolute', top: '48.74%', height: '5.24%', left: '9.25%', width: '81.54%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, cursor: 'pointer',
-                  fontWeight: 900, letterSpacing: 0.4, fontSize: '1.65vh', textTransform: 'uppercase', textAlign: 'center',
-                  color: paidCreateBusy ? '#fff' : ((paidMaxMatches && parseFloat(paidEntryFee) > 0) ? '#06140d' : '#7c8b8a'),
-                  background: paidCreateBusy ? 'rgba(110,255,192,0.35)' : ((paidMaxMatches && parseFloat(paidEntryFee) > 0) ? '#6effc0' : 'rgba(255,255,255,0.05)'),
-                  boxShadow: (!paidCreateBusy && paidMaxMatches && parseFloat(paidEntryFee) > 0) ? '0 0 10px rgba(110,255,192,0.5)' : 'none',
-                }}
-              >{paidCreateBusy ? 'Confirm in your wallet…' : 'Create Paid Game'}</div>
-              {paidCreateError && (
-                <div style={{ position: 'absolute', top: '56.5%', left: '9.25%', width: '81.4%', fontSize: '1.25vh', color: '#ff8a8a', textAlign: 'center', lineHeight: 1.4 }}>
-                  {paidCreateError}
-                </div>
-              )}
-              {pendingPaidLink && (
-                <div
-                  onClick={async () => {
-                    setPaidCreateError(''); setPaidCreateBusy(true);
-                    try {
-                      await handleCreateRoom(true, pendingPaidLink);
-                      localStorage.setItem('nearSaboteurPoolId', String(pendingPaidLink.onChainPoolId));
-                      localStorage.removeItem('nearSaboteurRoomCode');
-                      setPendingPaidLink(null);
-                      setHomeModal(null);
-                      setScreen('lobby');
-                    } catch (e) {
-                      setPaidCreateError(`Still couldn't set up the room: ${e.message || 'unknown error'}.`);
-                    }
-                    setPaidCreateBusy(false);
-                  }}
-                  style={{
-                    position: 'absolute', top: '58.0%', left: '9.25%', width: '81.4%', textAlign: 'center',
-                    fontSize: '1.2vh', color: '#ffc850', cursor: 'pointer', textDecoration: 'underline',
-                  }}
-                >Retry Room Setup (Game #{pendingPaidLink.onChainPoolId} — won't charge again)</div>
-              )}
-              {/* [NEW FEATURE] Same stuck-payment self-report as Pool
-                  Games above, for entry-fee games. */}
-              {pendingPaidLink && (
-                <div
-                  onClick={async () => {
-                    if (stuckReportStatus === 'sending' || stuckReportStatus === 'sent') return;
-                    setStuckReportStatus('sending');
-                    const res = await reportStuckPayment(pendingPaidLink.onChainPoolId);
-                    setStuckReportStatus(res.success ? 'sent' : 'idle');
-                  }}
-                  style={{
-                    position: 'absolute', top: '59.9%', left: '9.25%', width: '81.4%', textAlign: 'center',
-                    fontSize: '1.15vh', color: stuckReportStatus === 'sent' ? '#6effc0' : '#ff9a9a', cursor: 'pointer', textDecoration: 'underline',
-                  }}
-                >{stuckReportStatus === 'sending' ? 'Reporting…' : stuckReportStatus === 'sent' ? '✓ Reported — we\u2019ll sort this out' : 'Still stuck? Report this payment'}</div>
-              )}
-              {/* Live Paid Games - same list, filtered to entry-fee pools
-                  only (hostFunded === false). */}
-              <div style={{
-                position: 'absolute', top: '62.4%', height: '30.75%', left: '9.25%', width: '84.39%',
-                overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '1.2% 0',
-              }}>
-                {livePoolsLoading && (
-                  <div style={{ textAlign: 'center', color: '#9aa0ad', fontSize: '1.4vh', padding: '2vh 0' }}>Checking for live games…</div>
-                )}
-                {!livePoolsLoading && myLivePools.filter(p => !p.hostFunded).length === 0 && publicLivePools.filter(p => !p.hostFunded).length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#5a7a76', fontSize: '1.4vh', padding: '3vh 2vw' }}>No live paid games yet — create one above.</div>
-                )}
-                <LiveGameGrid items={[
-                  ...myLivePools.filter(p => !p.hostFunded).map((p) => ({
-                    key: p.onChainPoolId,
-                    onClick: () => setActiveLiveCard({ pool: p, mine: true, kind: 'paid' }),
-                    mine: true,
-                    title: p.poolName,
-                    tag: 'ENTER',
-                    metaLeft: `${p.matchesPlayed}/${p.maxMatches} matches${p.isHost ? ' · you\u2019re host' : ''}`,
-                    metaRight: `${p.entryFeeNear} NEAR / player`,
-                  })),
-                  ...publicLivePools.filter(p => !p.hostFunded).map((p) => ({
-                    key: p.onChainPoolId,
-                    onClick: () => setActiveLiveCard({ pool: p, mine: false, kind: 'paid' }),
-                    mine: false,
-                    title: p.poolName,
-                    tag: 'OPEN',
-                    metaLeft: `${p.maxMatches} match${p.maxMatches > 1 ? 'es' : ''} · ${p.playerCount} in room`,
-                    metaRight: `${p.entryFeeNear} NEAR / player`,
-                  })),
-                ]} />
-              </div>
-            </GameModeScreen>
+              <HomeConsole {...consoleShell('paid')} noRail onClose={closePaid}>
+                <PaidGamesScreen mobile={consoleMobile} onClose={closePaid} f={{
+                  coinImg: POINT_COIN_IMG, nearImg: NEAR_LOGO_IMG,
+                  avatarImg: (id) => resolveAvatarImg(id, true, null),
+                  explorer: `https://${POOL_NEAR_NETWORK === 'testnet' ? 'testnet.' : ''}nearblocks.io`,
+                  tab: paidTab, setTab: setPaidTab,
+                  name: paidGameName, setName: setPaidGameName,
+                  matches: paidMaxMatches, setMatches: setPaidMaxMatches,
+                  fee: paidEntryFee, setFee: setPaidEntryFee,
+                  isPrivate: paidPrivate, setPrivate: setPaidPrivate,
+                  balance: walletBalance != null ? walletBalance : null,
+                  busy: paidCreateBusy, error: paidCreateError || poolError, onCreate: createPaidGame,
+                  pending: pendingPaidLink ? pendingPaidLink.onChainPoolId : null, onRetry: retryPaidSetup, onReport: reportPaidStuck, reportStatus: stuckReportStatus,
+                  items: paidItems, loading: livePoolsLoading,
+                  history: { data: poolHistory.data, loading: poolHistory.loading, error: poolHistory.error, load: loadPoolHistory },
+                  onRejoin: async (x) => { try { closePaid(); await handleEnterCodeUnified(x.roomCode); } catch (e) { setPoolError(e.message || 'Could not open that game.'); setHomeModal('paidGames'); } },
+                }} />
+              </HomeConsole>
             );
           })()}
 
