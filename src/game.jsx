@@ -9914,6 +9914,7 @@ const AUTH_STAGE_CSS = `
 .nsa-cta small{font-family:var(--sans);font-weight:600;font-size:.6em;letter-spacing:0;opacity:.8;margin-top:.1em}
 .nsa-sec{display:block;width:100%;padding:.75em .6em;border-radius:.55em;border:1px solid var(--cyan);background:rgba(143,227,255,.07);color:var(--cyan);font-family:var(--sans);font-weight:700;font-size:.95em;cursor:pointer}
 .nsa-link{background:none;border:none;padding:0;color:var(--mint);font-size:.8em;text-decoration:underline;cursor:pointer;font-family:var(--sans)}
+.nsa-htp{align-self:center;margin-top:.7em;padding:.45em 1em;border:1px solid rgba(110,255,192,.28);border-radius:999px;font-size:.78em;color:#b9c7c1;text-decoration:none;font-family:var(--sans);transition:border-color .15s,color .15s}.nsa-htp b{color:var(--mint)}.nsa-htp:hover{border-color:var(--mint);color:#fff}
 .nsa-muted{color:#aab4af}
 .nsa-steps{display:grid;grid-template-columns:repeat(5,1fr);gap:.2em;margin-bottom:.6em}
 .nsa-steps div{display:flex;flex-direction:column;align-items:center;gap:.2em}
@@ -10126,7 +10127,12 @@ const DESK_HOME_CSS = `
 .dh-play span{display:block;font-family:'IBM Plex Mono',monospace;font-size:.7em;letter-spacing:.1em;opacity:.75;margin-top:.3em;text-align:left}
 .dh-play em{margin-left:auto;font-style:normal;font-size:1.8em}
 `;
+// [HOW TO PLAY] Separate page in the same build (how-to-play/index.html).
+// BASE_URL keeps it right on any domain or sub-path.
+const HOW_TO_PLAY_URL = `${import.meta.env.BASE_URL || '/'}how-to-play/`;
+const openHowToPlay = () => { window.location.href = HOW_TO_PLAY_URL; };
 const DESK_ICON = {
+  HELP: 'M12 21a9 9 0 100-18 9 9 0 000 18zM9.6 9.2a2.5 2.5 0 014.8 1c0 1.7-2.4 2.2-2.4 3.6M12 17.2v.1',
   WALLET: 'M4 7.5V18a2 2 0 002 2h13a1 1 0 001-1v-3M4 7.5A2 2 0 016 5.5h10.5M4 7.5h15a1 1 0 011 1V11M20 11h-4a2.5 2.5 0 000 5h4a1 1 0 001-1v-3a1 1 0 00-1-1z',
   RANKS: 'M9 20V11h6v9M3 20v-5h6M15 20v-7h6v7M2 20h20M12 3.5l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z',
   ACTIVITY: 'M3 12h4l2.5-6 4 12 2.5-6H21',
@@ -18537,6 +18543,7 @@ function MovementDemo() {
         <button type="button" className="dh-pass hm-btn" aria-label="Play Pass" onClick={openPlayPassFromBar} style={active === 'pass' ? { filter: 'drop-shadow(0 0 1.2em rgba(255,200,60,.75))' } : undefined}>
           <img src={PLAY_PASS_IMG} alt="Play Pass" />
         </button>
+        <DeskTopButton label="Guide" onClick={openHowToPlay}><DeskIcon d={DESK_ICON.HELP} /></DeskTopButton>
         <DeskTopButton label="Inbox" active={active === 'inbox'} onClick={go('inbox')} badge={inboxUnreadCount}><img src={INBOX_ICON_IMG} alt="" /></DeskTopButton>
         <DeskTopButton label="Friends" active={active === 'friends'} onClick={go('friends')}><img src={REFERRAL_ICON_IMG} alt="" /></DeskTopButton>
         <DeskTopButton label="Wallet" active={active === 'wallet'} onClick={go('wallet')}><DeskIcon d={DESK_ICON.WALLET} /></DeskTopButton>
@@ -18969,6 +18976,7 @@ function MovementDemo() {
                   I have an account · Sign in
                 </button>
                 <button className="nsa-link nsa-muted" style={{ alignSelf: 'center' }} onClick={handlePlayAsGuest}>or jump in as a guest</button>
+                <a className="nsa-htp" href={HOW_TO_PLAY_URL}>New here? <b>How to play →</b></a>
               </div>
             </div>
           ) : (() => {
@@ -20205,6 +20213,7 @@ function MovementDemo() {
                 { label: 'WALLET', icon: 'M4 7.5V18a2 2 0 002 2h13a1 1 0 001-1v-3M4 7.5A2 2 0 016 5.5h10.5M4 7.5h15a1 1 0 011 1V11M20 11h-4a2.5 2.5 0 000 5h4a1 1 0 001-1v-3a1 1 0 00-1-1z', go: guestGuard(() => setHomeModal('wallet')) },
                 { label: 'RANKS', icon: 'M9 20V11h6v9M3 20v-5h6M15 20v-7h6v7M2 20h20M12 3.5l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z', go: guestGuard(() => setHomeModal('leaderboard')) },
                 { label: 'ACTIVITY', icon: 'M3 12h4l2.5-6 4 12 2.5-6H21', go: guestGuard(() => setHomeModal('activity')) },
+                { label: 'HOW TO PLAY', icon: DESK_ICON.HELP, go: openHowToPlay },
               ];
               // Name plate sits on the platform's front lip; on very short screens it's
               // nudged up just enough to never collide with the launch console.
