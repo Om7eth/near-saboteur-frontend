@@ -2126,6 +2126,42 @@ const MEME_POD = { x: 115.0, y: 6.0 };
 const MEME_RANGE = TILE * 2.5;
 // Cyber Defense Center (navigation) — Stop Hacker Attack console, center, triggers from ANY side.
 const CYBER_POD = { x: 115.5, y: 48.0 };
+
+// [SABOTAGE ARROW FIX] Point the alert arrow along the real walking route
+// (through doors and corridors) instead of a straight line through walls,
+// and keep its rotation continuous so it never spins the long way round.
+const _aimCache = {};
+function sabotageAim(key, playerPx, podTile) {
+  const ptx = Math.floor(playerPx.x / TILE), pty = Math.floor(playerPx.y / TILE);
+  const gx = Math.floor(podTile.x), gy = Math.floor(podTile.y);
+  const dPod = Math.hypot((podTile.x + 0.5) * TILE - playerPx.x, (podTile.y + 0.5) * TILE - playerPx.y) / TILE;
+  let c = _aimCache[key];
+  if (!c || c.ptx !== ptx || c.pty !== pty || c.gx !== gx || c.gy !== gy) {
+    // BFS on walkable tiles from the player to any tile next to the pod
+    const W = GRID_W, prev = new Map([[pty * W + ptx, -1]]), q = [[ptx, pty]];
+    let end = null;
+    for (let qi = 0; qi < q.length && qi < 12000; qi++) {
+      const [x, y] = q[qi];
+      if (Math.abs(x - gx) <= 1 && Math.abs(y - gy) <= 1) { end = y * W + x; break; }
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, k = ny * W + nx;
+        if (prev.has(k) || !isWalkableTile(nx, ny)) continue;
+        prev.set(k, y * W + x); q.push([nx, ny]);
+      }
+    }
+    let wp = null;
+    if (end !== null) { // walk back, then aim a few steps ahead along the route
+      const path = []; for (let k = end; k !== -1; k = prev.get(k)) path.push(k); path.reverse();
+      const k = path[Math.min(path.length - 1, 4)]; wp = { x: (k % W + 0.5) * TILE, y: (Math.floor(k / W) + 0.5) * TILE };
+    }
+    c = _aimCache[key] = { ptx, pty, gx, gy, wp, deg: c ? c.deg : null };
+  }
+  const tx = c.wp ? c.wp.x : (podTile.x + 0.5) * TILE, ty = c.wp ? c.wp.y : (podTile.y + 0.5) * TILE;
+  let deg = Math.atan2(ty - playerPx.y, tx - playerPx.x) * 180 / Math.PI + 90;
+  if (c.deg !== null) { while (deg - c.deg > 180) deg -= 360; while (deg - c.deg < -180) deg += 360; } // shortest turn
+  c.deg = deg;
+  return { deg, here: dPod < 2.6 };
+}
 const CYBER_RANGE = TILE * 3.2;
 function nearbyTaskPoint(px, py) {
   const cx = px + PLAYER_SIZE / 2;
@@ -22886,13 +22922,9 @@ function MovementDemo() {
           recalculated from the live player position toward ELEC_POD every
           render, so it stays accurate as they move. */}
       {powerSabotaged && (() => {
-        const ecx = (ELEC_POD.x + 0.5) * TILE, ecy = (ELEC_POD.y + 0.5) * TILE;
-        const playerCx = pos.x + PLAYER_SIZE / 2, playerCy = pos.y + PLAYER_SIZE / 2;
-        // atan2 gives 0° = pointing right, increasing clockwise toward down.
-        // Our SVG arrow's tip points up (0°) by default, so to make it face
-        // the target we rotate it by the target's angle plus 90° — turning
-        // "up" into "right" (0°), "right" into "down" (90°), and so on.
-        const angleDeg = Math.atan2(ecy - playerCy, ecx - playerCx) * 180 / Math.PI + 90;
+        // [SABOTAGE ARROW FIX] follows the walking route; "HERE" when you've arrived
+        const aim = sabotageAim('elec', { x: pos.x + PLAYER_SIZE / 2, y: pos.y + PLAYER_SIZE / 2 }, ELEC_POD);
+        const angleDeg = aim.deg;
         return (
           <div style={{
             position: 'absolute', top: 64, left: '50%', transform: 'translateX(-50%)',
@@ -22904,17 +22936,19 @@ function MovementDemo() {
               border: '1px solid rgba(255,209,102,0.4)', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
+              {aim.here ? <span style={{ fontSize: 18, lineHeight: 1, color: '#ffd166' }}>◎</span> : (
               <svg
                 width="20" height="22" viewBox="0 0 22 26"
                 style={{ transform: `rotate(${angleDeg}deg)`, transition: 'transform 0.15s linear' }}
               >
                 <path d="M11 0 L21 20 L11 15 L1 20 Z" fill="#ffd166" stroke="#0a0a0a" strokeWidth="1" />
               </svg>
+              )}
             </div>
             <span style={{
               fontSize: 9, fontWeight: 700, color: '#ffd166', letterSpacing: 0.3,
               background: 'rgba(8,8,13,0.82)', padding: '2px 7px', borderRadius: 6,
-            }}>⚡ ELECTRICAL</span>
+            }}>{aim.here ? 'HERE · PRESS E' : '⚡ ELECTRICAL'}</span>
           </div>
         );
       })()}
@@ -22939,9 +22973,8 @@ function MovementDemo() {
           arrow, with its own icon (a stylized "no-signal" glyph) rather
           than an emoji. */}
       {hackerAttack && (() => {
-        const ccx = (CYBER_POD.x + 0.5) * TILE, ccy = (CYBER_POD.y + 0.5) * TILE;
-        const playerCx = pos.x + PLAYER_SIZE / 2, playerCy = pos.y + PLAYER_SIZE / 2;
-        const angleDeg = Math.atan2(ccy - playerCy, ccx - playerCx) * 180 / Math.PI + 90;
+        const aim = sabotageAim('cyber', { x: pos.x + PLAYER_SIZE / 2, y: pos.y + PLAYER_SIZE / 2 }, CYBER_POD);
+        const angleDeg = aim.deg;
         return (
           <div style={{
             position: 'absolute', top: 64, left: '50%', transform: 'translateX(-50%)',
@@ -22953,12 +22986,14 @@ function MovementDemo() {
               border: '1px solid rgba(255,85,85,0.5)', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
+              {aim.here ? <span style={{ fontSize: 18, lineHeight: 1, color: '#ff5555' }}>◎</span> : (
               <svg
                 width="20" height="22" viewBox="0 0 22 26"
                 style={{ transform: `rotate(${angleDeg}deg)`, transition: 'transform 0.15s linear' }}
               >
                 <path d="M11 0 L21 20 L11 15 L1 20 Z" fill="#ff5555" stroke="#0a0a0a" strokeWidth="1" />
               </svg>
+              )}
             </div>
             <span style={{
               display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 700,
@@ -22969,7 +23004,7 @@ function MovementDemo() {
                 <path d="M12 2L4 7v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V7l-8-5z" stroke="#ff8a8a" strokeWidth="2" strokeLinejoin="round" />
                 <path d="M9 9l6 6M15 9l-6 6" stroke="#ff8a8a" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              CYBER DEFENSE
+              {aim.here ? 'HERE · PRESS E' : 'CYBER DEFENSE'}
             </span>
           </div>
         );
