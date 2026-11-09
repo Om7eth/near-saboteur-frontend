@@ -26,6 +26,7 @@ import { HudIcon, HudButton, MissionFloat, MISSION_ICON, HUD_CSS } from './hudKi
 import { RoleRevealMoment, VoteResultMoment, EjectRevealMoment, SaboteurRevealMoment, AlarmMoment, MOMENT_CSS } from './matchMoments';
 import { PoolGamesScreen, LobbyPoolPanel, setPoolArt } from './poolScreen';
 import { STICKERS, stickerSrc } from './stickers';
+import { LocationCard, StationMapWindow } from './stationMap';
 // [POOL v2] Invite links: nearsaboteur.com/?join=KQZT (also /join/KQZT once the
 // host has a "/* -> /index.html" rewrite). Read once on load, then the URL is cleaned.
 function readInviteCodeFromUrl() {
@@ -1920,6 +1921,9 @@ function isWalkableTile(tx, ty) {
   }
   return true;
 }
+// [MAP v2] the real station grid, shared by the location card and the floating map
+const MAP_GEO = { GRID_W, GRID_H, TILE, ROOMS, tileAt, isWalkableTile, roomName: (id) => roomDisplayName(id) };
+
 
 // Shared by both the gate-render JSX and the gate-sound-tracking effect so
 // the open/closed rule (proximity-based, always closed while
@@ -15558,6 +15562,7 @@ function MovementDemo() {
   useEffect(() => { try { localStorage.setItem('ns_music', musicOn ? 'on' : 'off'); } catch {} }, [musicOn]);
   const [showSettings, setShowSettings] = useState(false); // [LOCAL-UI]
   const [showMap, setShowMap] = useState(false); // [LOCAL-UI]
+  const [mapTarget, setMapTarget] = useState(null); // [MAP v2] mission room picked on the map (null = nearest)
   const [showExitConfirm, setShowExitConfirm] = useState(false); // [LOCAL-UI]
   const [wallet, setWallet] = useState(() => { // [PER-PLAYER]
     const w = {};
@@ -15602,13 +15607,19 @@ function MovementDemo() {
   const [showSaboteurPanel, setShowSaboteurPanel] = useState(false); // [LOCAL-UI]
   // [HUD HINTS] First match as crewmate / saboteur: the Missions / Sabotage
   // button glows with a "tap" tip until the player opens it once.
-  const [hudSeen, setHudSeen] = useState(() => { try { return JSON.parse(localStorage.getItem('ns_hud_seen') || '{}'); } catch (e) { return {}; } });
-  const markHudSeen = (k) => setHudSeen((h) => {
-    if (h[k]) return h;
-    const n = { ...h, [k]: true };
-    try { localStorage.setItem('ns_hud_seen', JSON.stringify(n)); } catch (e) { /* private mode */ }
-    return n;
-  });
+  // [HUD HINT] "YOUR MISSIONS" / "SABOTAGE TOOLS" glow at the start of EVERY
+  // match (6 s, or until tapped) - it used to show only once per device, so
+  // most players never saw it.
+  const [hudSeen, setHudSeen] = useState({});
+  const markHudSeen = (k) => setHudSeen((h) => (h[k] ? h : { ...h, [k]: true }));
+  const hudHintTimerRef = useRef(null);
+  useEffect(() => {
+    if (screen !== 'game') return undefined;
+    setHudSeen({});
+    clearTimeout(hudHintTimerRef.current);
+    hudHintTimerRef.current = setTimeout(() => setHudSeen({ missions: true, sabotage: true }), 6000);
+    return () => clearTimeout(hudHintTimerRef.current);
+  }, [screen, currentMatchId]);
   // [NEW FEATURE - DESKTOP CONTROLS]
   const isDesktopPointer = useDesktopInput(); // [UPDATE - DESKTOP + MOBILE CONTROLS] follows the input actually in use
   const [showControlsGuide, setShowControlsGuide] = useState(false);
@@ -23010,8 +23021,16 @@ function MovementDemo() {
         );
       })()}
 
-      {/* HUD — single slim pill, top-left only. Kept deliberately small so it never
-          eats into the play area; one tap target (settings) holds everything else. */}
+      {/* [MAP v2] Location card: the room you're in, a small map that slides
+          as you walk (your mission rooms in gold + the way there) and Crew
+          Tasks. Click it or press M for the floating station map. */}
+      {playerRole !== 'spectator' && (
+        <LocationCard geo={MAP_GEO} posPx={{ x: pos.x + PLAYER_SIZE / 2, y: pos.y + PLAYER_SIZE / 2 }}
+          missions={playerRole === 'crewmate' ? myMissions : []} targetRoomId={mapTarget}
+          crew={crewProgress.percent} showTasks={crewProgress.total > 0} lockedVault={!vaultUnlocked}
+          desktop={isDesktopPointer} hudK={hudK} onOpen={() => setShowMap(true)} />
+      )}
+      {playerRole === 'spectator' && (
       <div style={{
         position: 'absolute', top: 8, left: 8, zIndex: 20,
         zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
@@ -23032,6 +23051,7 @@ function MovementDemo() {
           {currentRoom ? (ROOM_NAME_OVERRIDE[currentRoom.id] || currentRoom.name) : 'Corridor'}
         </span>
       </div>
+      )}
 
       {/* Top-right controls: map + settings only. Sound now lives inside Settings,
           not duplicated out here. */}
@@ -23048,7 +23068,6 @@ function MovementDemo() {
             </span>
           </div>
         )}
-        <HudButton icon="map" size={38} ariaLabel="Map" onClick={() => setShowMap(true)} keycap={isDesktopPointer ? 'M' : null} keyAt={{ bottom: -6, right: -5 }} />
         <MusicToggle on={musicActive} onToggle={toggleMusic} size={38} />
         <HudButton icon="settings" size={38} ariaLabel="Settings" onClick={() => setShowSettings(true)} keycap={isDesktopPointer ? 'Esc' : null} keyAt={{ bottom: -6, right: -7 }} />
         {isDesktopPointer && (
@@ -23164,122 +23183,12 @@ function MovementDemo() {
         </div>
       )}
 
-      {/* Map overlay — full station layout with corridors drawn in (not just rooms),
-          so it actually reads as a map instead of floating boxes. */}
+      {/* [MAP v2] floating station map - real room shapes, names inside rooms,
+          your missions and the walking route; drag it by the title bar, ✕ closes */}
       {showMap && (
-        <div onClick={() => setShowMap(false)} style={{
-          position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.78)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18,
-        }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'linear-gradient(160deg, #11141a, #0a0a0f)', borderRadius: 16, padding: 14,
-            width: '100%', maxWidth: 420, border: '1px solid rgba(110,255,192,0.25)',
-            zoom: Math.min(hudK, 1.5), // [UPDATE - HUD SCALE]
-            boxShadow: '0 0 30px rgba(110,255,192,0.08)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <h2 style={{
-                fontSize: 13, fontWeight: 700, margin: 0, color: '#6effc0',
-                letterSpacing: 0.4, textTransform: 'uppercase',
-              }}>Station Map</h2>
-              <button onClick={() => setShowMap(false)} style={{
-                width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
-                background: 'transparent', color: '#cfd2da', fontSize: 14,
-              }}>✕</button>
-            </div>
-            <div style={{
-              position: 'relative', width: '100%', paddingTop: `${(GRID_H / GRID_W) * 100}%`,
-              background: '#06060a', borderRadius: 10, overflow: 'hidden',
-              border: '1px solid rgba(255,255,255,0.07)',
-            }}>
-              {/* Corridors/doors — the actual paths connecting rooms */}
-              {MINIMAP_CORRIDOR_RUNS.map((run, i) => (
-                <div key={i} style={{
-                  position: 'absolute',
-                  left: `${(run.x / GRID_W) * 100}%`, top: `${(run.y / GRID_H) * 100}%`,
-                  width: `${(run.w / GRID_W) * 100}%`, height: `${(1 / GRID_H) * 100}%`,
-                  background: 'rgba(110,255,192,0.28)',
-                }} />
-              ))}
-              {/* Rooms on top of the path layer — numbered markers instead of squeezing
-                  full names into tiny boxes (which clipped names like "Verification
-                  Center" or "Confidential Vault"). Full names are listed in the legend
-                  below where there's room to show them completely. */}
-              {ROOMS.map((rm, idx) => {
-                const left = (rm.x / GRID_W) * 100;
-                const top = (rm.y / GRID_H) * 100;
-                const w = (rm.w / GRID_W) * 100;
-                const h = (rm.h / GRID_H) * 100;
-                const isHere = currentRoom?.id === rm.id;
-                const isLockedVault = rm.id === 'reactor' && !vaultUnlocked;
-                // [NEW FEATURE - POOL GAMES: LEGION HUB BONUS MISSION]
-                const isBonusRoom = false; // [SAME GAME EVERYWHERE] no pool-only bonus room
-                return (
-                  <div key={rm.id} style={{
-                    position: 'absolute', left: `${left}%`, top: `${top}%`, width: `${w}%`, height: `${h}%`,
-                    background: isBonusRoom ? 'rgba(255,205,90,0.5)' : isLockedVault ? 'rgba(255,180,60,0.22)' : isHere ? 'rgba(110,255,192,0.45)' : 'rgba(40,42,54,0.92)',
-                    border: isBonusRoom ? '1.5px solid #ffd75e' : isLockedVault ? '1.5px solid rgba(255,180,60,0.7)' : isHere ? '1.5px solid #6effc0' : '1px solid rgba(255,255,255,0.18)',
-                    borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxSizing: 'border-box', zIndex: 2,
-                  }}>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, color: isBonusRoom ? '#241a00' : isLockedVault ? '#ffb43c' : isHere ? '#0a0a0f' : '#9aa0ad',
-                      lineHeight: 1,
-                    }}>{isLockedVault ? '🔒' : idx + 1}</span>
-                  </div>
-                );
-              })}
-              {/* Player's current position */}
-              <div style={{
-                position: 'absolute',
-                left: `${((pos.x / TILE) / GRID_W) * 100}%`,
-                top: `${((pos.y / TILE) / GRID_H) * 100}%`,
-                width: 5, height: 5, borderRadius: '50%', background: '#fff',
-                boxShadow: '0 0 5px 2px rgba(255,255,255,0.8)', transform: 'translate(-50%,-50%)', zIndex: 3,
-              }} />
-            </div>
-
-            <p style={{ fontSize: 9.5, color: '#7a7a86', margin: '8px 0 6px', textAlign: 'center' }}>
-              Green lines = corridors · dot = you
-            </p>
-
-            {/* Legend — full room names, since the boxes on the map are too small to
-                fit names like "Verification Center" or "Confidential Vault" without
-                clipping them. Numbers here match the numbered markers on the map. */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px',
-              maxHeight: 140, overflowY: 'auto', padding: '8px 4px 2px',
-              borderTop: '1px solid rgba(255,255,255,0.08)',
-            }}>
-              {ROOMS.map((rm, idx) => {
-                const isHere = currentRoom?.id === rm.id;
-                const label = ROOM_NAME_OVERRIDE[rm.id] || rm.name;
-                const isLockedVault = rm.id === 'reactor' && !vaultUnlocked;
-                // [NEW FEATURE - POOL GAMES: LEGION HUB BONUS MISSION]
-                const isBonusRoom = false; // [SAME GAME EVERYWHERE] no pool-only bonus room
-                return (
-                  <div key={rm.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    color: isBonusRoom ? '#ffd75e' : isLockedVault ? '#ffb43c' : isHere ? '#6effc0' : '#cfd2da',
-                    fontWeight: isBonusRoom ? 700 : isHere ? 700 : 500,
-                  }}>
-                    <span style={{
-                      width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                      background: isBonusRoom ? '#ffd75e' : isHere ? '#6effc0' : 'rgba(255,255,255,0.12)',
-                      color: (isBonusRoom || isHere) ? '#0a0a0f' : '#9aa0ad',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 9, fontWeight: 700,
-                    }}>{idx + 1}</span>
-                    <span style={{ fontSize: 11, lineHeight: 1.2 }}>
-                      {label}{rm.id === 'reactor' ? (vaultUnlocked ? ' · open' : ' · locked') : ''}
-                      {isBonusRoom && <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 4 }}>(Bonus Points)</span>}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <StationMapWindow geo={MAP_GEO} posPx={{ x: pos.x + PLAYER_SIZE / 2, y: pos.y + PLAYER_SIZE / 2 }}
+          missions={playerRole === 'crewmate' ? myMissions : []} targetRoomId={mapTarget} onTarget={setMapTarget}
+          lockedVault={!vaultUnlocked} desktop={isDesktopPointer} hudK={Math.min(hudK, 1.4)} onClose={() => setShowMap(false)} />
       )}
 
       {playerRole !== 'spectator' && nearTask && !showMission && (
@@ -23603,7 +23512,7 @@ function MovementDemo() {
           screen's width, with a lower z-index than the Enter Vent button
           so it can never visually win an overlap even in edge cases on
           very narrow screens. */}
-      {crewProgress.total > 0 && (
+      {crewProgress.total > 0 && playerRole === 'spectator' && (
         <div style={{
           position: 'absolute', top: 44, left: 8, zIndex: 13, width: 108,
           zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
