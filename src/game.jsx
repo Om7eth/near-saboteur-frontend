@@ -15948,9 +15948,12 @@ function MovementDemo() {
   const meetingCards = useMemo(() => {
     if (!meeting) return null;
     const myId = socketRef.current?.id;
+    // [WATCH MODE] a watching host isn't in the match: not a card, not "dead"
+    const specIds = new Set((roomInfo?.players || []).filter((rp) => rp.spectator).map((rp) => rp.id));
+    const amSpectator = playerRole === 'spectator';
     return [
-      { id: myId, name: displayPlayerName(playerName, playerAvatarId), avatarId: disguiseActive ? disguiseActive.avatarId : playerAvatarId, avatarVariantId: disguiseActive ? (disguiseActive.avatarVariantId || null) : (loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null), isDead: !myAlive, isMe: true, hasLegionBadge: !!loggedInPlayer?.hasLegionBadge, hasPlayPass: !!displayedHasPlayPass },
-      ...Object.entries(otherPlayers).map(([id, p]) => ({
+      ...(amSpectator ? [] : [{ id: myId, name: displayPlayerName(playerName, playerAvatarId), avatarId: disguiseActive ? disguiseActive.avatarId : playerAvatarId, avatarVariantId: disguiseActive ? (disguiseActive.avatarVariantId || null) : (loggedInPlayer?.hasPlayPass ? loggedInPlayer?.activePremiumAvatarVariant : null), isDead: !myAlive, isMe: true, hasLegionBadge: !!loggedInPlayer?.hasLegionBadge, hasPlayPass: !!displayedHasPlayPass }]),
+      ...Object.entries(otherPlayers).filter(([id]) => !specIds.has(id)).map(([id, p]) => ({
         id,
         name: p.disguiseAvatarId
           ? (roomInfo?.players?.find((rp) => rp.avatarId === p.disguiseAvatarId)?.name || getAvatar(p.disguiseAvatarId).name)
@@ -15964,7 +15967,7 @@ function MovementDemo() {
         hasPlayPass: p.disguiseAvatarId ? !!p.disguiseHasPlayPass : !!p.hasPlayPass,
       })),
     ];
-  }, [!!meeting, otherPlayers, roomInfo?.players, playerName, playerAvatarId, loggedInPlayer, myAlive, disguiseActive, displayedHasPlayPass]);
+  }, [!!meeting, otherPlayers, roomInfo?.players, playerName, playerAvatarId, loggedInPlayer, myAlive, disguiseActive, displayedHasPlayPass, playerRole]);
   const meetingChatKit = useMemo(() => {
     if (!meetingCards) return null;
     const byId = Object.fromEntries(meetingCards.map((c) => [c.id, c]));
@@ -23949,7 +23952,7 @@ function MovementDemo() {
         const votingOpen = meeting.stage === 'voting';
         const now = Date.now();
         const typingNames = Object.values(botTyping).filter((b) => b.until > now).map((b) => b.name);
-        const ghostTab = !myAlive && meetingTab === 'ghost';
+        const ghostTab = !myAlive && playerRole !== 'spectator' && meetingTab === 'ghost';
         const ghostUnread = Math.max(0, ghostChatMessages.length - ghostSeenCount);
         const hasBots = meetingCards.some((c) => c.isBot) || (roomInfo?.players || []).some((p) => p.isBot || isBotPlayerId(p.id));
         const botMode = roomInfo?.botChatMode || 'auto';
@@ -24036,7 +24039,7 @@ function MovementDemo() {
             <style>{'@keyframes chatBadgeCrossIn { 0% { opacity: 0; } 100% { opacity: 1; } } @keyframes chatBadgeDeathFade { 0% { opacity: 1; } 100% { opacity: 0.45; } }'}</style>
           </div>
         );
-        const tabs = !myAlive && (
+        const tabs = !myAlive && playerRole !== 'spectator' && ( // [WATCH MODE] spectators aren't ghosts
           <div style={{ display: 'flex', gap: 6, padding: wide ? '10px 14px 0' : '8px 12px 0', flexShrink: 0 }}>
             {[['meeting', '💬 Meeting'], ['ghost', '👻 Ghosts']].map(([k, label]) => (
               <button key={k} onClick={() => setMeetingTab(k)} style={{
@@ -24076,7 +24079,7 @@ function MovementDemo() {
             gifLocked={gifLocked} onGif={() => (gifLocked ? openPlayPassUpsell() : setShowMeetingGifPicker('gifs'))}
             onSticker={() => (gifLocked ? openPlayPassUpsell() : setShowMeetingGifPicker('stickers'))}
             replyTo={replyingTo} onCancelReply={() => setReplyingTo(null)}
-            disabled={!myAlive} disabledText="👻 You're dead - the living can't hear you. Talk in the Ghosts tab." />
+            disabled={!myAlive} disabledText={playerRole === 'spectator' ? "👁 You're watching this match - only players can talk in meetings." : "👻 You're dead - the living can't hear you. Talk in the Ghosts tab."} />
         );
         const pickers = (
           <>
