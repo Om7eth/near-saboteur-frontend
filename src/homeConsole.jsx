@@ -1468,6 +1468,84 @@ export function FreePlayScreen({ mobile, onClose, f }) {
   );
 }
 
+/* ---------------- PAID GAMES (PC) ---------------- */
+// Same two-column console layout as Free Play: create on the left, live
+// paid games on the right. Phones keep the original tall art screen.
+export function PaidGamesScreen({ onClose, f }) {
+  const fee = parseFloat(f.fee) || 0;
+  const ready = !!f.matches && fee > 0;
+  const gold = '#ffcf6e';
+  return (
+    <>
+      <div className="hc-banner" style={{ background: 'radial-gradient(120% 140% at 20% 0%, rgba(255,207,110,.22), transparent 60%), #070604' }}>
+        <div style={{ position: 'absolute', left: 28, top: '50%', transform: 'translateY(-55%)', display: 'flex', alignItems: 'center', gap: 18, zIndex: 1 }}>
+          <div aria-hidden="true" style={{ width: 64, height: 64, flexShrink: 0, background: `url(${f.coinImg}) center / contain no-repeat`, filter: 'drop-shadow(0 0 18px rgba(255,200,60,.55))' }} />
+          <div>
+            <div style={{ font: '600 11px var(--mono)', letterSpacing: '.24em', color: gold }}>CREATE OR JOIN</div>
+            <div style={{ font: '700 40px var(--disp)', letterSpacing: '.08em', color: '#fff', lineHeight: 1.05 }}>PAID GAMES</div>
+          </div>
+        </div>
+        <div className="bh"><p>EVERY PLAYER PAYS THE ENTRY FEE · <em style={{ color: gold }}>TOP 3 SPLIT THE POT</em> · TESTNET NEAR</p></div>
+        <CloseBtn onClose={onClose} />
+      </div>
+      <div className="hc-fp">
+        <section>
+          <div className="hc-fh"><h2>CREATE A PAID GAME</h2></div>
+          <div className="hc-fl">
+            <label htmlFor="hcPdName"><span><b>01</b> · GAME NAME</span><small>OPTIONAL · {f.name.length}/40</small></label>
+            <input id="hcPdName" className="hc-in" maxLength={40} placeholder="Friday High Rollers" value={f.name} onChange={(e) => f.setName(e.target.value)} />
+          </div>
+          <div className="hc-fl">
+            <div className="lb"><span><b>02</b> · MATCHES</span><small>TOTAL POINTS ACROSS ALL MATCHES WIN</small></div>
+            <div className="hc-acc" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+              {[1, 2, 3].map((n) => <button type="button" key={n} className={f.matches === n ? 'on' : ''} onClick={() => f.setMatches(n)}>{n} MATCH{n > 1 ? 'ES' : ''}</button>)}
+            </div>
+          </div>
+          <div className="hc-fl">
+            <label htmlFor="hcPdFee"><span><b>03</b> · ENTRY FEE PER PLAYER</span><small>YOU PAY IT TOO IF YOU PLAY</small></label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid rgba(255,207,110,.35)', borderRadius: 6, background: 'rgba(0,0,0,.4)', padding: '0 12px' }}>
+              <img src={f.nearImg} alt="NEAR" style={{ width: 20, height: 20, borderRadius: '50%' }} />
+              <input id="hcPdFee" type="number" min="0" step="0.1" inputMode="decimal" placeholder="0.00" value={f.fee} onChange={(e) => f.setFee(e.target.value)}
+                style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: '#fff7e0', font: '600 18px var(--disp)', padding: '11px 0' }} />
+              <span style={{ font: '600 12px var(--mono)', color: gold }}>tNEAR</span>
+            </div>
+            <p className="hc-hint">Pot = entry fee × players. The contract keeps 5% and pays the top 3 automatically: 50% / 30% / 20%.</p>
+          </div>
+          {f.error && <div className="hc-note hc-err" style={{ textAlign: 'center', marginBottom: 10 }}>{f.error}</div>}
+          <style>{'.hc-create.gold{background:linear-gradient(135deg,#ffe08f,#ffcf6e 55%,#c98a1e) !important;color:#1c1203 !important}'}</style>
+          <button type="button" className={`hc-create${ready && !f.busy ? ' gold' : ''}`} disabled={f.busy || !ready} onClick={f.onCreate}>
+            {f.busy ? 'CONFIRM IN YOUR WALLET…' : ready ? 'CREATE PAID GAME »' : 'PICK MATCHES + ENTRY FEE'}
+          </button>
+          {f.pending && (
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+              <button type="button" onClick={f.onRetry} style={{ color: gold, textDecoration: 'underline', font: '12px var(--mono)' }}>Retry room setup (game #{f.pending}) — won't charge again</button>
+              <button type="button" onClick={f.onReport} style={{ color: f.reportStatus === 'sent' ? '#6effc0' : '#ff9a9a', textDecoration: 'underline', font: '11.5px var(--mono)' }}>
+                {f.reportStatus === 'sending' ? 'Reporting…' : f.reportStatus === 'sent' ? '✓ Reported — we’ll sort this out' : 'Still stuck? Report this payment'}
+              </button>
+            </div>
+          )}
+        </section>
+        <section>
+          <div className="hc-fh"><h2>LIVE PAID GAMES</h2><em>{f.items.length} OPEN</em></div>
+          {f.loading && <div className="hc-hint" style={{ marginBottom: 10 }}>Checking for live games…</div>}
+          {f.items.length > 0 ? f.items.map((it) => (
+            <button type="button" key={it.key} className="hc-rm" onClick={it.onClick}>
+              <img src={f.coinImg} alt="" style={{ width: 30 }} />
+              <div className="t">
+                <b><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.title || 'Paid Game'}</span><small style={{ color: it.mine ? '#6effc0' : gold }}>{it.tag}</small></b>
+                <div className="hc-seats"><span>{it.metaLeft}</span><span style={{ color: gold }}>{it.metaRight}</span></div>
+              </div>
+              <Ico d={P.chev} c="#5d6d66" s={16} />
+            </button>
+          )) : !f.loading && (
+            <div className="hc-empty">No live paid games yet.<br />Create one on the left — it shows up here for everyone.</div>
+          )}
+        </section>
+      </div>
+    </>
+  );
+}
+
 /* ---------------- POINTS (this week) ---------------- */
 const CSS3 = `
 .hc-pts{flex:1;display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);min-height:0;border-top:1px solid var(--line)}

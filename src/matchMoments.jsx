@@ -189,3 +189,61 @@ export function SaboteurRevealMoment({ wide, list }) {
     </div>
   );
 }
+
+// ---- Emergency meeting / body reported (the 3s alarm before the meeting) --
+// kind: 'emergency' | 'report'. body / caller: { avatarSrc, nameNode }
+export function AlarmMoment({ wide, kind, body, caller }) {
+  const report = kind === 'report' && body;
+  const hazard = 'repeating-linear-gradient(135deg, #ff3b4e 0 18px, #1a0507 18px 36px)';
+  const bar = (top) => (
+    <div style={{ position: 'absolute', left: 0, right: 0, [top ? 'top' : 'bottom']: 0, height: wide ? 22 : 14, background: hazard, opacity: 0.85, animation: 'mmHazard 0.9s linear infinite', backgroundSize: '51px 51px' }} />
+  );
+  const heroSize = wide ? 'min(260px, 34vh)' : 'min(170px, 26vh)';
+  return (
+    <div style={{ ...full, background: 'radial-gradient(ellipse at 50% 45%, #3a070d 0%, #120203 60%, #070102 100%)' }}>
+      <style>{`
+        @keyframes mmHazard { from { background-position: 0 0; } to { background-position: 51px 0; } }
+        @keyframes mmPulse { 0%, 100% { opacity: .35; } 50% { opacity: .85; } }
+        @keyframes mmSpin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+        @keyframes mmFill { from { width: 0; } to { width: 100%; } }
+        @keyframes mmShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+      `}</style>
+      {/* rotating siren beam behind everything */}
+      <div style={{ position: 'absolute', left: '50%', top: '45%', width: '220vmax', height: '220vmax', background: 'conic-gradient(from 0deg, rgba(255,59,78,.22) 0deg, transparent 40deg, transparent 180deg, rgba(255,59,78,.22) 180deg, transparent 220deg, transparent 360deg)', animation: 'mmSpin 2.4s linear infinite' }} />
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 45%, transparent 30%, rgba(7,1,2,.85) 80%)', animation: 'mmPulse .6s ease-in-out infinite' }} />
+      {bar(true)}{bar(false)}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 20px', textAlign: 'center' }}>
+        <div className="mm-a1" style={{ ...kicker('#ff9aa6'), letterSpacing: 6 }}>{report ? 'Body reported' : 'Alert · all crew'}</div>
+        <div style={{ position: 'relative', width: heroSize, height: heroSize, margin: wide ? '22px 0 18px' : '16px 0 12px', display: 'grid', placeItems: 'center' }}>
+          <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `2px solid ${RED}`, boxShadow: `0 0 60px ${RED}, inset 0 0 40px rgba(255,59,78,.5)`, animation: 'mmPulse .6s ease-in-out infinite' }} />
+          {report ? (
+            <>
+              <img src={body.avatarSrc} alt="" style={{ width: '58%', height: 'auto', filter: 'grayscale(.75) brightness(.8) drop-shadow(0 0 24px rgba(255,59,78,.7))', animation: 'mmPop .5s both' }} />
+              <svg viewBox="0 0 100 100" style={{ position: 'absolute', width: '42%', opacity: 0.9, animation: 'mmPop .4s .35s both' }}><path d="M20 20 L80 80 M80 20 L20 80" stroke={RED} strokeWidth="9" strokeLinecap="round" /></svg>
+            </>
+          ) : (
+            <svg viewBox="0 0 64 64" style={{ width: '48%', animation: 'mmShake .5s ease-in-out infinite', filter: `drop-shadow(0 0 22px ${RED})` }}>
+              <path d="M14 46 V34 a18 18 0 0 1 36 0 V46 Z" fill={RED} />
+              <rect x="10" y="46" width="44" height="8" rx="2" fill="#ffb3bc" />
+              <path d="M26 30 a6 6 0 0 1 6 -6" stroke="#fff" strokeWidth="3" fill="none" strokeLinecap="round" />
+              <path d="M6 22 L12 26 M58 22 L52 26 M32 6 V12 M14 10 L18 15 M50 10 L46 15" stroke="#ffb3bc" strokeWidth="3" strokeLinecap="round" />
+            </svg>
+          )}
+        </div>
+        <h1 className="mm-a2" style={{ margin: 0, font: `700 ${wide ? 'clamp(44px, min(5.6vw, 9vh), 84px)' : 'clamp(30px, 9.6vw, 40px)'} ${DISP}`, letterSpacing: wide ? 6 : 3, color: '#fff', textShadow: `0 0 34px ${RED}`, lineHeight: 1 }}>
+          {report ? <>{body.nameNode} <span style={{ color: RED }}>WAS FOUND DEAD</span></> : <>EMERGENCY <span style={{ color: RED }}>MEETING</span></>}
+        </h1>
+        {caller && (
+          <div className="mm-a3" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: wide ? 18 : 12, ...chip('#ffd0d6', 'rgba(255,59,78,.45)'), fontSize: wide ? 12.5 : 11 }}>
+            {caller.avatarSrc && <img src={caller.avatarSrc} alt="" style={{ width: 22, height: 'auto' }} />}
+            {report ? 'REPORTED BY' : 'CALLED BY'}&nbsp;<b style={{ color: '#fff' }}>{caller.nameNode}</b>
+          </div>
+        )}
+        <div className="mm-a4" style={{ width: wide ? 320 : 220, marginTop: wide ? 26 : 18 }}>
+          <div style={{ font: `600 10px ${MONO}`, letterSpacing: 3, color: '#ff9aa6', marginBottom: 6 }}>GATHERING THE CREW…</div>
+          <div style={{ height: 3, background: 'rgba(255,59,78,.2)' }}><div style={{ height: '100%', background: RED, animation: 'mmFill 3s linear both', boxShadow: `0 0 10px ${RED}` }} /></div>
+        </div>
+      </div>
+    </div>
+  );
+}

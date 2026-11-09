@@ -17,7 +17,7 @@ import { KeyPair, actions, nearToYocto, yoctoToNear, teraToGas, viewFunction, vi
 import { generateSeedPhrase, parseSeedPhrase } from 'near-seed-phrase';
 import { createBgm } from './bgm';
 import { HudIcon, HudButton, MissionFloat, MISSION_ICON, HUD_CSS } from './hudKit';
-import { RoleRevealMoment, VoteResultMoment, EjectRevealMoment, SaboteurRevealMoment, MOMENT_CSS } from './matchMoments';
+import { RoleRevealMoment, VoteResultMoment, EjectRevealMoment, SaboteurRevealMoment, AlarmMoment, MOMENT_CSS } from './matchMoments';
 import { PoolGamesScreen, LobbyPoolPanel, setPoolArt } from './poolScreen';
 // [POOL v2] Invite links: nearsaboteur.com/?join=KQZT (also /join/KQZT once the
 // host has a "/* -> /index.html" rewrite). Read once on load, then the URL is cleaned.
@@ -31,7 +31,7 @@ function readInviteCodeFromUrl() {
 }
 const SITE_URL = ((import.meta.env && import.meta.env.VITE_SITE_URL) || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
 const poolInviteLink = (code) => `${SITE_URL}/?join=${code}`;
-import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen, PointsScreen } from './homeConsole';
+import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen, PointsScreen, PaidGamesScreen } from './homeConsole';
 
 // [BGM] one shared music + UI-click engine for the whole app (all synthesised, no audio files)
 const BGM = createBgm();
@@ -12622,7 +12622,7 @@ function MovementDemo() {
     if (authEmail) {
       fetch(`${BACKEND_URL}/auth/logout`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail }),
+        body: JSON.stringify({ email: authEmail, sessionToken }), // the server only logs out the holder of the current session
       }).catch(() => {});
     }
     clearSession();
@@ -13601,7 +13601,18 @@ function MovementDemo() {
       // - if that room turns out to be gone, land them somewhere normal
       // (Home) instead of leaving them stranded on Lobby's empty
       // create/join placeholder with no explanation.
-      setScreen((prev) => (prev === 'lobby' ? 'home' : prev));
+      setScreen((prev) => {
+        // [BUG FIX - STRANDED IN A DEAD MATCH] If the server restarted (a
+        // deploy), the room is gone - a player inside a match used to stay on
+        // a frozen map forever. Send them home and say what happened.
+        if (IN_MATCH_SCREENS.includes(prev)) {
+          resetGameRef.current?.();
+          setGameResult(null); setMeeting(null); setRoomInfo(null);
+          setMatchLostNotice(true);
+          return 'home';
+        }
+        return prev === 'lobby' ? 'home' : prev;
+      });
     });
 
     // [DISCONNECT/RECONNECT] Another player dropped mid-game — same
@@ -15605,6 +15616,7 @@ function MovementDemo() {
   // removes this player from the room's Lobby - holds the host's name
   // so the popup can say who did it, null when not showing.
   const [hostKickedNotice, setHostKickedNotice] = useState(null);
+  const [matchLostNotice, setMatchLostNotice] = useState(false); // [BUG FIX] room vanished mid-match (server restart)
   // [NEW FEATURE] Saboteur kill-timer state - see the saboteurKillAlarm/
   // saboteurKillCountdownStart/saboteurEliminatedForInactivity socket
   // handlers above.
@@ -16208,6 +16220,13 @@ function MovementDemo() {
     };
     const thud = (at, vol = 0.3) => { tone(150, at, 0.45, { vol, to: 45, attack: 0.008 }); noise(at, 0.06, { vol: vol * 0.5, type: 'highpass', from: 2000, to: 2000 }); };
     switch (kind) {
+      case 'alarm': // two-tone siren, three cycles + low hit
+        thud(0, 0.3);
+        for (let i = 0; i < 3; i++) {
+          tone(880, i * 0.8, 0.4, { type: 'sawtooth', vol: 0.035, to: 1180 });
+          tone(1180, i * 0.8 + 0.4, 0.4, { type: 'sawtooth', vol: 0.035, to: 880 });
+        }
+        break;
       case 'roleCrew': // bright rising shimmer
         noise(0, 0.6, { vol: 0.05, from: 600, to: 5000 });
         [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 0.12 + i * 0.09, 0.9 - i * 0.1, { type: 'triangle', vol: 0.08 }));
@@ -16275,6 +16294,10 @@ function MovementDemo() {
     playMomentSound(meeting.result?.eliminatedName ? 'voteOut' : 'voteNone');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meeting, eliminationRoleReveal]);
+  useEffect(() => {
+    if (meeting?.stage === 'alarm') playMomentSound('alarm');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meeting?.stage]);
   useEffect(() => {
     if (saboteurReveal) playMomentSound('sabReveal');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -16994,7 +17017,11 @@ function MovementDemo() {
   // Results -> meeting closes entirely, after a few seconds to read it.
   useEffect(() => {
     if (!meeting || meeting.stage !== 'results') return;
-    const t = setTimeout(() => setMeeting(null), MEETING_RESULTS_DURATION_MS);
+    // [BUG FIX - VERDICT NEVER SEEN] After an ejection the 3.5s "was / wasn't
+    // the Saboteur" reveal sits on top of this screen - without the extra
+    // time the vote breakdown was only visible for half a second.
+    const extra = meeting.result?.eliminatedId ? 3500 : 0;
+    const t = setTimeout(() => setMeeting(null), MEETING_RESULTS_DURATION_MS + extra);
     return () => clearTimeout(t);
   }, [meeting?.stage]);
 
@@ -19744,6 +19771,18 @@ function MovementDemo() {
         {/* [NEW FEATURE - HOST CONTROL PANEL] Shown once, right after
             landing back on Home, if the HOST just removed this player
             from the Lobby via the new Kick control. */}
+        {matchLostNotice && (
+          <div onClick={(e) => { if (e.target === e.currentTarget) setMatchLostNotice(false); }}
+            style={{ position: 'absolute', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ width: '100%', maxWidth: 360, background: 'linear-gradient(160deg, #1a0d0d, #0a0505)', border: '1px solid rgba(255,92,92,0.4)', borderRadius: 16, padding: '22px 20px', textAlign: 'center' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 900, color: '#ff8a8a', margin: '0 0 8px' }}>This match ended</h3>
+              <p style={{ fontSize: 12.5, color: '#9aa0ad', margin: '0 0 18px', lineHeight: 1.55 }}>
+                The game server restarted, so the room you were playing in is gone. Sorry about that — start or join a new room to keep playing.
+              </p>
+              <button onClick={() => setMatchLostNotice(false)} style={{ width: '100%', padding: 13, borderRadius: 8, border: 'none', background: '#6effc0', color: '#06140d', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>OK</button>
+            </div>
+          </div>
+        )}
         {hostKickedNotice && (
           <div
             onClick={(e) => { if (e.target === e.currentTarget) setHostKickedNotice(null); }}
@@ -20919,7 +20958,153 @@ function MovementDemo() {
             </HomeConsole>
           )}
 
-          {homeModal === 'paidGames' && (
+          {homeModal === 'paidGames' && (() => {
+            // [PC LAYOUT] same create / retry / report logic for both layouts
+            const createPaidGame = async () => {
+              if (paidCreateBusy) return;
+                  const fee = parseFloat(paidEntryFee) || 0;
+                  if (!paidMaxMatches || fee <= 0) { setPaidCreateError('Pick a match count and an entry fee first.'); return; }
+                  setPaidCreateError('');
+                  setPaidCreateBusy(true);
+                  if (!(await checkPoolsNotPaused())) {
+                    setPaidCreateError('Pool/Paid games are temporarily paused right now — try again in a bit.');
+                    setPaidCreateBusy(false);
+                    return;
+                  }
+                  try {
+                    const entryFeeYocto = nearToYocto(String(fee));
+                    // Entry-fee pools attach nothing at creation - the host
+                    // pays gas only; every participant (host included, if
+                    // they want to play) pays their own share via
+                    // participate() afterwards. See create_pool's own
+                    // comment on the contract for why.
+                    const onChainPoolId = await callPoolContract('create_pool', {
+                      name: paidGameName.trim() || 'Paid Game',
+                      max_matches: paidMaxMatches,
+                      entry_fee: entryFeeYocto.toString(),
+                      host_funded: false,
+                    }, { depositYocto: '0', label: 'Create Paid Game' });
+                    if (onChainPoolId == null) throw new Error('Game created, but could not read its ID back. Check your wallet history.');
+                    const linkConfig = { poolName: paidGameName.trim(), maxMatches: paidMaxMatches, entryFeeNear: fee, hostFunded: false, onChainPoolId, createTxHash: lastPoolTxHashRef.current };
+                    try {
+                      await handleCreateRoom(true, linkConfig);
+                      try {
+                        localStorage.setItem('nearSaboteurPoolId', String(onChainPoolId));
+                        localStorage.removeItem('nearSaboteurRoomCode');
+                      } catch (e) { /* localStorage unavailable */ }
+                      // [BUG FIX - HOST NEVER PAID OR GOT REGISTERED, FOR
+                      // REAL THIS TIME] The host picks this exact entry
+                      // fee for everyone, including themselves if they
+                      // intend to play - but create_pool itself
+                      // deliberately charges nobody for an entry-fee game
+                      // (every participant pays their own share via
+                      // participate()). Without this, the host sat in
+                      // their own room forever unregistered on-chain
+                      // (never in onChainParticipantAccountIds), so even
+                      // if they won the whole thing outright,
+                      // distributePoolPrizes would correctly (if
+                      // unhelpfully) skip them entirely - no share, ever.
+                      // [ORDERING BUG FIX] This has to happen AFTER
+                      // handleCreateRoom above, not before it - an
+                      // earlier version of this fix tried to pay+register
+                      // right after create_pool, but confirmParticipated
+                      // looks up the room by its onChainPoolId link, and
+                      // that room doesn't actually exist on the backend
+                      // until handleCreateRoom (right above) finishes. The
+                      // on-chain payment silently succeeded every time,
+                      // but the registration that actually makes the host
+                      // an eligible winner was silently failing right
+                      // after - the fee was taken, but the host still
+                      // never showed up as a winner.
+                      try {
+                        await callPoolContract('participate', { pool_id: Number(onChainPoolId) }, {
+                          depositYocto: entryFeeYocto.toString(),
+                          label: `Enter "${paidGameName.trim() || 'Paid Game'}" (as host)`,
+                        });
+                        const hostEntrySocket = await ensureSocketConnected();
+                        await new Promise((resolve, reject) => {
+                          hostEntrySocket.emit('confirmParticipated', { onChainPoolId, sessionToken, txHash: lastPoolTxHashRef.current }, (res) => {
+                            if (!res || res.ok === false) { reject(new Error(res?.message || 'Paid, but could not register your entry.')); return; }
+                            resolve();
+                          });
+                        });
+                      } catch (hostEntryErr) {
+                        // Don't block the whole flow on this one step -
+                        // the room is already created and playable either
+                        // way, and the "Pay Entry Fee" button inside Pool
+                        // Details (Lobby) is still there as a fallback if
+                        // this specific step failed or was rejected.
+                        console.error('Host auto-entry-fee payment failed:', hostEntryErr);
+                      }
+                      setPendingPaidLink(null);
+                      setPaidGameName(''); setPaidEntryFee(''); setPaidMaxMatches(1);
+                      setHomeModal(null);
+                      setScreen('lobby');
+                    } catch (linkErr) {
+                      setPendingPaidLink(linkConfig);
+                      throw new Error(`Your game was created on-chain (#${onChainPoolId}), but setting up the room failed: ${linkErr.message || 'unknown error'}. Reopen Paid Games to retry - this will NOT charge you again.`);
+                    }
+                  } catch (e) {
+                    setPaidCreateError(e.message || 'Failed to create the game on-chain.');
+                  }
+                  setPaidCreateBusy(false);
+            };
+            const retryPaidSetup = async () => {
+              setPaidCreateError(''); setPaidCreateBusy(true);
+                    try {
+                      await handleCreateRoom(true, pendingPaidLink);
+                      localStorage.setItem('nearSaboteurPoolId', String(pendingPaidLink.onChainPoolId));
+                      localStorage.removeItem('nearSaboteurRoomCode');
+                      setPendingPaidLink(null);
+                      setHomeModal(null);
+                      setScreen('lobby');
+                    } catch (e) {
+                      setPaidCreateError(`Still couldn't set up the room: ${e.message || 'unknown error'}.`);
+                    }
+                    setPaidCreateBusy(false);
+            };
+            const reportPaidStuck = async () => {
+              if (stuckReportStatus === 'sending' || stuckReportStatus === 'sent') return;
+                    setStuckReportStatus('sending');
+                    const res = await reportStuckPayment(pendingPaidLink.onChainPoolId);
+                    setStuckReportStatus(res.success ? 'sent' : 'idle');
+            };
+            const paidItems = [
+                  ...myLivePools.filter(p => !p.hostFunded).map((p) => ({
+                    key: p.onChainPoolId,
+                    onClick: () => setActiveLiveCard({ pool: p, mine: true, kind: 'paid' }),
+                    mine: true,
+                    title: p.poolName,
+                    tag: 'ENTER',
+                    metaLeft: `${p.matchesPlayed}/${p.maxMatches} matches${p.isHost ? ' · you\u2019re host' : ''}`,
+                    metaRight: `${p.entryFeeNear} NEAR / player`,
+                  })),
+                  ...publicLivePools.filter(p => !p.hostFunded).map((p) => ({
+                    key: p.onChainPoolId,
+                    onClick: () => setActiveLiveCard({ pool: p, mine: false, kind: 'paid' }),
+                    mine: false,
+                    title: p.poolName,
+                    tag: 'OPEN',
+                    metaLeft: `${p.maxMatches} match${p.maxMatches > 1 ? 'es' : ''} · ${p.playerCount} in room`,
+                    metaRight: `${p.entryFeeNear} NEAR / player`,
+                  })),
+                ];
+            if (!consoleMobile) {
+              return (
+                <HomeConsole {...consoleShell('paid')} noRail onClose={() => setHomeModal(null)}>
+                  <PaidGamesScreen onClose={() => setHomeModal(null)} f={{
+                    coinImg: POINT_COIN_IMG, nearImg: NEAR_LOGO_IMG,
+                    name: paidGameName, setName: setPaidGameName,
+                    matches: paidMaxMatches, setMatches: setPaidMaxMatches,
+                    fee: paidEntryFee, setFee: setPaidEntryFee,
+                    busy: paidCreateBusy, error: paidCreateError, onCreate: createPaidGame,
+                    pending: pendingPaidLink ? pendingPaidLink.onChainPoolId : null, onRetry: retryPaidSetup, onReport: reportPaidStuck, reportStatus: stuckReportStatus,
+                    items: paidItems, loading: livePoolsLoading,
+                  }} />
+                </HomeConsole>
+              );
+            }
+            return (
             <GameModeScreen bgImage={CREATE_PAID_BG_IMG} ratio={941 / 1672} onClose={() => setHomeModal(null)}>
               <input
                 value={paidGameName} onChange={(e) => setPaidGameName(e.target.value)} maxLength={40}
@@ -21134,7 +21319,8 @@ function MovementDemo() {
                 ]} />
               </div>
             </GameModeScreen>
-          )}
+            );
+          })()}
 
           {/* [NEW UI] Single shared popup for both Pool Games and Paid
               Games live-list cards - reuses the exact same on-chain
@@ -23748,43 +23934,20 @@ function MovementDemo() {
       {/* Stage 1: Alarm — full-screen red flash + siren-style pulsing,
           3 seconds, before everyone gets pulled into the chat. */}
       {meeting && meeting.stage === 'alarm' && (
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 65, background: '#1a0303',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          animation: 'meetingAlarmFlash 0.5s ease-in-out infinite',
-        }}>
-          {/* [UPDATE] Complete redesign for the report case, per exact
-              spec - the dead player's own avatar IS the centerpiece now
-              (replacing the generic siren emoji), moderately sized (not
-              huge), with who reported them folded into the message line
-              right below it instead of being a separate row. A self-
-              called meeting (no specific body) keeps the original siren
-              look, since there's no one specific player to center on. */}
-          {meeting.calledByReason === 'report' && meeting.reportedBody ? (
-            <>
-              <img
-                src={resolveAvatarImg(meeting.reportedBody.avatarId, true, meeting.reportedBody.avatarVariantId)} alt=""
-                style={{ width: 76, height: 'auto', filter: 'drop-shadow(0 4px 14px rgba(255,80,80,0.5))', marginBottom: 10 }}
-              />
-              <h2 style={{ fontSize: 16, fontWeight: 800, color: '#ff5c5c', margin: '0 0 6px', letterSpacing: 0.5, textAlign: 'center' }}>
-                <PlayerNameTag name={displayPlayerName(meeting.reportedBody.name, meeting.reportedBody.avatarId)} premium={meeting.reportedBody.hasPlayPass} isBot={isBotPlayerId(meeting.reportedBody.id)} /> was found dead
-              </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <img src={resolveAvatarImg(meeting.callerAvatarId, true, meeting.callerAvatarVariantId)} alt="" style={{ width: 20, height: 'auto' }} />
-                <p style={{ fontSize: 12, color: '#ffb4b4', margin: 0, fontWeight: 600 }}>
-                  Reported by <span style={{ fontWeight: 800, color: '#fff' }}><PlayerNameTag name={displayPlayerName(meeting.callerName, meeting.callerAvatarId)} premium={meeting.callerHasPlayPass} isBot={isBotPlayerId(meeting.calledByPlayerId)} /></span>
-                </p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 46, marginBottom: 10 }}>🚨</div>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#ff5c5c', margin: '0 0 6px', letterSpacing: 1 }}>
-                EMERGENCY MEETING
-              </h2>
-              <p style={{ fontSize: 12.5, color: '#ffb4b4', margin: 0, fontWeight: 600 }}>Meeting called</p>
-            </>
-          )}
+        <div style={{ position: 'absolute', inset: 0, zIndex: 65 }}>
+          <AlarmMoment
+            wide={momentWide}
+            kind={meeting.calledByReason === 'report' && meeting.reportedBody ? 'report' : 'emergency'}
+            body={meeting.reportedBody ? {
+              avatarSrc: resolveAvatarImg(meeting.reportedBody.avatarId, true, meeting.reportedBody.avatarVariantId),
+              nameNode: <PlayerNameTag name={displayPlayerName(meeting.reportedBody.name, meeting.reportedBody.avatarId)} premium={meeting.reportedBody.hasPlayPass} isBot={isBotPlayerId(meeting.reportedBody.id)} />,
+            } : null}
+            caller={meeting.callerName ? {
+              avatarSrc: meeting.callerAvatarId ? resolveAvatarImg(meeting.callerAvatarId, true, meeting.callerAvatarVariantId) : null,
+              nameNode: <PlayerNameTag name={displayPlayerName(meeting.callerName, meeting.callerAvatarId)} premium={meeting.callerHasPlayPass} isBot={isBotPlayerId(meeting.calledByPlayerId)} />,
+            } : null}
+          />
+          <style>{MOMENT_CSS}</style>
         </div>
       )}
       <style>{`
