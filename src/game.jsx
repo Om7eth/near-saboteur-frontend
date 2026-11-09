@@ -10732,7 +10732,7 @@ function MovementDemo() {
     if (loggedInPlayer?.username) {
       avatarPersistTimerRef.current = setTimeout(() => {
         authFetch('/profile/setup', {
-          email: authEmail,
+          sessionToken, email: authEmail,
           name: (playerName || loggedInPlayer.name || '').trim(),
           username: loggedInPlayer.username,
           avatarId: next.id,
