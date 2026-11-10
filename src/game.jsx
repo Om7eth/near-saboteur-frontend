@@ -69,6 +69,8 @@ if (typeof window !== 'undefined' && !window.Buffer) {
 // [LOCAL DEV] Set VITE_BACKEND_URL in a git-ignored .env.local (e.g.
 // http://localhost:3000) to point a local frontend at a local backend.
 // When it's unset (as on Render), the hosted test backend is used.
+// Dev Mode (2-player test rooms) only on a test build: set VITE_DEV_MODE=1 there.
+const SHOW_DEV_MODE = import.meta.env.VITE_DEV_MODE === '1';
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || 'https://near-saboteur-backend-test.onrender.com').replace(/\/$/, '');
 // [SMART CONTRACT] The deployed pool-escrow contract's own NEAR
 // account - update this if the contract is ever redeployed to a
@@ -6645,7 +6647,7 @@ function LobbyScreen({
   // so a host testing solo (2 devices) doesn't need to round up real
   // players. Falls back to the normal MIN_PLAYERS whenever Dev Mode is
   // off - identical to live behavior in that case.
-  const effectiveMinPlayers = roomInfo?.devMode ? 2 : MIN_PLAYERS;
+  const effectiveMinPlayers = SHOW_DEV_MODE && roomInfo?.devMode ? 2 : MIN_PLAYERS;
   const canStartGame = !!roomInfo && roomInfo.players.filter((p) => !p.spectator).length >= effectiveMinPlayers && !allMatchesDone;
   const amLobbySpectator = !!(roomInfo?.players || []).find((p) => p.id === socket?.id)?.spectator; // [WATCH MODE] watching host has no lobby avatar
 
@@ -7801,7 +7803,7 @@ function LobbyScreen({
                 just leave this OFF and everything behaves exactly like
                 the live game. THIS ENTIRE BLOCK MUST NEVER BE MERGED TO
                 THE LIVE/MAIN BRANCH. */}
-            {isHost ? (
+            {SHOW_DEV_MODE && isHost ? (
               <div
                 onClick={() => socket?.emit('setDevMode', { devMode: !roomInfo.devMode })}
                 style={{
