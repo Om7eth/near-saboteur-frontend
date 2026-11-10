@@ -22109,7 +22109,11 @@ function MovementDemo() {
           </div>
         )}
         <div style={{
-          position: 'absolute', left: -camX * scale, top: -camY * scale,
+          // [PERF - PHONE LAG] Move the world with a GPU transform instead of
+          // left/top: the map is painted once and only slid around, rather
+          // than re-laid-out and re-painted on every movement frame.
+          position: 'absolute', left: 0, top: 0,
+          transform: `translate3d(${-camX * scale}px, ${-camY * scale}px, 0)`, willChange: 'transform',
           width: mapPxW * scale, height: mapPxH * scale, background: '#06060a',
         }}>
           {/* Rooms. Assembly Hall (cafeteria) uses its themed image (ratio matches room
@@ -23036,7 +23040,7 @@ function MovementDemo() {
         zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
         display: 'flex', alignItems: 'center', gap: 6,
         background: 'rgba(8,8,13,0.82)', borderRadius: 9, padding: '5px 10px',
-        border: '1px solid rgba(110,255,192,0.22)', backdropFilter: 'blur(3px)',
+        border: '1px solid rgba(110,255,192,0.22)',
         maxWidth: 'calc(100vw - 70px)', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
       }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#6effc0', letterSpacing: 0.2, whiteSpace: 'nowrap' }}>
@@ -23209,7 +23213,7 @@ function MovementDemo() {
               : nearTask.room === 'cafeteria' ? '#ff8a8a' : '#6effc0',
             border: `1px solid ${nearTask.room === 'reactor' && !vaultUnlocked ? 'rgba(255,180,60,0.45)'
               : nearTask.room === 'cafeteria' ? 'rgba(255,85,85,0.4)' : 'rgba(110,255,192,0.35)'}`,
-            borderRadius: 20, backdropFilter: 'blur(4px)',
+            borderRadius: 20,
             padding: '8px 16px', fontSize: 12.5, fontWeight: 700, letterSpacing: 0.2, zIndex: 15,
             boxShadow: nearTask.room === 'cafeteria' ? '0 2px 14px rgba(255,85,85,0.25)' : '0 2px 14px rgba(110,255,192,0.18)',
             whiteSpace: 'nowrap', maxWidth: '88vw', textAlign: 'center',
@@ -23517,7 +23521,7 @@ function MovementDemo() {
           position: 'absolute', top: 44, left: 8, zIndex: 13, width: 108,
           zoom: hudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
           background: 'rgba(8,8,13,0.85)', border: '1px solid rgba(110,255,192,0.22)',
-          borderRadius: 9, padding: '6px 8px', backdropFilter: 'blur(3px)',
+          borderRadius: 9, padding: '6px 8px',
           boxShadow: '0 2px 10px rgba(0,0,0,0.4)', pointerEvents: 'none',
         }}>
           <div style={{

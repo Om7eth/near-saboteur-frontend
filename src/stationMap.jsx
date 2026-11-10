@@ -90,6 +90,21 @@ function tintRooms(g, geo, { here, missionIds, targetId, doneIds, lockedId }, s,
   }
 }
 
+// The station with rooms already coloured (current room / missions / target),
+// rebuilt only when those change - so following the player is just a crop.
+let tintCache = { key: '', canvas: null };
+function tintedStation(geo, key, opts) {
+  if (tintCache.key === key && tintCache.canvas) return tintCache.canvas;
+  const base = baseCanvas(geo);
+  const c = tintCache.canvas && tintCache.canvas.width === base.width ? tintCache.canvas : document.createElement('canvas');
+  c.width = base.width; c.height = base.height;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height); g.drawImage(base, 0, 0);
+  tintRooms(g, geo, opts, SCALE);
+  tintCache = { key, canvas: c };
+  return c;
+}
+
 // ---------------- location card ----------------
 export function LocationCard({ geo, posPx, missions, targetRoomId, crew, showTasks, lockedVault, desktop, hudK = 1, onOpen }) {
   const ref = useRef(null);
@@ -98,24 +113,28 @@ export function LocationCard({ geo, posPx, missions, targetRoomId, crew, showTas
   const pending = useMemo(() => pendingMissionRooms(geo, missions, tile), [geo, missions, tile.x, tile.y]); // eslint-disable-line react-hooks/exhaustive-deps
   const target = (targetRoomId && pending.find((p) => p.room.id === targetRoomId)) || pending[0] || null;
   const missionKey = pending.map((p) => p.room.id).join(',');
-  const drawKey = `${tile.x},${tile.y}|${missionKey}|${target ? target.room.id : ''}|${lockedVault ? 1 : 0}`;
+  const layerKey = `${here ? here.id : '-'}|${missionKey}|${target ? target.room.id : ''}|${lockedVault ? 1 : 0}`;
+  // [SMOOTH] follow the player's exact position (not whole tiles); a frame is
+  // only a crop of the pre-coloured station + the route + your dot.
+  const drawKey = `${Math.round(posPx.x * 2)},${Math.round(posPx.y * 2)}|${layerKey}`;
   useEffect(() => {
     const cv = ref.current; if (!cv || cv.dataset.k === drawKey) return; // a re-mounted canvas has no key -> always redrawn
     cv.dataset.k = drawKey;
     const g = cv.getContext('2d'), Wpx = cv.width, Hpx = cv.height;
     const VIEW = 46, s = Wpx / VIEW, viewH = Hpx / s;
-    const x0 = tile.x + 0.5 - VIEW / 2, y0 = tile.y + 0.5 - viewH / 2;
+    const fx = posPx.x / geo.TILE, fy = posPx.y / geo.TILE;
+    const x0 = fx - VIEW / 2, y0 = fy - viewH / 2;
     g.fillStyle = '#050807'; g.fillRect(0, 0, Wpx, Hpx);
     g.imageSmoothingEnabled = false;
-    g.drawImage(baseCanvas(geo), x0 * SCALE, y0 * SCALE, VIEW * SCALE, viewH * SCALE, 0, 0, Wpx, Hpx);
-    tintRooms(g, geo, { here, missionIds: new Set(pending.map((p) => p.room.id)), targetId: target && target.room.id, doneIds: new Set(), lockedId: lockedVault ? 'reactor' : null }, s, x0, y0);
+    const layer = tintedStation(geo, layerKey, { here, missionIds: new Set(pending.map((p) => p.room.id)), targetId: target && target.room.id, doneIds: new Set(), lockedId: lockedVault ? 'reactor' : null });
+    g.drawImage(layer, x0 * SCALE, y0 * SCALE, VIEW * SCALE, viewH * SCALE, 0, 0, Wpx, Hpx);
     if (target) {
       const path = route(geo, tile, roomGoal(geo, target.room));
       g.strokeStyle = '#ffd75e'; g.lineWidth = Math.max(2, s * 0.35); g.setLineDash([s * 0.9, s * 0.6]); g.beginPath();
       path.forEach((p, i) => { const px = (p.x + 0.5 - x0) * s, py = (p.y + 0.5 - y0) * s; if (i) g.lineTo(px, py); else g.moveTo(px, py); });
       g.stroke(); g.setLineDash([]);
       // gold marker on the edge when the mission room is outside the view
-      const goal = roomGoal(geo, target.room), dx = goal.x - tile.x, dy = goal.y - tile.y;
+      const goal = roomGoal(geo, target.room), dx = goal.x + 0.5 - fx, dy = goal.y + 0.5 - fy;
       if (Math.abs(dx) > VIEW / 2 - 2 || Math.abs(dy) > viewH / 2 - 2) {
         const a = Math.atan2(dy, dx), m = s * 1.6;
         const k = Math.min((Wpx / 2 - m) / Math.abs(Math.cos(a) || 1e-6), (Hpx / 2 - m) / Math.abs(Math.sin(a) || 1e-6));
@@ -132,7 +151,7 @@ export function LocationCard({ geo, posPx, missions, targetRoomId, crew, showTas
     <div onClick={onOpen} role="button" aria-label="Open the station map" style={{
       position: 'absolute', top: 8, left: 8, zIndex: 20, width: w, zoom: hudK, cursor: 'pointer',
       background: 'rgba(5,9,8,0.88)', border: '1px solid rgba(110,255,192,0.32)', borderRadius: 11,
-      padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)',
+      padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 3px 4px', fontSize: desktop ? 11.5 : 10.5, whiteSpace: 'nowrap', overflow: 'hidden' }}>
         <span style={{ color: '#6effc0', fontSize: 9 }}>◉</span>
