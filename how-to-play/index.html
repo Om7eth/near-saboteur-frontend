@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>if (!/\/$|\.html$/.test(location.pathname)) location.replace(location.pathname + '/' + location.search + location.hash);</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Play · NEAR Saboteur</title>
+<meta name="description" content="Learn NEAR Saboteur in 3 minutes: roles, missions, meetings, voting, points and prize pools.">
+<style>
+:root{--bg:#07090b;--panel:#0d1114;--line:rgba(255,255,255,.08);--g:#6effc0;--gold:#ffd75e;--red:#ff5b6e;--blue:#6ec8ff;--txt:#e6ece9;--dim:#8b9893;--mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;--disp:'Space Grotesk',system-ui,sans-serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.6 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+a{color:var(--g)}img{max-width:100%;display:block}
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;padding:12px 22px;background:rgba(7,9,11,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top b{font:800 15px var(--disp);letter-spacing:.06em}.top b span{color:var(--g)}
+.top .sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;font:800 13px var(--disp);letter-spacing:.06em;text-decoration:none;border:1px solid transparent;cursor:pointer}
+.btn.pri{background:linear-gradient(180deg,#7dffc9,#3fd99b);color:#04130c}
+.btn.gh{border-color:var(--line);color:var(--txt);background:transparent}
+.wrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:40px;max-width:1240px;margin:0 auto;padding:30px 22px 80px}
+nav.toc{position:sticky;top:86px;align-self:start;font:13px var(--mono)}
+nav.toc a{display:block;padding:7px 10px;border-left:2px solid var(--line);color:var(--dim);text-decoration:none}
+nav.toc a:hover,nav.toc a.on{color:var(--g);border-left-color:var(--g)}
+.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:30px;align-items:center;margin-bottom:56px}
+.kick{font:600 12px var(--mono);letter-spacing:.2em;color:var(--g);text-transform:uppercase}
+h1{font:800 clamp(34px,5vw,56px)/1.02 var(--disp);margin:10px 0 14px;letter-spacing:-.01em}
+h1 em{font-style:normal;color:var(--red)}
+.lead{color:#c3cdc9;font-size:17px;max-width:560px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 22px}
+.chip{font:600 12px var(--mono);padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--dim)}
+section{margin:0 0 64px}
+h2{font:800 28px var(--disp);margin:0 0 6px;display:flex;align-items:center;gap:12px}
+h2 .n{font:700 12px var(--mono);color:#04130c;background:var(--g);border-radius:6px;padding:3px 8px}
+.sub{color:var(--dim);margin:0 0 22px}
+.shot{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#000;cursor:zoom-in;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.shot figcaption{position:absolute;left:10px;bottom:10px;font:600 11px var(--mono);background:rgba(0,0,0,.72);padding:4px 8px;border-radius:6px;color:#cfd8d3}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.step{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:26px;align-items:center;margin-bottom:28px}
+.step.flip{grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}.step.flip .shot{order:2}
+.step h3{font:800 19px var(--disp);margin:0 0 6px}
+.step p{margin:0 0 8px;color:#c3cdc9}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+.role{border-radius:16px;padding:20px;border:1px solid}
+.role.crew{border-color:rgba(110,200,255,.35);background:linear-gradient(180deg,rgba(110,200,255,.08),transparent)}
+.role.sab{border-color:rgba(255,91,110,.4);background:linear-gradient(180deg,rgba(255,91,110,.09),transparent)}
+.role h3{font:800 22px var(--disp);margin:14px 0 6px}.crew h3{color:var(--blue)}.sab h3{color:var(--red)}
+ul.t{margin:6px 0 0;padding-left:18px;color:#c3cdc9}ul.t li{margin:3px 0}
+.keys{display:flex;flex-wrap:wrap;gap:8px}
+.k{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);font-size:14px}
+.k kbd{font:700 12px var(--mono);background:#e9efec;color:#111;border-radius:5px;padding:2px 7px;box-shadow:0 2px 0 #9aa}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{font:600 11px var(--mono);letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+td.n{text-align:right;color:var(--gold);font-weight:700;font-family:var(--mono)}
+.tip{border-left:3px solid var(--gold);background:rgba(255,215,94,.06);padding:12px 16px;border-radius:0 10px 10px 0;color:#e8dfc0;margin-top:14px}
+.mode h3{margin:12px 0 4px;font:800 18px var(--disp)}
+.tag{font:700 10px var(--mono);padding:2px 7px;border-radius:5px;letter-spacing:.08em}
+.tag.g{background:rgba(110,255,192,.15);color:var(--g)}.tag.y{background:rgba(255,215,94,.15);color:var(--gold)}.tag.r{background:rgba(255,91,110,.15);color:var(--red)}
+details{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px;background:var(--panel)}
+summary{cursor:pointer;font-weight:700}
+.cta{text-align:center;padding:44px 20px;border:1px solid rgba(110,255,192,.25);border-radius:18px;background:radial-gradient(circle at 50% 0,rgba(110,255,192,.12),transparent 70%)}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;cursor:zoom-out}
+.lb.on{display:flex}.lb img{max-height:94vh;border-radius:10px}
+.phones{display:flex;gap:16px;justify-content:center}.phones .shot{max-width:230px}
+@media (max-width:900px){
+  .wrap{grid-template-columns:1fr;padding-top:10px}
+  nav.toc{position:sticky;top:57px;z-index:15;display:flex;overflow-x:auto;gap:4px;background:rgba(7,9,11,.95);margin:0 -22px;padding:8px 14px;border-bottom:1px solid var(--line)}
+  nav.toc a{border:1px solid var(--line);border-radius:999px;white-space:nowrap;padding:5px 11px}
+  .hero,.row,.step,.step.flip{grid-template-columns:1fr}.step.flip .shot{order:0}
+  .row3{grid-template-columns:1fr}
+  .top .gh{display:none}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <b>NEAR <span>SABOTEUR</span> · HOW TO PLAY</b><span class="sp"></span>
+  <a class="btn gh" href="../">← Back to game</a>
+  <a class="btn pri" href="../">PLAY NOW</a>
+</header>
+
+<div class="wrap">
+<nav class="toc" id="toc">
+  <a href="#basics">The basics</a><a href="#start">Get started</a><a href="#controls">Controls</a><a href="#crew">Play as Crew</a><a href="#sab">Play as Saboteur</a><a href="#meet">Meetings & voting</a><a href="#win">Winning & points</a><a href="#modes">Game modes</a><a href="#extras">Play Pass & wallet</a><a href="#faq">FAQ</a>
+</nav>
+
+<main>
+<div class="hero" id="basics">
+  <div>
+    <div class="kick">Learn it in 3 minutes</div>
+    <h1>Trust no agent.<br>Find the <em>Saboteur</em>.</h1>
+    <p class="lead">You and up to 9 others wake up on a NEAR space station. Most of you are <b style="color:var(--blue)">Crew</b> doing missions. One to three of you are secret <b style="color:var(--red)">Saboteurs</b> who want everyone gone. Talk, accuse, vote — and don't get fooled.</p>
+    <div class="chips"><span class="chip">4–10 players</span><span class="chip">AI bots fill empty seats</span><span class="chip">~5 min matches</span><span class="chip">Phone & PC</span><span class="chip">Free to play</span></div>
+    <a class="btn pri" href="#start">START THE TOUR ↓</a>
+  </div>
+  <figure class="shot" data-z><img src="./img/d09-in-match.jpg" alt="The Assembly Hall with players and the Call Assembly button"><figcaption>The Assembly Hall — every match starts here</figcaption></figure>
+</div>
+
+<section>
+  <div class="row">
+    <div class="role crew">
+      <figure class="shot" data-z><img src="./img/d07-role-crewmate.jpg" alt="Crewmate role reveal"></figure>
+      <h3>Crewmate</h3>
+      <ul class="t"><li>Finish your missions around the station.</li><li>Report dead bodies and call meetings.</li><li>Vote the Saboteur out.</li></ul>
+    </div>
+    <div class="role sab">
+      <figure class="shot" data-z><img src="./img/d07-role-saboteur.jpg" alt="Saboteur role reveal"></figure>
+      <h3>Saboteur</h3>
+      <ul class="t"><li>Eliminate crewmates without being seen.</li><li>Sabotage the station and use vents to escape.</li><li>Blend in at meetings — lie well.</li></ul>
+    </div>
+  </div>
+  <p class="tip">Your role is secret. It flashes on your screen when the match starts — only you can see it.</p>
+</section>
+
+<section id="start">
+  <h2><span class="n">01</span>Get started</h2>
+  <p class="sub">From opening the game to your first match.</p>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d01-welcome.jpg" alt="Welcome screen"></figure>
+    <div><h3>1 · Create a free account — or jump in as a guest</h3><p>Tap <b>PLAY NOW</b> to make a free account (takes under a minute) or <b>jump in as a guest</b> to try it first. An account keeps your points, rank, skins and wallet.</p></div>
+  </div>
+  <div class="step flip">
+    <figure class="shot" data-z><img src="./img/d02-home.jpg" alt="Home hangar"></figure>
+    <div><h3>2 · Your hangar</h3><p>This is home. Change your crew skin with the arrows under your character, see live rooms on the left and this week's ranks on the right.</p><p>Pick a mode at the bottom — <b>FREE</b>, <b>POOL</b> or <b>PAID</b> — and press the big button.</p></div>
+  </div>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d03-create-room.jpg" alt="Create or find a room"></figure>
+    <div><h3>3 · Host a room or join one</h3><p><b>Host:</b> name your room, choose how many matches and make it public or private.<br><b>Join:</b> pick an open room, or type a friend's 4-letter room code.</p></div>
+  </div>
+  <div class="step flip">
+    <figure class="shot" data-z><img src="./img/d05-host-controls.jpg" alt="Host controls"></figure>
+    <div><h3>4 · Fill the lobby (bots welcome)</h3><p>You need 4+ players. Short on friends? The host taps <b>HOST → + ADD BOT</b>. Bots do missions, can be the Saboteur and even argue in meetings.</p><p>The host also sets the number of Saboteurs (1–3) and the game speed, then presses <b>START</b>.</p></div>
+  </div>
+</section>
+
+<section id="controls">
+  <h2><span class="n">02</span>Controls</h2>
+  <p class="sub">Keyboard on PC, touch on phone. Press <b>?</b> in a match any time to see them again.</p>
+  <div class="row">
+    <div>
+      <div class="keys" style="margin-bottom:14px">
+        <span class="k"><kbd>W A S D</kbd> Move (or arrows)</span><span class="k"><kbd>E</kbd> Use / do a mission</span><span class="k"><kbd>R</kbd> Report a body</span><span class="k"><kbd>M</kbd> Map</span><span class="k"><kbd>Enter</kbd> Chat</span><span class="k"><kbd>Q</kbd> Kill <small style="color:var(--red)">(Saboteur)</small></span><span class="k"><kbd>F</kbd> Sabotage <small style="color:var(--red)">(Saboteur)</small></span><span class="k"><kbd>Esc</kbd> Close / settings</span>
+      </div>
+      <figure class="shot" data-z><img src="./img/d08-controls.jpg" alt="Desktop controls"></figure>
+    </div>
+    <div class="phones">
+      <figure class="shot" data-z><img src="./img/m02-home-phone.jpg" alt="Home on phone"><figcaption>Phone</figcaption></figure>
+      <figure class="shot" data-z><img src="./img/m01-meeting-phone.jpg" alt="Meeting on phone"><figcaption>Meeting on phone</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="crew">
+  <h2><span class="n">03</span>Play as Crew</h2>
+  <p class="sub">Do your missions, watch everyone, survive.</p>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d10-missions.jpg" alt="Mission list"></figure>
+    <div><h3>Your missions</h3><p>Tap <b>MISSIONS</b> to see your 5 tasks and which room each one is in. Every mission you finish fills the shared <b>CREW TASKS</b> bar.</p><p>When the bar reaches 100%, <b>the Crew wins</b>.</p></div>
+  </div>
+  <div class="step flip">
+    <figure class="shot" data-z><img src="./img/d11-station-map.jpg" alt="Station map"></figure>
+    <div><h3>Find your way</h3><p>Press <b>M</b> (or the map button) for the station map. 14 rooms are joined by corridors — the dot is you.</p></div>
+  </div>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d12-station-prompt.jpg" alt="Station prompt"></figure>
+    <div><h3>Walk up and press E</h3><p>Stand next to a glowing station and a prompt appears. Press <b>E</b> (or tap it) to start that mission.</p></div>
+  </div>
+  <div class="step flip">
+    <figure class="shot" data-z><img src="./img/d13-mission-near-ai.jpg" alt="NEAR AI mission"></figure>
+    <div><h3>Missions are real NEAR things</h3><p>Stake NEAR, do a cross-chain swap, repair the power grid… In the <b>NEAR AI</b> mission you chat with the real NEAR AI — ask it anything, 3 questions to finish.</p></div>
+  </div>
+  <div class="tip">Seen a body? Press <b>R</b> to report it — that starts a meeting right away. No body but something's fishy? Go to the Assembly Hall and press the red <b>Call Assembly</b> button.</div>
+</section>
+
+<section id="sab">
+  <h2><span class="n">04</span>Play as Saboteur</h2>
+  <p class="sub">Strike when nobody's watching. Then act innocent.</p>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d29-kill-ready.jpg" alt="Kill button ready"></figure>
+    <div><h3>Eliminate</h3><p>Get close to a crewmate and the red <b>KILL</b> button lights up — press <b>Q</b> or tap it. It has a cooldown, so choose your moment. Make sure nobody else is nearby.</p></div>
+  </div>
+  <div class="step flip">
+    <figure class="shot" data-z><img src="./img/d28-sabotage-panel.jpg" alt="Sabotage tools"></figure>
+    <div><h3>Sabotage</h3><p>Press <b>F</b> for your tools: cut the electricity, trigger a hacker attack, lock gates. Using one locks all of them for 20 seconds. Use vents to escape fast.</p></div>
+  </div>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d14-sabotage-lights.jpg" alt="Lights out sabotage"></figure>
+    <div><h3>What the Crew sees</h3><p>Cut Electricity makes everyone's view go dark, and an alert points to the problem room. Crew have to go and fix it — perfect cover for you.</p></div>
+  </div>
+  <div class="tip">You can fake missions too. Stand at stations, follow groups, and have a story ready for the meeting.</div>
+</section>
+
+<section id="meet">
+  <h2><span class="n">05</span>Meetings & voting</h2>
+  <p class="sub">This is where the game is won.</p>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d16-emergency-alarm.jpg" alt="Emergency alarm"></figure>
+    <div><h3>1 · The alarm</h3><p>A body report or the Assembly button stops the match and pulls everyone into a meeting.</p></div>
+  </div>
+  <div class="step flip">
+    <figure class="shot" data-z><img src="./img/d17-meeting-chat.jpg" alt="Meeting discussion"></figure>
+    <div><h3>2 · Discuss (2.5 min)</h3><p>Say where you were and what you saw. Ask questions, call out lies, <b>@tag</b> someone to ask them directly. Bots answer too.</p><p>If 60% press <b>Skip to vote</b>, voting starts early.</p></div>
+  </div>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d18-voting.jpg" alt="Voting"></figure>
+    <div><h3>3 · Vote (30 s)</h3><p>Tap a player, then confirm — or <b>Skip vote</b> if you're not sure. One vote each, and the chat stays open while you vote.</p></div>
+  </div>
+  <div class="step flip">
+    <figure class="shot" data-z><img src="./img/d19-verdict.jpg" alt="Vote result"></figure>
+    <div><h3>4 · The verdict</h3><p>The player with the most votes is ejected and their role is revealed. A tie or a skip-win means nobody leaves.</p></div>
+  </div>
+  <div class="step">
+    <figure class="shot" data-z><img src="./img/d21-ghost.jpg" alt="Ghost view"></figure>
+    <div><h3>Died? You're a ghost</h3><p>Ghosts can't talk to the living, but they keep watching and chat with other ghosts in the <b>Ghosts</b> tab. Crew ghosts can still finish missions.</p></div>
+  </div>
+</section>
+
+<section id="win">
+  <h2><span class="n">06</span>Winning & points</h2>
+  <div class="row">
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <p style="margin:0 0 8px"><b style="color:var(--blue)">Crew wins</b> when all missions are done <i>or</i> every Saboteur is voted out.</p>
+        <p style="margin:0"><b style="color:var(--red)">Saboteurs win</b> when fewer than 2 crewmates are left alive.</p>
+      </div>
+      <figure class="shot" data-z><img src="./img/d20-end-screen.jpg" alt="End screen"></figure>
+    </div>
+    <div class="card">
+      <table>
+        <tr><th>Crew</th><th style="text-align:right">Points</th></tr>
+        <tr><td>Each mission (up to 5)</td><td class="n">+2</td></tr>
+        <tr><td>All missions done</td><td class="n">+6</td></tr>
+        <tr><td>Survive to the end</td><td class="n">+7</td></tr>
+        <tr><th>Saboteur</th><th></th></tr>
+        <tr><td>Each kill (up to 4)</td><td class="n">+4</td></tr>
+        <tr><td>Each meeting survived (up to 4)</td><td class="n">+2</td></tr>
+        <tr><td>Each sabotage (up to 3) / vent (up to 2)</td><td class="n">+1</td></tr>
+        <tr><th>Everyone</th><th></th></tr>
+        <tr><td>Your team wins</td><td class="n">+14</td></tr>
+        <tr><td>Finish the match</td><td class="n">+4</td></tr>
+      </table>
+      <p style="font-size:13px;color:var(--dim);margin:12px 0 0">Points add up on the weekly <b>Ranks</b> and turn into <b>$SABOTEUR</b> testnet tokens after each match. They count once you return to the lobby.</p>
+    </div>
+  </div>
+</section>
+
+<section id="modes">
+  <h2><span class="n">07</span>Game modes</h2>
+  <div class="row3">
+    <div class="card mode"><span class="tag g">FREE</span><h3>Free Play</h3><p>No wallet, no money. Host or join a room and play with friends or bots.</p></div>
+    <div class="card mode"><span class="tag y">POOL</span><h3>Pool Games</h3><p>A host puts up a prize. Players join free, play 1–5 matches, and the top players by total points win it. Test NEAR paid automatically by the contract — or <b>real NEAR</b>, paid by the host in one click.</p></div>
+    <div class="card mode"><span class="tag r">PAID</span><h3>Paid Games</h3><p>Everyone pays the same entry fee (testnet). The top 3 split the pot 50 / 30 / 20 after a 5% fee. Ties share their places.</p></div>
+  </div>
+  <div class="row" style="margin-top:18px">
+    <figure class="shot" data-z><img src="./img/d22-pool-games.jpg" alt="Pool games"><figcaption>Create a pool</figcaption></figure>
+    <figure class="shot" data-z><img src="./img/d23-paid-games.jpg" alt="Paid games"><figcaption>Paid games</figcaption></figure>
+  </div>
+</section>
+
+<section id="extras">
+  <h2><span class="n">08</span>Play Pass, wallet & ranks</h2>
+  <div class="row3">
+    <figure class="shot" data-z><img src="./img/d24-play-pass.jpg" alt="Play Pass"><figcaption>Play Pass</figcaption></figure>
+    <figure class="shot" data-z><img src="./img/d25-wallet.jpg" alt="Wallet"><figcaption>Wallet</figcaption></figure>
+    <figure class="shot" data-z><img src="./img/d26-ranks.jpg" alt="Ranks"><figcaption>Weekly ranks</figcaption></figure>
+  </div>
+  <ul class="t" style="margin-top:14px">
+    <li><b>Play Pass</b> (one-time, real NEAR): premium skins, 24 chat stickers, GIFs, gold name and 2× $SABOTEUR.</li>
+    <li><b>Wallet</b>: every account gets an in-game NEAR testnet wallet, or connect your own.</li>
+    <li><b>Ranks</b>: weekly and monthly leaderboards by points.</li>
+  </ul>
+</section>
+
+<section id="faq">
+  <h2><span class="n">09</span>Quick answers</h2>
+  <details><summary>Do I need crypto to play?</summary><p>No. Free Play needs nothing — not even an account. Wallets only matter for Pool/Paid games and Play Pass.</p></details>
+  <details><summary>I got disconnected — is my match gone?</summary><p>No. Reopen the game and you'll be put back in your seat automatically.</p></details>
+  <details><summary>Who are the BOT players?</summary><p>AI players powered by NEAR AI. They do missions, can be the Saboteur, and talk in meetings. The host can add or remove them.</p></details>
+  <details><summary>Is $SABOTEUR worth money?</summary><p>No. It's a testnet token with no value today, and nothing is promised about the future.</p></details>
+</section>
+
+<div class="cta">
+  <h2 style="justify-content:center">Ready? Trust no agent.</h2>
+  <p class="sub">Grab a few friends — or a few bots — and find the Saboteur.</p>
+  <a class="btn pri" href="../">PLAY NOW</a>
+</div>
+</main>
+</div>
+
+<div class="lb" id="lb"><img alt=""></div>
+<script>
+const lb = document.getElementById('lb');
+document.querySelectorAll('[data-z]').forEach((f) => f.addEventListener('click', () => { lb.querySelector('img').src = f.querySelector('img').src; lb.classList.add('on'); }));
+lb.addEventListener('click', () => lb.classList.remove('on'));
+addEventListener('keydown', (e) => { if (e.key === 'Escape') lb.classList.remove('on'); });
+const links = [...document.querySelectorAll('#toc a')];
+const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) links.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id)); }), { rootMargin: '-40% 0px -55% 0px' });
+links.forEach((a) => { const t = document.querySelector(a.getAttribute('href')); if (t) io.observe(t); });
+</script>
+</body>
+</html>

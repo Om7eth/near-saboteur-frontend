@@ -1,0 +1,11 @@
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+
+# Dependencies / build output
+node_modules/
+dist/
+
+# OS
+.DS_Store
