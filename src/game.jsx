@@ -10049,6 +10049,36 @@ const DESK_HOME = {
 function isDesktopHomeLayout(d) {
   return !!d && d.w >= 900 && d.w / d.h >= 1.2;
 }
+// [POOL v2 - UNPAID REMINDER] Home-page pill shown only to a host whose
+// finished Real-NEAR pool still has winners to pay (see /pools/host-unpaid).
+const UNPAID_PILL_CSS = `
+.up-pill{display:flex;align-items:center;gap:12px;padding:9px 12px 9px 10px;border-radius:10px;cursor:pointer;text-align:left;width:100%;box-sizing:border-box;
+  background:linear-gradient(90deg,rgba(255,91,110,.24),rgba(255,215,94,.16)),rgba(6,8,7,.88);border:1px solid rgba(255,215,94,.65);color:#fff;
+  box-shadow:0 0 0 1px rgba(0,0,0,.4),0 0 22px rgba(255,180,77,.35);animation:upPulse 2.2s ease-in-out infinite;-webkit-tap-highlight-color:transparent}
+.up-pill:active{transform:scale(.98)}
+@keyframes upPulse{50%{box-shadow:0 0 0 1px rgba(0,0,0,.4),0 0 34px rgba(255,180,77,.6)}}
+.up-pill .ic{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff2b0,#e8a831);color:#3a2600;display:flex;align-items:center;justify-content:center;font:800 15px 'Space Grotesk',system-ui,sans-serif;flex-shrink:0}
+.up-pill .tx{min-width:0;flex:1}.up-pill .tx b{display:block;font:700 13.5px 'Space Grotesk',system-ui,sans-serif;white-space:nowrap}
+.up-pill .tx span{display:block;font:600 11px 'IBM Plex Mono',ui-monospace,monospace;color:#ffd9a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.up-pill .go{font:700 11.5px 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.08em;color:#1a1200;background:#ffd75e;padding:7px 11px;border-radius:6px;white-space:nowrap;flex-shrink:0}
+`;
+function UnpaidPoolPill({ info, mobile, onOpen }) {
+  if (!info || !info.count) return null;
+  const one = info.count === 1 ? info.pools[0] : null;
+  const amt = (n) => `${Math.round(Number(n) * 100) / 100} NEAR`;
+  const title = one ? 'Pool prize not paid yet' : `${info.count} pools not paid yet`;
+  const line = one
+    ? `"${one.name}" · ${one.winners} winner${one.winners > 1 ? 's' : ''}${mobile ? '' : ' waiting'} · ${amt(one.near)}`
+    : `${info.winners} winners waiting · ${amt(info.totalNear)}`;
+  return (
+    <button type="button" className="up-pill" onClick={onOpen} aria-label={`${title}. Pay now`}>
+      <style>{UNPAID_PILL_CSS}</style>
+      <span className="ic">N</span>
+      <span className="tx"><b>{title}</b><span>{line}</span></span>
+      <span className="go">{mobile ? 'PAY ›' : 'PAY NOW ›'}</span>
+    </button>
+  );
+}
 function deskHomeLayout(W, H) {
   const A = DESK_HOME;
   const [sx0, sy0, sx1, sy1] = A.safe;
@@ -10812,6 +10842,9 @@ function MovementDemo() {
   const [poolJoinBusy, setPoolJoinBusy] = useState(false);
   const [poolJoinError, setPoolJoinError] = useState('');
   const [poolHistory, setPoolHistory] = useState({ data: null, loading: false, error: '' });
+  // [POOL v2 - UNPAID REMINDER] host's finished Real-NEAR pools still owing winners
+  const [hostUnpaid, setHostUnpaid] = useState(null);
+  const [poolHistoryOpen, setPoolHistoryOpen] = useState(null); // pool id the History tab opens straight on
   const refreshLivePools = useCallback(async () => {
     setLivePoolsLoading(true);
     try {
@@ -18518,6 +18551,20 @@ function MovementDemo() {
       setPoolJoinError('');
     } catch (e) { setPoolFindError(e.message || 'Could not look that up.'); }
   }
+  // Re-checked whenever the home page is showing (on login, and every time a
+  // window closes - e.g. right after paying the winners).
+  useEffect(() => {
+    if (!sessionToken || homeModal) return undefined;
+    let dead = false;
+    fetch(`${BACKEND_URL}/pools/host-unpaid?sessionToken=${encodeURIComponent(sessionToken)}`)
+      .then((r) => r.json()).then((d) => { if (!dead) setHostUnpaid(d && d.count ? d : null); }).catch(() => {});
+    return () => { dead = true; };
+  }, [sessionToken, homeModal]);
+  useEffect(() => { if (homeModal !== 'poolGames') setPoolHistoryOpen(null); }, [homeModal]);
+  const openUnpaidPools = () => {
+    setPoolHistoryOpen(hostUnpaid && hostUnpaid.count === 1 ? hostUnpaid.pools[0].id : null);
+    setPoolFocus(null); setPoolTab('history'); setPoolJoinError(''); setPoolError(''); setHomeModal('poolGames');
+  };
   async function loadPoolHistory() {
     if (!sessionToken) return;
     setPoolHistory((h) => ({ ...h, loading: true, error: '' }));
@@ -20426,6 +20473,11 @@ function MovementDemo() {
                     {!!(homeModal || showInbox || showReferrals || showHomeSettings || showPointsPopup || premiumPickerOpen) && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 5 }} />
                     )}
+                    {!isGuestPlayer && hostUnpaid && (
+                      <div style={{ position: 'absolute', left: '50%', top: Math.max(72, DL.oy + DL.s * 95), transform: 'translateX(-50%)', width: 'min(440px, 36vw)', zIndex: 4 }}>
+                        <UnpaidPoolPill info={hostUnpaid} onOpen={openUnpaidPools} />
+                      </div>
+                    )}
                     <div className="dh-dock" style={{ left: DL.ped.x, top: DL.ped.y + DL.ped.r * 0.75, width: DL.ped.r * 3.3, fontSize: Math.max(10, DL.ped.r / 11) }}>
                       <div className="dh-modes">
                         {MODES.map((m) => (
@@ -20587,6 +20639,7 @@ function MovementDemo() {
 
                       {/* launch console: mode switch + one big play button */}
                       <div style={{ position: 'absolute', left: 14, right: 14, bottom: 'max(18px, env(safe-area-inset-bottom))', pointerEvents: 'auto' }}>
+                        {!isGuestPlayer && hostUnpaid && <div style={{ marginBottom: 10 }}><UnpaidPoolPill info={hostUnpaid} mobile onOpen={openUnpaidPools} /></div>}
                         <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${MODES.length}, 1fr)`, height: 40, marginBottom: 10, borderRadius: 8, background: 'rgba(4,8,7,0.82)', border: '1px solid rgba(255,255,255,0.08)', padding: 3, boxSizing: 'border-box' }}>
                           <span style={{ position: 'absolute', top: 3, bottom: 3, left: `calc(3px + ${mIdx} * (100% - 6px) / ${MODES.length})`, width: `calc((100% - 6px) / ${MODES.length})`, borderRadius: 6, background: `rgba(${cur.rgb},0.14)`, border: `1px solid rgba(${cur.rgb},0.45)`, boxSizing: 'border-box', transition: 'left 0.28s cubic-bezier(.3,.7,.2,1), background-color 0.28s ease, border-color 0.28s ease' }} />
                           {MODES.map((m) => {
@@ -21241,7 +21294,7 @@ function MovementDemo() {
                   savedWallet: loggedInPlayer?.payoutWallet || '',
                   busy: poolJoinBusy, error: poolJoinError || poolError, onJoin: joinPoolV2,
                 }}
-                history={{ data: poolHistory.data, loading: poolHistory.loading, error: poolHistory.error, load: loadPoolHistory, markPaid: markPoolPaid, payAll: payAllPoolWinners }}
+                history={{ data: poolHistory.data, loading: poolHistory.loading, error: poolHistory.error, load: loadPoolHistory, markPaid: markPoolPaid, payAll: payAllPoolWinners, openId: poolHistoryOpen }}
               />
             </HomeConsole>
           )}

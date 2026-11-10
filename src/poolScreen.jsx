@@ -367,7 +367,7 @@ function PayWinners({ item, onBack, onMarkPaid, onPayAll, busyRank, mobile }) {
 
 function History({ h, mobile }) {
   const [tab, setTab] = useState('hosted');
-  const [payId, setPayId] = useState(null);
+  const [payId, setPayId] = useState(h.openId || null); // opened from the home-page unpaid reminder
   const [busyRank, setBusyRank] = useState(null);
   useEffect(() => { h.load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const data = h.data;
