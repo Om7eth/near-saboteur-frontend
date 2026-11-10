@@ -193,6 +193,21 @@ const CSS = `
 /* ranks */
 .hc-reset{display:flex;align-items:center;gap:7px;font:11.5px var(--mono);color:var(--dim)}.hc-reset svg{width:15px;height:15px}
 .hc-pod{display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:10px;margin:6px 0 18px}
+.hc-wp{margin:0 0 14px}
+.hc-prize{border-radius:10px;padding:13px 15px;background:linear-gradient(135deg,rgba(255,215,94,.14),rgba(255,215,94,.03));border:1px solid rgba(255,215,94,.4);display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:13px;align-items:center}
+.hc-prize .coin{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff2b0,#e8a831);display:flex;align-items:center;justify-content:center;font:800 18px var(--disp);color:#3a2600;flex-shrink:0}
+.hc-prize .tx b{display:block;font:700 16px var(--disp);color:#fff}.hc-prize .tx small{display:block;color:#d9cfa8;font-size:12px;line-height:1.4;margin-top:2px}.hc-prize .tx small.fine{color:#9a937a;font-size:11px}
+.hc-prize .split{display:flex;gap:6px}.hc-prize .split span{font:700 10.5px var(--mono);background:rgba(0,0,0,.35);border-radius:6px;padding:5px 8px;text-align:center;color:#d9cfa8}.hc-prize .split span i{display:block;font-style:normal;color:#ffd75e;font-size:13px}
+.hc-pw{margin-top:8px;font:12px var(--mono);color:var(--dim);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.hc-pw code{color:var(--m);background:rgba(110,255,192,.08);border:1px solid rgba(110,255,192,.25);padding:1px 6px;border-radius:4px}.hc-pw .ok{color:var(--m)}.hc-pw .no{color:#ffb84d}
+.hc-pw button{font:600 11.5px var(--mono);color:#ffd75e;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
+.hc-pw.ed input{flex:1;min-width:160px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14);color:#fff;font:13px var(--mono);padding:8px 10px;outline:none}
+.hc-pw.ed .sv{text-decoration:none;color:#04120b;background:#ffd75e;padding:8px 12px}.hc-pw.ed .sv:disabled{opacity:.5}.hc-pw .er{width:100%;color:#ff8a8a}
+.hc-last{margin-top:10px;font-size:12.5px;color:var(--dim);line-height:1.6}.hc-last b{color:#fff;font-weight:600}.hc-last .lb{font:600 10px var(--mono);letter-spacing:.12em;color:#9fb0a8;margin-right:4px}.hc-last .ok{color:var(--m)}
+.hc-last .hc-cd{color:#ffd75e;font-family:var(--mono)}.hc-last .bf{font-size:11.5px;margin-top:2px}.hc-last a{color:var(--m);font-family:var(--mono);font-size:11.5px}
+.hc-lr .nm .hc-wl{font-style:normal;color:var(--m)}.hc-lr .nm .hc-wl.no{color:#ffb84d}
+.hc-lr .pt .hc-pz{font:700 11px var(--mono);font-style:normal;color:#ffd75e;background:rgba(255,215,94,.1);border:1px solid rgba(255,215,94,.3);border-radius:4px;padding:1px 5px;margin-right:8px}
+@media (max-width:560px){.hc-prize{grid-template-columns:auto minmax(0,1fr)}.hc-prize .split{grid-column:1/-1}.hc-prize .split span{flex:1}}
 .hc-pc{text-align:center;display:flex;flex-direction:column;align-items:center;min-width:0}
 .hc-pc img{width:92px;height:92px;object-fit:contain;filter:drop-shadow(0 8px 12px rgba(0,0,0,.6))}.hc-pc.r1 img{width:120px;height:120px}
 .hc-pc b{font:600 15px var(--disp);margin-top:4px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hc-pc>span{font:10.5px var(--mono);color:var(--dim);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -202,7 +217,7 @@ const CSS = `
 .hc-pc.r1 .hc-ped{padding:22px 0;border-color:rgba(255,215,94,.4);background:linear-gradient(180deg,rgba(255,215,94,.12),transparent)}
 .hc-pc.r2 .hc-ped{padding:15px 0}
 .hc-ped em{display:block;font:700 19px var(--disp);font-style:normal;color:var(--g)}.hc-ped small{font:10px var(--mono);color:var(--dim);letter-spacing:.14em}
-.hc-lr{display:grid;grid-template-columns:40px 34px minmax(0,1fr) 90px;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--line)}
+.hc-lr{display:grid;grid-template-columns:40px 34px minmax(0,1fr) minmax(90px,auto);align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--line)}
 .hc-lr.head{font:500 10px var(--mono);letter-spacing:.12em;color:var(--dim);padding-top:0}
 .hc-lr .rk{font:600 13px var(--mono);color:var(--dim)}
 .hc-lr img{width:32px;height:32px;object-fit:cover;object-position:top;border-radius:50%;background:#0b1512}
@@ -762,7 +777,7 @@ export function WalletScreen({ mobile, onClose, w }) {
 }
 
 /* ---------------- RANKS ---------------- */
-function RankRow({ p, me, kit }) {
+function RankRow({ p, me, kit, prize }) {
   const NameTag = kit.NameTag, Badge = kit.LegionBadge;
   return (
     <div className={`hc-lr ${me ? 'me' : ''}`}>
@@ -770,13 +785,100 @@ function RankRow({ p, me, kit }) {
       <img src={kit.avatarImg(p.avatarId, p.avatarVariantId)} alt="" />
       <div className="nm">
         <b><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{NameTag ? <NameTag name={p.name} premium={p.hasPlayPass} /> : p.name}</span>{p.hasLegionBadge && Badge ? <Badge size={11} /> : null}{me ? <span className="hc-you">YOU</span> : null}</b>
-        <span>@{p.username}</span>
+        <span>@{p.username}{prize ? <em className={`hc-wl ${prize.hasWallet ? '' : 'no'}`}>{prize.hasWallet ? ' · ✓ wallet linked' : ' · link a wallet to receive'}</em> : null}</span>
       </div>
-      <span className="pt">{Number(p.points || 0).toLocaleString()}</span>
+      <span className="pt">{prize ? <i className="hc-pz">${fmtUsd(prize.usd)}</i> : null}{Number(p.points || 0).toLocaleString()}</span>
     </div>
   );
 }
-export function RanksScreen({ mobile, onClose, kit, tab, onTab, data, loading, error, resetText }) {
+
+/* ---------------- WEEKLY PRIZE (Saboteur Agent on NEAR Intents) ---------------- */
+const fmtUsd = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(2));
+const mmss = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; };
+function Countdown({ to }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const i = setInterval(() => tick((x) => x + 1), 1000); return () => clearInterval(i); }, []);
+  return <b className="hc-cd">{mmss(new Date(to) - Date.now())}</b>;
+}
+const MEDAL = ['🥇', '🥈', '🥉'];
+const shortWho = (w) => w.username || w.name || 'player';
+// Which prize (if any) a leaderboard row gets this week.
+function prizeForRow(prize, p) {
+  if (!prize || !prize.active || !p || p.rank > 3) return null;
+  const t = (prize.top || []).find((x) => x.rank === p.rank && (x.username ? x.username === p.username : x.name === p.name));
+  return t ? { usd: prize.prizesUsd[p.rank - 1], hasWallet: t.hasWallet } : null;
+}
+function PrizeWallet({ prize, onSave }) {
+  const [edit, setEdit] = useState(false);
+  const [v, setV] = useState(prize.myWalletSaved || prize.myWallet || '');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  if (!onSave) return null;
+  const save = async () => {
+    setBusy(true); setMsg('');
+    try { await onSave(v.trim()); setEdit(false); } catch (e) { setMsg(e.message || 'Could not save.'); }
+    setBusy(false);
+  };
+  if (!edit) {
+    return (
+      <div className="hc-pw">
+        {prize.myWallet ? <>Your prize wallet: <code>{prize.myWallet}</code> <span className="ok">✓</span> <button type="button" onClick={() => { setV(prize.myWallet); setEdit(true); }}>Change</button></>
+          : <><span className="no">No prize wallet yet.</span> <button type="button" onClick={() => setEdit(true)}>+ Add your mainnet NEAR wallet</button></>}
+      </div>
+    );
+  }
+  return (
+    <div className="hc-pw ed">
+      <input value={v} onChange={(e) => setV(e.target.value)} placeholder="yourname.near or yourname.tg" autoCapitalize="none" spellCheck={false} />
+      <button type="button" className="sv" disabled={busy || !v.trim()} onClick={save}>{busy ? 'SAVING…' : 'SAVE'}</button>
+      <button type="button" onClick={() => { setEdit(false); setMsg(''); }}>Cancel</button>
+      {msg && <div className="er">{msg}</div>}
+    </div>
+  );
+}
+function WeeklyPrize({ prize, onSaveWallet }) {
+  if (!prize) return null;
+  const recent = (b) => b && b.weekStart && Date.now() - new Date(b.weekStart).getTime() < 16 * 864e5;
+  const last = recent(prize.lastWeek) ? prize.lastWeek : null;
+  const before = recent(prize.weekBefore) ? prize.weekBefore : null;
+  if (!prize.active && !last) return null;
+  const when = prize.resetAt ? new Date(prize.resetAt).toLocaleString(undefined, { weekday: 'long', hour: '2-digit', minute: '2-digit', hour12: false }) : 'the weekly reset';
+  const lastState = (b) => {
+    if (b.status === 'countdown') return <>prizes are sent in <Countdown to={b.sendAt} /></>;
+    if (b.winners.every((w) => w.status === 'paid')) return <span className="ok">paid ✓</span>;
+    if (b.winners.some((w) => w.status === 'sending' || w.status === 'queued')) return <>sending now…</>;
+    return <span className="ok">paid ✓{b.winners.some((w) => w.status === 'held') ? ' · some wait for a wallet' : ''}</span>;
+  };
+  const proof = (b) => { const w = (b.winners || []).find((x) => x.txHash); return w ? <a href={`https://nearblocks.io/txns/${w.txHash}`} target="_blank" rel="noopener noreferrer">proofs ↗</a> : null; };
+  return (
+    <div className="hc-wp">
+      {prize.active && (
+        <div className="hc-prize">
+          <div className="coin">N</div>
+          <div className="tx">
+            <b>This week's prize · ${fmtUsd(prize.prizeUsd)} in NEAR</b>
+            <small>Top 3 on {when} win real NEAR · paid automatically by the Saboteur Agent</small>
+            <small className="fine">Optional and may change or stop at any time.</small>
+          </div>
+          <div className="split">{prize.prizesUsd.map((u, i) => <span key={i}>#{i + 1}<i>${fmtUsd(u)}</i></span>)}</div>
+        </div>
+      )}
+      {(prize.active || last) && <PrizeWallet prize={prize} onSave={onSaveWallet} />}
+      {last && last.winners.length > 0 && (
+        <div className="hc-last">
+          <span className="lb">LAST WEEK'S WINNERS</span> {last.winners.map((w, i) => <span key={i}>{i ? ' · ' : ''}{MEDAL[w.rank - 1]} <b>{shortWho(w)}</b></span>)} — {lastState(last)}
+          {before && before.winners.length > 0 && (
+            <div className="bf">Week before: {before.winners.map((w, i) => <span key={i}>{i ? ' · ' : ''}{shortWho(w)} {w.amountNear} NEAR{w.status === 'paid' ? ' ✓' : ''}</span>)} {proof(before)}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function RanksScreen({ mobile, onClose, kit, tab, onTab, data, loading, error, resetText, prize, onSavePrizeWallet }) {
+  const pz = tab === 'weekly' ? prize : null;
+  const banner = pz ? <WeeklyPrize prize={pz} onSaveWallet={onSavePrizeWallet} /> : null;
   const list = data?.leaderboard || [];
   const top = list.slice(0, 3), rest = list.slice(3);
   const my = data?.myRank || null;
@@ -808,14 +910,15 @@ export function RanksScreen({ mobile, onClose, kit, tab, onTab, data, loading, e
     </>
   );
   const rows = rest.map((p) => <RankRow key={p.rank} p={p} kit={kit} me={my && my.rank === p.rank} />);
+  const topRows = top.map((p) => <RankRow key={`t${p.rank}`} p={p} kit={kit} me={my && my.rank === p.rank} prize={prizeForRow(pz, p)} />);
   const meRow = my && !myInList ? <><div className="hc-gap">···</div><RankRow p={my} kit={kit} me /></> : null;
   if (mobile) {
     return (
       <div className="hc-page">
         <MobileHead title="RANKS" sub={resetText} onBack={onClose} />
         <div className="hc-mbody">
-          {seg}{states}{pod}
-          {top.map((p) => (my && my.rank === p.rank ? <RankRow key={`t${p.rank}`} p={p} kit={kit} me /> : null))}
+          {seg}{banner}{states}{pod}
+          {pz && pz.active ? topRows : top.map((p) => (my && my.rank === p.rank ? <RankRow key={`t${p.rank}`} p={p} kit={kit} me /> : null))}
           {rows}
           {data && !my && list.length > 0 && <div className="hc-note" style={{ textAlign: 'center' }}>Play a match to get on the board.</div>}
         </div>
@@ -831,13 +934,14 @@ export function RanksScreen({ mobile, onClose, kit, tab, onTab, data, loading, e
       </DeskHead>
       <div className="hc-split rk bt">
         <div className="hc-list" style={{ paddingTop: 26 }}>
+          {banner}
           {pod || states}
           {my && <div className="hc-note" style={{ textAlign: 'center' }}>{my.rank === 1 ? <span style={{ color: 'var(--m)' }}>{gapTxt}</span> : <><span style={{ color: myInList ? 'var(--m)' : undefined }}>You're #{my.rank}. </span>{gapTxt}</>}</div>}
           {data && !my && list.length > 0 && <div className="hc-note" style={{ textAlign: 'center' }}>Play a match to get on the board.</div>}
         </div>
         <div className="hc-det" style={{ paddingTop: 22 }}>
           <div className="hc-lr head"><span className="rk">#</span><span /><div className="nm">PLAYER</div><span className="pt" style={{ color: 'var(--dim)', font: 'inherit' }}>POINTS</span></div>
-          {top.map((p) => <RankRow key={`t${p.rank}`} p={p} kit={kit} me={my && my.rank === p.rank} />)}
+          {topRows}
           {rows}
           {meRow}
         </div>

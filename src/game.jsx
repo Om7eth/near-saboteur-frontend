@@ -12349,6 +12349,31 @@ function MovementDemo() {
       setLeaderboardData({ weekly: null, monthly: null });
     }
   }, [homeModal]);
+  // [WEEKLY REWARDS AGENT] the Ranks prize banner: this week's prize, who's
+  // in line for it (+ whether they linked a wallet), last week's winners, and
+  // the signed-in player's own prize wallet. Re-read every 30s while open so
+  // the "sent in 29:54" countdown and paid ticks stay true.
+  const [weeklyPrize, setWeeklyPrize] = useState(null);
+  const loadWeeklyPrize = useCallback(async () => {
+    try {
+      const r = await fetch(`${BACKEND_URL}/weekly-rewards?sessionToken=${encodeURIComponent(sessionToken || '')}`);
+      const d = await r.json();
+      if (r.ok) setWeeklyPrize(d);
+    } catch { /* the banner is optional - never block Ranks */ }
+  }, [sessionToken]);
+  useEffect(() => {
+    if (homeModal !== 'leaderboard') return undefined;
+    loadWeeklyPrize();
+    const i = setInterval(loadWeeklyPrize, 30000);
+    return () => clearInterval(i);
+  }, [homeModal, loadWeeklyPrize]);
+  const savePrizeWallet = useCallback(async (w) => {
+    const res = await fetch(`${BACKEND_URL}/pools/payout-wallet`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, wallet: w }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.message || 'Could not save.');
+    setLoggedInPlayer((p) => (p ? { ...p, payoutWallet: d.wallet } : p));
+    loadWeeklyPrize();
+  }, [sessionToken, loadWeeklyPrize]);
   useEffect(() => {
     if (homeModal === 'leaderboard') loadLeaderboard(leaderboardTab);
   }, [homeModal, leaderboardTab, leaderboardData]);
@@ -21195,7 +21220,8 @@ function MovementDemo() {
             <HomeConsole {...consoleShell('ranks')}>
               <RanksScreen mobile={consoleMobile} onClose={closeConsole} kit={consoleKit} tab={leaderboardTab} onTab={setLeaderboardTab}
                 data={leaderboardData[leaderboardTab]} loading={leaderboardLoading} error={leaderboardError}
-                resetText={leaderboardData[leaderboardTab]?.nextResetAt ? formatResetCountdown(leaderboardData[leaderboardTab].nextResetAt) : ''} />
+                resetText={leaderboardData[leaderboardTab]?.nextResetAt ? formatResetCountdown(leaderboardData[leaderboardTab].nextResetAt) : ''}
+                prize={weeklyPrize} onSavePrizeWallet={sessionToken ? savePrizeWallet : null} />
             </HomeConsole>
           )}
 
