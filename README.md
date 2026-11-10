@@ -39,17 +39,32 @@ To run the backend, see the backend repo's README.
 
 ## Prior work (disclosure)
 
-`<EDIT THIS HONESTLY>` The base game (rooms, roles, meetings, voting, missions) and pool contract v3 existed before the hackathon. Built during the hackathon:
-- Weekly Rewards Agent (NEAR Intents)
-- Pool contract v4 (audit fixes, ties, claimable failed transfers)
-- One-click Real-NEAR payouts
-- Unpaid-pool reminder
-- Station map v2
-- NEAR AI mission
-- Stickers
-- How to Play page
-- Watch mode
-- Many fixes
+**Built before the hackathon:**
+- The base game: rooms, roles (crew and saboteurs), movement, missions, sabotage, meetings, chat and voting.
+- Accounts and email login.
+- Free Play, Ranks and Inbox.
+- The first version of the pool escrow contract (v3) on testnet.
+
+**Built during the hackathon:**
+- **Weekly Rewards Agent:** the weekly top 3 are paid in NEAR on mainnet through a NEAR Intents agent.
+  - Owner-signed rules, a 30-minute timer, and payments that can never go out twice.
+  - An admin page, a Ranks prize banner, and automatic Inbox and News posts.
+- **Pool contract v4:** an internal audit and its fixes.
+  - Ties are supported.
+  - Failed transfers can be claimed back.
+  - No funds get stuck.
+  - 28 unit tests and a testnet end-to-end test.
+- **Real-NEAR pools:**
+  - One-click payouts from the host's wallet, or manual payouts.
+  - Every payment is checked on-chain.
+  - A home-page reminder until all winners are paid.
+- **Play Pass and wallets:**
+  - Play Pass paid in mainnet NEAR.
+  - A pay wallet tied to each account.
+  - $SABOTEUR match rewards.
+- **NEAR AI:** a mission that asks players questions (with backup answers), and AI bots that talk in meetings.
+- **Game features:** stickers in chat, station map v2 (location card and floating map), and watch mode for hosts (spectator seats).
+- **Guides and fixes:** a How to Play page with screenshots, performance (lag) fixes, and many bug fixes.
 
 ## Team
 
