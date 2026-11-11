@@ -8517,35 +8517,6 @@ function LobbyScreen({
         );
       })()}
 
-      {/* [NEW FEATURE] Lobby chat - floating round button, left-middle
-          edge (clear of the host-controls panel above it, the LEAVE
-          button below it, and the joystick which stays centered) with
-          an unread-count badge (1-9 exact, "9+" beyond that). Tapping
-          opens the full chat panel below. Only ever rendered/usable here
-          in the Lobby - there is no equivalent button anywhere in actual
-          gameplay, this whole feature is Lobby-only by design. */}
-      {roomInfo && (
-        <button
-          onClick={() => setShowLobbyChat(true)}
-          style={{
-            position: 'absolute', left: 12, top: '55%', transform: 'translateY(-50%)', zIndex: 20,
-            width: 42, height: 42, borderRadius: '50%', border: '2px solid rgba(110,255,192,0.55)',
-            background: 'rgba(8,8,13,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, padding: 0,
-          }}
-        >
-          💬
-          {lobbyChatUnread > 0 && (
-            <span style={{
-              position: 'absolute', top: -4, right: -4, minWidth: 17, height: 17, borderRadius: 999,
-              background: '#ff5c5c', color: '#fff', fontSize: 9.5, fontWeight: 800,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
-              border: '1.5px solid #05070a',
-            }}>{lobbyChatUnread > 9 ? '9+' : lobbyChatUnread}</span>
-          )}
-        </button>
-      )}
-
       {/* [NEW FEATURE] Create-room confirmation - avoids accidentally
           creating a new room when the user actually wanted to join a
           friend's existing one. */}
