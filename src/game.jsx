@@ -50,7 +50,8 @@ function readInviteCodeFromUrl() {
 // [WATCH LIVE] nearsaboteur.com/?watch=KQZT - opens that match as a watcher.
 const PENDING_WATCH_CODE = (() => { try { const m = window.location.search.match(/[?&]watch=([A-Za-z0-9]{4,8})/); if (!m) return null; const u = new URL(window.location.href); u.searchParams.delete('watch'); window.history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); return m[1].toUpperCase(); } catch (e) { return null; } })();
 const readReferral = () => { try { return localStorage.getItem('ns_ref') || undefined; } catch (e) { return undefined; } };
-const SITE_URL = ((import.meta.env && import.meta.env.VITE_SITE_URL) || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+// [SHARE LINKS] Always the public domain: inside Telegram the game runs on the hosting URL, not nearsaboteur.com.
+const SITE_URL = ((import.meta.env && import.meta.env.VITE_SITE_URL) || 'https://nearsaboteur.com').replace(/\/$/, '');
 const poolInviteLink = (code) => `${SITE_URL}/?join=${code}`;
 import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen, PointsScreen, PaidGamesScreen } from './homeConsole';
 

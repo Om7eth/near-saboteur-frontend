@@ -1134,7 +1134,8 @@ export function FriendsScreen({ mobile, onClose, img, sessionToken, backendUrl, 
     if (!sessionToken || !backendUrl || guest) return;
     fetch(`${backendUrl}/referrals?sessionToken=${encodeURIComponent(sessionToken)}`).then((r) => r.json().then((j) => (r.ok ? setD(j) : setErr(j.message || 'Could not load referrals.')))).catch(() => setErr('Could not load referrals.'));
   }, [sessionToken, backendUrl, guest]);
-  const site = (typeof window !== 'undefined' ? window.location.origin : 'https://nearsaboteur.com').replace(/\/$/, '');
+  // Always the public domain - inside Telegram the game runs on the hosting URL, not nearsaboteur.com.
+  const site = ((import.meta.env && import.meta.env.VITE_SITE_URL) || 'https://nearsaboteur.com').replace(/\/$/, '');
   const link = d ? `${site}/?ref=${encodeURIComponent(d.code)}` : '';
   const R = (d && d.rules) || { matches: 3, tokens: 1000, points: 30, weeklyCap: 5, minHumans: 2 };
   const shareText = `Play NEAR Saboteur with me — a social deduction game on NEAR. Our Telegram group: t.me/nearsaboteur · Join with my link:`;
@@ -1191,12 +1192,13 @@ export function FriendsScreen({ mobile, onClose, img, sessionToken, backendUrl, 
 }
 const RF_CSS = `
 .rf{display:grid;grid-template-columns:minmax(300px,400px) minmax(0,1fr);gap:0;min-height:100%;font-family:var(--sans,'IBM Plex Sans',sans-serif);color:#dfe9e4}
-.rf.mob{grid-template-columns:1fr}
+.rf.mob{grid-template-columns:minmax(0,1fr)}
+.rf>*{min-width:0}.rf-link,.rf-share,.rf-rw,.rf-cap,.rf-list{min-width:0;max-width:100%}
 .rf-l{padding:20px 22px;border-right:1px solid rgba(110,255,192,.16);display:flex;flex-direction:column;gap:14px;background:radial-gradient(120% 60% at 50% 0,rgba(110,255,192,.08),transparent 70%)}
 .rf.mob .rf-l{border-right:0;padding:4px 2px 16px}
 .rf-r{padding:20px 22px;min-width:0}.rf.mob .rf-r{padding:4px 2px}
 .rf-lab{font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.2em;color:#8a9a94;margin-bottom:8px}
-.rf-link{display:flex;gap:8px}.rf-link code{flex:1;min-width:0;padding:11px 12px;border:1px solid rgba(110,255,192,.16);border-radius:8px;background:#060c0b;font:500 12.5px 'IBM Plex Mono',monospace;color:#6effc0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-link{display:flex;gap:8px;min-width:0}.rf-link code{flex:1;min-width:0;padding:11px 12px;border:1px solid rgba(110,255,192,.16);border-radius:8px;background:#060c0b;font:500 12.5px 'IBM Plex Mono',monospace;color:#6effc0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rf-btn{display:inline-flex;align-items:center;justify-content:center;font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.12em;padding:11px 13px;border-radius:8px;border:1px solid rgba(110,255,192,.2);background:none;color:#dfe9e4;cursor:pointer;white-space:nowrap;text-decoration:none}
 .rf-btn.pri{background:#6effc0;color:#04130c;border-color:#6effc0}.rf-btn:disabled,.rf-btn.off{opacity:.45;pointer-events:none}
 .rf-share{display:grid;grid-template-columns:1fr 1fr;gap:8px}
