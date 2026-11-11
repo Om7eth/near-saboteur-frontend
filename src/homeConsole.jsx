@@ -349,7 +349,7 @@ function DeskHead({ title, sub, children }) {
 }
 
 /* ---------------- SHELL ---------------- */
-export const CONSOLE_NAV = [['activity', 'Activity'], ['wallet', 'Wallet'], ['ranks', 'Ranks'], ['inbox', 'Inbox'], ['friends', 'Friends'], ['news', 'News'], ['settings', 'Settings']];
+export const CONSOLE_NAV = [['activity', 'Activity'], ['wallet', 'Wallet'], ['ranks', 'Ranks'], ['inbox', 'Inbox'], ['friends', 'Referrals'], ['news', 'News'], ['settings', 'Settings']];
 
 export function HomeConsole({ mobile, active, onNav, onClose, me, badges = {}, bgImg, children, escBlocked, noRail, accent, topBar, topOffset = 90 }) {
   useEffect(() => {
@@ -1126,19 +1126,101 @@ export function NewsScreen({ mobile, onClose, items }) {
 }
 
 /* ---------------- FRIENDS ---------------- */
-export function FriendsScreen({ mobile, onClose, img }) {
-  const body = (
-    <div className="hc-soon">
-      {img && <img src={img} alt="" />}
-      <span className="hc-tag pool">COMING SOON</span>
-      <h2>Invite your friends</h2>
-      <p>You'll get your own invite link, and you'll be able to track every friend who joins with it right here.</p>
-      <div className="hc-steps"><div><b>1</b>Share your link</div><div><b>2</b>Friend signs up and plays</div><div><b>3</b>Track it here</div></div>
+export function FriendsScreen({ mobile, onClose, img, sessionToken, backendUrl, guest, onSignUp }) {
+  // [REFERRALS] Invite link + every friend who joined with it. A friend's
+  // reward stays locked until they finish 3 matches with other real players.
+  const [d, setD] = useState(null); const [err, setErr] = useState(''); const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!sessionToken || !backendUrl || guest) return;
+    fetch(`${backendUrl}/referrals?sessionToken=${encodeURIComponent(sessionToken)}`).then((r) => r.json().then((j) => (r.ok ? setD(j) : setErr(j.message || 'Could not load referrals.')))).catch(() => setErr('Could not load referrals.'));
+  }, [sessionToken, backendUrl, guest]);
+  const site = (typeof window !== 'undefined' ? window.location.origin : 'https://nearsaboteur.com').replace(/\/$/, '');
+  const link = d ? `${site}/?ref=${encodeURIComponent(d.code)}` : '';
+  const R = (d && d.rules) || { matches: 3, tokens: 1000, points: 30, weeklyCap: 5, minHumans: 2 };
+  const shareText = `Play NEAR Saboteur with me — a social deduction game on NEAR. Our Telegram group: t.me/nearsaboteur · Join with my link:`;
+  const copy = () => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch (e) {} };
+  const fmt = (t) => { try { return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch { return ''; } };
+  const COL = { purple: '#9b6bd6', green: '#6fcf5a', red: '#e0484f', black: '#3a3d40', darkgreen: '#4d7a3a', magenta: '#d454b0', yellow: '#e8c13a', brown: '#9a6a43', orange: '#ec8b34', cyan: '#3fbfd0' };
+  const left = (
+    <div className="rf-l">
+      <div><div className="rf-lab">YOUR INVITE LINK</div>
+        <div className="rf-link"><code>{link ? link.replace(/^https?:\/\//, '') : (guest ? 'Sign up to get your link' : 'Loading…')}</code><button type="button" className="rf-btn pri" disabled={!link} onClick={copy}>{copied ? 'COPIED' : 'COPY'}</button></div></div>
+      <div className="rf-share">
+        <a className={`rf-btn ${link ? '' : 'off'}`} href={link ? `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}` : undefined} target="_blank" rel="noreferrer">✈ TELEGRAM</a>
+        <a className={`rf-btn ${link ? '' : 'off'}`} href={link ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(link)}` : undefined} target="_blank" rel="noreferrer">𝕏 POST</a>
+      </div>
+      <div className="rf-rw"><h3>How it works</h3>
+        <div className="rf-st"><i>1</i><div>Share your link. Your friend <b>signs up</b> with it.</div></div>
+        <div className="rf-st"><i>2</i><div>They finish <b>{R.matches} matches</b> with other real players (any mode).</div></div>
+        <div className="rf-st"><i>3</i><div>🔒 → 🔓 Your reward <b>unlocks</b>: <b className="g">{R.tokens.toLocaleString()} $SABOTEUR</b> + <b className="m">{R.points} points</b>.</div></div>
+        <div className="rf-fine">$SABOTEUR is a testnet token. It has no value and nothing is promised about the future. Up to {R.weeklyCap} friends a week add points to the weekly Ranks; more friends still give $SABOTEUR. Self-referrals and duplicate accounts don't count.</div>
+      </div>
     </div>
   );
-  if (mobile) return <div className="hc-page"><MobileHead title="FRIENDS" onBack={onClose} /><div className="hc-mbody">{body}</div></div>;
-  return <><DeskHead title="FRIENDS" sub="Invite friends to play" /><div className="hc-pane">{body}</div></>;
+  const right = guest ? (
+    <div className="rf-empty"><b>Sign up to invite friends</b><span>Guests don't get an invite link.</span>{onSignUp && <button type="button" className="rf-btn pri" onClick={onSignUp}>SIGN UP</button>}</div>
+  ) : !d ? (<div className="rf-empty"><span>{err || 'Loading…'}</span></div>) : (
+    <div className="rf-r">
+      <div className="rf-stats">
+        <div><b>{d.invited}</b><span>INVITED</span></div>
+        <div><b>🔒 {d.locked}</b><span>LOCKED</span></div>
+        <div className="m"><b>{d.qualified}</b><span>UNLOCKED</span></div>
+        <div className="g"><b>{d.tokensEarned.toLocaleString()}</b><span>$SABOTEUR</span></div>
+        <div className="m"><b>+{d.pointsEarned}</b><span>POINTS</span></div>
+      </div>
+      <div className="rf-cap"><span>THIS WEEK'S RANK POINTS</span><span className="dots">{Array.from({ length: R.weeklyCap }, (_, i) => <i key={i} className={i < d.weekCount ? 'on' : ''} />)}</span><span>{d.weekCount} / {R.weeklyCap} friends · +{d.weekCount * R.points} pts</span></div>
+      {d.friends.length === 0 ? <div className="rf-empty"><b>No friends yet</b><span>Share your link — friends who sign up with it show up here.</span></div> : (
+        <div className="rf-list">
+          {d.friends.map((f, i) => (
+            <div key={i} className="rf-row">
+              <span className="av" style={{ background: COL[f.avatarId] || '#456' }}>{(f.name || '?').slice(0, 1).toUpperCase()}</span>
+              <div className="nm"><b>{f.name}</b><small>{f.username ? `@${f.username} · ` : ''}joined {fmt(f.joinedAt)}</small></div>
+              <span className="bar">{Array.from({ length: R.matches }, (_, k) => <i key={k} className={k < f.matches ? 'on' : ''} />)}</span>
+              <div className="st">{f.rewarded
+                ? <span className={`rf-pill ${f.rankPoints ? 'ok' : 'cap'}`}>{f.rankPoints ? `🔓 +${R.tokens.toLocaleString()} · +${R.points}` : `🔓 +${R.tokens.toLocaleString()} · weekly cap`}</span>
+                : <><span className="rf-pill lock">🔒 +{R.tokens.toLocaleString()} · +{R.points}</span><small>unlocks after {R.matches - f.matches} more match{R.matches - f.matches === 1 ? '' : 'es'}</small></>}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+  const body = <div className={`rf ${mobile ? 'mob' : ''}`}><style>{RF_CSS}</style>{left}{right}</div>;
+  if (mobile) return <div className="hc-page"><MobileHead title="REFERRALS" onBack={onClose} /><div className="hc-mbody">{body}</div></div>;
+  return <><DeskHead title="REFERRALS" sub="Invite friends · unlock $SABOTEUR and points" /><div className="hc-pane">{body}</div></>;
 }
+const RF_CSS = `
+.rf{display:grid;grid-template-columns:minmax(300px,400px) minmax(0,1fr);gap:0;min-height:100%;font-family:var(--sans,'IBM Plex Sans',sans-serif);color:#dfe9e4}
+.rf.mob{grid-template-columns:1fr}
+.rf-l{padding:20px 22px;border-right:1px solid rgba(110,255,192,.16);display:flex;flex-direction:column;gap:14px;background:radial-gradient(120% 60% at 50% 0,rgba(110,255,192,.08),transparent 70%)}
+.rf.mob .rf-l{border-right:0;padding:4px 2px 16px}
+.rf-r{padding:20px 22px;min-width:0}.rf.mob .rf-r{padding:4px 2px}
+.rf-lab{font:600 10.5px 'IBM Plex Mono',monospace;letter-spacing:.2em;color:#8a9a94;margin-bottom:8px}
+.rf-link{display:flex;gap:8px}.rf-link code{flex:1;min-width:0;padding:11px 12px;border:1px solid rgba(110,255,192,.16);border-radius:8px;background:#060c0b;font:500 12.5px 'IBM Plex Mono',monospace;color:#6effc0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-btn{display:inline-flex;align-items:center;justify-content:center;font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.12em;padding:11px 13px;border-radius:8px;border:1px solid rgba(110,255,192,.2);background:none;color:#dfe9e4;cursor:pointer;white-space:nowrap;text-decoration:none}
+.rf-btn.pri{background:#6effc0;color:#04130c;border-color:#6effc0}.rf-btn:disabled,.rf-btn.off{opacity:.45;pointer-events:none}
+.rf-share{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rf-rw{border:1px solid rgba(255,215,94,.35);border-radius:12px;padding:14px 14px 12px;background:rgba(255,215,94,.05)}
+.rf-rw h3{margin:0 0 8px;font:700 14px 'Space Grotesk',sans-serif;color:#ffd75e}
+.rf-st{display:flex;gap:10px;align-items:flex-start;margin:8px 0;font-size:13px;line-height:1.45}.rf-st b{color:#fff}.rf-st b.g{color:#ffd75e}.rf-st b.m{color:#6effc0}
+.rf-st i{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:700 11px 'IBM Plex Mono',monospace;color:#04130c;background:#6effc0;font-style:normal}
+.rf-fine{font:10.5px/1.55 'IBM Plex Mono',monospace;color:#7d8d86;margin-top:8px}
+.rf-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}.rf.mob .rf-stats{grid-template-columns:repeat(3,1fr)}
+.rf-stats>div{border:1px solid rgba(110,255,192,.16);border-radius:10px;padding:11px;background:#08100f;min-width:0}
+.rf-stats b{display:block;font:700 21px 'Space Grotesk',sans-serif}.rf-stats span{font:9.5px 'IBM Plex Mono',monospace;letter-spacing:.12em;color:#8a9a94}
+.rf-stats .g b{color:#ffd75e}.rf-stats .m b{color:#6effc0}
+.rf-cap{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 12px;padding:10px 12px;border:1px dashed rgba(255,215,94,.35);border-radius:10px;font:11.5px 'IBM Plex Mono',monospace;color:#cfd8d4}
+.rf-cap .dots{display:flex;gap:5px}.rf-cap .dots i{width:11px;height:11px;border-radius:3px;background:rgba(255,255,255,.1)}.rf-cap .dots i.on{background:#ffd75e}
+.rf-row{display:grid;grid-template-columns:32px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.05)}
+.rf.mob .rf-row{grid-template-columns:30px minmax(0,1fr) auto}.rf.mob .rf-row .bar{display:none}
+.rf-row .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:700 13px 'Space Grotesk',sans-serif;color:#fff}
+.rf-row .nm{min-width:0}.rf-row .nm b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rf-row .nm small{font:10.5px 'IBM Plex Mono',monospace;color:#8a9a94}
+.rf-row .bar{display:flex;gap:4px}.rf-row .bar i{width:18px;height:6px;border-radius:4px;background:rgba(255,255,255,.1)}.rf-row .bar i.on{background:#6effc0}
+.rf-row .st{text-align:right}.rf-row .st small{display:block;font:10px 'IBM Plex Mono',monospace;color:#7d8d86;margin-top:4px}
+.rf-pill{display:inline-block;font:700 10px 'IBM Plex Mono',monospace;letter-spacing:.08em;padding:5px 8px;border-radius:99px;white-space:nowrap}
+.rf-pill.ok{background:rgba(110,255,192,.12);color:#6effc0}.rf-pill.cap{background:rgba(255,215,94,.12);color:#ffd75e}.rf-pill.lock{background:rgba(255,255,255,.05);color:#9aa7a2;border:1px dashed rgba(255,255,255,.2)}
+.rf-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:40px 16px;color:#8a9a94;font-size:13px}.rf-empty b{color:#dfe9e4;font-size:15px}
+`;
 
 /* ---------------- SETTINGS ---------------- */
 export function SettingsScreen({ mobile, onClose, me, soundOn, onSound, musicOn, onMusic, onProfile, onResetPassword, onReport, onLogout }) {
