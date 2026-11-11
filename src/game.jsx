@@ -29,14 +29,29 @@ import { STICKERS, stickerSrc } from './stickers';
 import { LocationCard, StationMapWindow } from './stationMap';
 // [POOL v2] Invite links: nearsaboteur.com/?join=KQZT (also /join/KQZT once the
 // host has a "/* -> /index.html" rewrite). Read once on load, then the URL is cleaned.
+// [TG JOIN FIX] Also reads a Telegram Mini App start param (old "Join"
+// buttons were t.me/<bot>?startapp=CODE), and remembers the code for 30
+// minutes so a login / OTP / page reload in between doesn't lose it.
+const PENDING_JOIN_KEY = 'ns_pending_join';
 function readInviteCodeFromUrl() {
   try {
-    const m = window.location.pathname.match(/^\/(?:join|j)\/([A-Za-z0-9]{4,6})\/?$/) || window.location.search.match(/[?&]join=([A-Za-z0-9]{4,6})/);
-    if (!m) return null;
-    window.history.replaceState(null, '', '/');
-    return m[1].toUpperCase();
+    const m = window.location.pathname.match(/^\/(?:join|j)\/([A-Za-z0-9]{4,6})\/?$/)
+      || window.location.search.match(/[?&]join=([A-Za-z0-9]{4,6})/)
+      || window.location.search.match(/[?&]tgWebAppStartParam=([A-Za-z0-9]{4,6})/)
+      || window.location.hash.match(/tgWebAppStartParam=([A-Za-z0-9]{4,6})/);
+    if (m) {
+      const code = m[1].toUpperCase();
+      window.history.replaceState(null, '', '/');
+      try { localStorage.setItem(PENDING_JOIN_KEY, JSON.stringify({ code, t: Date.now() })); } catch (e) { /* storage off */ }
+      return code;
+    }
+    const saved = JSON.parse(localStorage.getItem(PENDING_JOIN_KEY) || 'null');
+    if (saved && saved.code && Date.now() - saved.t < 30 * 60 * 1000) return saved.code;
+    localStorage.removeItem(PENDING_JOIN_KEY);
+    return null;
   } catch (e) { return null; }
 }
+function clearPendingJoin() { try { localStorage.removeItem(PENDING_JOIN_KEY); } catch (e) { /* storage off */ } }
 // [REFERRALS] nearsaboteur.com/?ref=<username> - remembered until sign-up.
 (function captureReferral() {
   try {
@@ -6511,7 +6526,7 @@ function LobbyScreen({
   playerName, setPlayerName, playerAvatarId, setPlayerAvatarId, onStart, soundOn, musicOn, onToggleMusic, onOpenPoolPanel,
   hasPlayPass, activePremiumAvatarVariant, onSelectPremiumVariant, playPassError,
   premiumSwapConfirmingId, premiumSwapConfirmedId, playPassStatus, loadPlayPassStatus, playPassConfig,
-  socket, connStatus, roomInfo, myRole, joinError, onConnect, onCreateRoom, onJoinRoom,
+  socket, connStatus, connLong = true, roomInfo, myRole, joinError, onConnect, onCreateRoom, onJoinRoom,
   speedLevel, setSpeedLevel, onRejoin, onLeaveToHome, prefillJoinCode,
   lobbyChatMessages, lobbyChatDraft, setLobbyChatDraft, showLobbyChat, setShowLobbyChat,
   lobbyChatUnread, lobbyTagged, sendLobbyChatMessage, sendLobbyText, lobbyReplyingTo, setLobbyReplyingTo, lobbyChatScrollRef,
@@ -7253,7 +7268,7 @@ function LobbyScreen({
           the room list underneath is left as-is (so it doesn't flash
           empty), just visibly covered with an honest "reconnecting"
           state instead of pretending to be live. */}
-      {roomInfo && connStatus !== 'connected' && (
+      {roomInfo && connStatus !== 'connected' && connLong && (
         <div style={{
           position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 31,
           zoom: lobbyHudK, // [UPDATE - HUD SCALE] bigger on big screens, 1 on phones
@@ -10392,7 +10407,7 @@ function MovementDemo() {
   const [isGuestPlayer, setIsGuestPlayer] = useState(false);
   const [showGuestLockedNotice, setShowGuestLockedNotice] = useState(false);
   function handlePlayAsGuest() {
-    pendingJoinCodeRef.current = null;
+    pendingJoinCodeRef.current = null; clearPendingJoin();
     setAuthGateRoom(null);
     setIsGuestPlayer(true);
     setLoggedInPlayer(null);
@@ -12920,7 +12935,15 @@ function MovementDemo() {
   // quietly rejected or mismatched).
   const handleParticipateInPoolRef = useRef(null);
   const handleJoinFreePoolRef = useRef(null);
-  const [connStatus, setConnStatus] = useState('disconnected'); // 'disconnected' | 'connecting' | 'connected' — [LOCAL-UI]
+  const [connStatus, setConnStatus] = useState('disconnected');
+  // [RECONNECT FLICKER FIX] socket.io usually reconnects a network blip in
+  // under a second - only show the "Reconnecting" banner if it lasts 3s+.
+  const [connLong, setConnLong] = useState(false);
+  useEffect(() => {
+    if (connStatus === 'connected') { setConnLong(false); return; }
+    const t = setTimeout(() => setConnLong(true), 3000);
+    return () => clearTimeout(t);
+  }, [connStatus]); // 'disconnected' | 'connecting' | 'connected' — [LOCAL-UI]
   // [NEW FEATURE - IN-GAME DISCONNECT POPUP] Escalates from the small
   // banner (shown immediately) to a full Reconnect/Leave popup if the
   // disconnect lasts more than a few seconds - a brief 1-2s blip
@@ -15119,9 +15142,10 @@ function MovementDemo() {
   // real account (never for guests). One shot - cleared either way.
   useEffect(() => {
     if (screen !== 'home' || !pendingJoinCodeRef.current) return;
-    if (isGuestPlayer || !sessionToken) { pendingJoinCodeRef.current = null; return; }
+    if (isGuestPlayer) { pendingJoinCodeRef.current = null; clearPendingJoin(); return; }
+    if (!sessionToken) return; // [TG JOIN FIX] session still restoring - keep the code and try again once it's ready
     const code = pendingJoinCodeRef.current;
-    pendingJoinCodeRef.current = null;
+    pendingJoinCodeRef.current = null; clearPendingJoin();
     const t = setTimeout(async () => {
       setDesktopJoinError('');
       try { await handleEnterCodeUnified(code); }
@@ -22033,6 +22057,7 @@ function MovementDemo() {
           onOpenPoolPanel={() => setPoolPanelOpen(true)}
           socket={socketRef.current}
           connStatus={connStatus}
+          connLong={connLong}
           roomInfo={roomInfo}
           poolLockBusy={poolLockBusy}
           myRole={playerRole}
@@ -22165,7 +22190,7 @@ function MovementDemo() {
             side prediction) even while every other player already saw
             them frozen/reconnecting server-side. Now unmissable, top
             center, the entire time the connection isn't healthy. */}
-        {screen === 'game' && connStatus !== 'connected' && (
+        {screen === 'game' && connStatus !== 'connected' && connLong && (
           <div style={{
             position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 400,
             background: connStatus === 'connecting' ? 'rgba(255,215,80,0.92)' : 'rgba(255,92,92,0.92)',
@@ -22176,7 +22201,7 @@ function MovementDemo() {
             {connStatus === 'connecting' ? 'Reconnecting…' : 'Disconnected — trying to reconnect…'}
           </div>
         )}
-        {screen === 'game' && connStatus !== 'connected' && (
+        {screen === 'game' && connStatus !== 'connected' && connLong && (
           <style>{`@keyframes diskPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
         )}
         {/* [NEW FEATURE - IN-GAME DISCONNECT POPUP] Reconnect (forces an
