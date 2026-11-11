@@ -8546,104 +8546,6 @@ function LobbyScreen({
         </button>
       )}
 
-      {/* [NEW FEATURE] Lobby chat panel - full message list with reply
-          support and auto-scroll (both on new messages and while
-          typing - see the effects that own lobbyChatScrollRef). Talks
-          to whoever is currently in this same Lobby room, nobody else. */}
-      {showLobbyChat && (
-        <div style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 40,
-          display: 'flex', alignItems: 'flex-end', padding: 0,
-        }} onClick={() => setShowLobbyChat(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{
-            width: '100%', maxHeight: '72%', background: 'linear-gradient(180deg, #0d1a14, #081210)',
-            borderTopLeftRadius: 16, borderTopRightRadius: 16, border: '1px solid rgba(110,255,192,0.25)',
-            borderBottom: 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-          }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0,
-            }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#6effc0' }}>💬 Lobby Chat</span>
-              <button onClick={() => setShowLobbyChat(false)} style={{
-                width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.08)',
-                border: 'none', color: '#e8e8f0', fontSize: 12,
-              }}>✕</button>
-            </div>
-
-            <div ref={lobbyChatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {lobbyChatMessages.length === 0 ? (
-                <p style={{ fontSize: 11.5, color: '#5a655f', textAlign: 'center', marginTop: 20 }}>No messages yet - say hi!</p>
-              ) : lobbyChatMessages.map((m) => {
-                const shouting = isAllCapsMessage(m.text);
-                return (
-                <div key={m.id} onClick={() => setLobbyReplyingTo({ senderName: m.authorName, text: m.text })} style={{
-                  alignSelf: m.isSelf ? 'flex-end' : 'flex-start', maxWidth: '82%', cursor: 'pointer',
-                }}>
-                  {!m.isSelf && (
-                    <p style={{ fontSize: 9.5, color: '#5fc8ff', fontWeight: 700, margin: '0 0 2px 2px' }}>{m.authorName}</p>
-                  )}
-                  <div style={{
-                    background: shouting ? 'linear-gradient(135deg,#ffd75e,#e8a831)' : (m.isSelf ? 'rgba(110,255,192,0.16)' : 'rgba(255,255,255,0.07)'),
-                    border: shouting ? '1px solid rgba(255,255,255,0.4)' : `1px solid ${m.isSelf ? 'rgba(110,255,192,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                    boxShadow: shouting ? '0 0 10px rgba(255,215,94,0.5)' : 'none',
-                    borderRadius: 12, padding: '7px 10px',
-                  }}>
-                    {m.replyTo && (
-                      <div style={{
-                        borderLeft: '2px solid rgba(110,255,192,0.5)', paddingLeft: 6, marginBottom: 4,
-                        opacity: 0.75,
-                      }}>
-                        <p style={{ fontSize: 9, fontWeight: 700, color: '#6effc0', margin: 0 }}>{m.replyTo.senderName}</p>
-                        <p style={{ fontSize: 9.5, color: '#c8c8c8', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.replyTo.text}</p>
-                      </div>
-                    )}
-                    <p style={{ fontSize: 12, color: shouting ? '#241a00' : '#e8e8f0', fontWeight: shouting ? 800 : 400, margin: 0, wordBreak: 'break-word' }}>{m.text}</p>
-                  </div>
-                </div>
-                );
-              })}
-            </div>
-
-            {/* Reply preview - tapping any message above sets this; a
-                small "replying to X" strip above the input, same idea
-                as the meeting/ghost chat reply feature elsewhere. */}
-            {lobbyReplyingTo && (
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '6px 14px', background: 'rgba(110,255,192,0.08)', borderTop: '1px solid rgba(255,255,255,0.08)',
-              }}>
-                <div style={{ overflow: 'hidden' }}>
-                  <p style={{ fontSize: 9.5, fontWeight: 700, color: '#6effc0', margin: 0 }}>Replying to {lobbyReplyingTo.senderName}</p>
-                  <p style={{ fontSize: 10, color: '#9aa0ad', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lobbyReplyingTo.text}</p>
-                </div>
-                <button onClick={() => setLobbyReplyingTo(null)} style={{ background: 'none', border: 'none', color: '#9aa0ad', fontSize: 14, flexShrink: 0, marginLeft: 8 }}>✕</button>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
-              <input
-                value={lobbyChatDraft}
-                onChange={(e) => setLobbyChatDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') sendLobbyChatMessage(); }}
-                placeholder="Message the Lobby…"
-                maxLength={200}
-                style={{
-                  flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 20, padding: '9px 14px', color: '#e8e8f0', fontSize: 13,
-                }}
-              />
-              <button onClick={sendLobbyChatMessage} disabled={!lobbyChatDraft.trim()} style={{
-                width: 38, height: 38, borderRadius: '50%', border: 'none', flexShrink: 0,
-                background: lobbyChatDraft.trim() ? '#6effc0' : 'rgba(255,255,255,0.08)',
-                color: lobbyChatDraft.trim() ? '#06140d' : '#5a655f', fontSize: 15,
-              }}>➤</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
       {/* [NEW FEATURE] Create-room confirmation - avoids accidentally
           creating a new room when the user actually wanted to join a
           friend's existing one. */}
@@ -14703,27 +14605,6 @@ function MovementDemo() {
         replyTo: data.replyTo || null,
       }]);
       if (buzzIfTagged(data.text, myChatNameRef.current, data.senderId, socket.id) && !showLobbyChatRef.current) setLobbyTagged(true);
-      if (!showLobbyChatRef.current && data.senderId !== socket.id) {
-        setLobbyChatUnread((n) => n + 1);
-      }
-    });
-
-    // [NEW FEATURE] Lobby chat - same message-shape transform as ghost
-    // chat above. Unread count only increments while the chat panel is
-    // closed (showLobbyChatRef, not the state directly - see why in that
-    // ref's own comment) - opening the panel already resets it to 0 via
-    // the effect that owns showLobbyChatRef.
-    socket.on('lobbyChatMessageReceived', (data) => {
-      setLobbyChatMessages((prev) => [...prev, {
-        id: data.id || (data.timestamp + Math.random()),
-        _ts: data.timestamp,
-        _sender: data.senderId,
-        authorName: displayPlayerName(data.senderName, data.senderAvatar),
-        authorAvatarId: data.senderAvatar,
-        text: data.text,
-        isSelf: data.senderId === socket.id,
-        replyTo: data.replyTo || null,
-      }]);
       if (!showLobbyChatRef.current && data.senderId !== socket.id) {
         setLobbyChatUnread((n) => n + 1);
       }
