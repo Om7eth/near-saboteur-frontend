@@ -24,6 +24,38 @@ A social deduction game with a real economy on NEAR. 4–10 players are on a spa
 | **Wallet identity** | Players sign in with HOT / Meteor / Intear. The NEAR Legion SBT gives a badge. | Mainnet |
 | **NEAR AI** | AI bots talk in meetings, and a NEAR AI mission asks players questions (with offline fallbacks). | NEAR AI Cloud |
 
+## 🚀 Vision
+
+**Make NEAR Saboteur the social deduction game people play every night with friends, with an economy that is fair, verifiable and run on NEAR.**
+
+- **Fun first, chain invisible:** email login, an in-game wallet made for you, no gas or seed phrases.
+- **Fair by code:** prizes are paid by a contract or an agent under owner-signed rules, and every payment can be checked on-chain.
+- **Never an empty lobby:** NEAR AI bots fill rooms and talk in meetings like real crew.
+- **No pay-to-win, legal first:** money buys looks and prizes, never an edge, and real-money features grow only as the law allows.
+
+### Roadmap
+
+**✅ Now (live at [nearsaboteur.com](https://nearsaboteur.com))**
+Weekly Rewards Agent (mainnet) · real-NEAR pools · Play Pass · contract v4 · $SABOTEUR rewards · NEAR AI bots · Watch Live · Telegram bot
+
+**🔜 Next: the $SABOTEUR loop (testnet)**
+- Earn → spend: a cosmetic shop (skins, name colours, emotes) and "Sponsor a Room" prizes.
+- One wallet: $SABOTEUR in the in-game wallet, and gasless pools on $SABOTEUR (contract v5).
+- Monthly ranked seasons with badges.
+
+**🛠 Then: grow the game**
+- New maps, roles and sabotages.
+- A Telegram Mini App and a mobile-first version.
+- Smarter AI crew with memory, clans and community tournaments.
+
+**🌐 Later: open the economy**
+- External contract audit, then host-funded pools on mainnet.
+- NEAR Intents agents that run leagues and pay prizes in any token.
+- A creator economy: players design skins and earn when others use them.
+- Mainnet $SABOTEUR and entry-fee games only after legal review.
+
+> $SABOTEUR is a testnet token with no value. Nothing here is a promise about its future.
+
 ## Stack
 
 - **Frontend:** React + Vite. NEAR Wallet Selector and NEAR Connect for wallets.
