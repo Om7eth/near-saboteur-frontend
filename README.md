@@ -18,6 +18,8 @@ A social deduction game with a real economy on NEAR. 4–10 players are on a spa
 | **Paid games** | Every player pays an entry fee into the contract. The pot (minus a 5% fee) goes to the top 3. | Testnet |
 | **Real-NEAR pools** | The host pays the winners straight from their own wallet in one click (one approval, every winner), or pays manually. Every payment is checked on-chain. The home page reminds the host until everyone is paid. | Mainnet |
 | **Play Pass** | Premium skins and 2× rewards. Paid in NEAR from the player's own wallet, then verified on-chain. | Mainnet |
+| **Custom character requests** | Play Pass players can order their own character. Paid in real NEAR from their own wallet to `saboteur.near`, verified on-chain like Play Pass. | Mainnet |
+| **Referrals** | Invite link `?ref=username`. When a friend finishes 3 matches with other real players, the inviter unlocks 1,000 $SABOTEUR + 30 points (max 5 friends a week for Ranks). | Testnet token |
 | **$SABOTEUR token** | Every finished match pays a reward token by rank (NEP-141). | Testnet |
 | **Wallet identity** | Players sign in with HOT / Meteor / Intear. The NEAR Legion SBT gives a badge. | Mainnet |
 | **NEAR AI** | AI bots talk in meetings, and a NEAR AI mission asks players questions (with offline fallbacks). | NEAR AI Cloud |
@@ -73,7 +75,11 @@ This game existed before the hackathon. Only the work inside the window (19 Oct 
   - $SABOTEUR match rewards.
 - **NEAR AI:** a mission that asks players questions (with backup answers), and AI bots that talk in meetings.
 - **Game features:** stickers in chat, station map v2 (location card and floating map), and watch mode for hosts (spectator seats).
-- **Guides and fixes:** a How to Play page with screenshots, performance (lag) fixes, and many bug fixes.
+- **Watch Live:** anyone can watch public Free and Pool matches (from the home page or Telegram) as a silent spectator: no roles, no chat, no votes. Paid games can't be watched. Switched on/off from the admin page.
+- **Referrals:** a Referrals screen with an invite link, per-friend lock/unlock progress and a weekly cap against farming.
+- **Telegram bot:** every public room gets one post with a game-art banner that updates itself (lobby → live → result); commands `/play`, `/rooms`, `/live`, `/ranks`, `/help`, and `/subscribe` for other groups; weekly-prize announcements (on / off / paid). All buttons are links, so forwarded posts keep them, and every card has a "Join the group" button.
+- **Custom characters:** requests now paid in real NEAR on mainnet (was a testnet wallet).
+- **Guides and fixes:** a How to Play page with screenshots (updated for every feature above), performance (lag) fixes, and many bug fixes.
 
 ## Libraries and AI tools (disclosure)
 
