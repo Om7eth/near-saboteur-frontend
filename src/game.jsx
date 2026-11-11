@@ -37,6 +37,19 @@ function readInviteCodeFromUrl() {
     return m[1].toUpperCase();
   } catch (e) { return null; }
 }
+// [REFERRALS] nearsaboteur.com/?ref=<username> - remembered until sign-up.
+(function captureReferral() {
+  try {
+    const m = window.location.search.match(/[?&]ref=([A-Za-z0-9_.@-]{2,64})/);
+    if (!m) return;
+    localStorage.setItem('ns_ref', decodeURIComponent(m[1]));
+    const u = new URL(window.location.href); u.searchParams.delete('ref');
+    window.history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+  } catch (e) {}
+})();
+// [WATCH LIVE] nearsaboteur.com/?watch=KQZT - opens that match as a watcher.
+const PENDING_WATCH_CODE = (() => { try { const m = window.location.search.match(/[?&]watch=([A-Za-z0-9]{4,8})/); if (!m) return null; const u = new URL(window.location.href); u.searchParams.delete('watch'); window.history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); return m[1].toUpperCase(); } catch (e) { return null; } })();
+const readReferral = () => { try { return localStorage.getItem('ns_ref') || undefined; } catch (e) { return undefined; } };
 const SITE_URL = ((import.meta.env && import.meta.env.VITE_SITE_URL) || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
 const poolInviteLink = (code) => `${SITE_URL}/?join=${code}`;
 import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen, PointsScreen, PaidGamesScreen } from './homeConsole';
@@ -10500,49 +10513,39 @@ function MovementDemo() {
   async function handleSubmitCustomAvatarRequest() {
     setCustomAvatarRequestError('');
     if (!loggedInPlayer) { setCustomAvatarRequestError('Please log in first.'); return; }
-    if (loggedInPlayer.walletType !== 'ingame' || !loggedInPlayer.walletAddress) {
-      setCustomAvatarRequestError('You need an in-game wallet set up to request a custom character. Set one up from your Profile first.');
-      return;
-    }
     if (!customAvatarRequestConfig?.enabled) { setCustomAvatarRequestError('Custom character requests aren\'t open right now.'); return; }
+    // [CUSTOM AVATAR - REAL NEAR] Same safety net as Play Pass: real NEAR may only go to saboteur.near.
+    if (customAvatarRequestConfig.network !== 'mainnet' || customAvatarRequestConfig.receivingAccountId !== PLAY_PASS_OFFICIAL_WALLET) { setCustomAvatarRequestError('Payments are being updated right now. Please try again in a few minutes.'); return; }
     const telegramUsername = customAvatarTelegramUsername.trim().replace(/^@/, '');
     if (!telegramUsername) { setCustomAvatarRequestError('Please enter your Telegram username so we can contact you.'); return; }
     if (!customAvatarDescription.trim()) { setCustomAvatarRequestError('Please describe the character you want.'); return; }
     if (!customAvatarImageFile) { setCustomAvatarRequestError('Please attach a reference image.'); return; }
-    const notPaused = await checkPoolsNotPaused();
-    if (!notPaused) { setCustomAvatarRequestError('Payments are temporarily paused. Please try again shortly.'); return; }
     setCustomAvatarRequestBusy(true);
     try {
-      const amount = customAvatarRequestConfig.priceNear;
-      const recipient = customAvatarRequestConfig.receivingAccountId;
-      let txHash = null;
-      if (loggedInPlayer.walletType === 'connected' && walletSelector) {
-        const wallet = await walletSelector.wallet();
-        const outcome = await wallet.signAndSendTransaction({
-          receiverId: recipient,
-          actions: [wsTransfer(nearToYocto(String(amount)).toString())],
-        });
-        txHash = outcome?.transaction?.hash || outcome?.transaction_outcome?.id || null;
-      } else {
-        const secretKey = await getWalletSecretKey({ label: 'Custom character request', amountNear: String(amount), recipient });
-        try {
-          const { result } = await signAndSendTransaction({
-            signerId: loggedInPlayer.walletAddress,
-            receiverId: recipient,
-            actions: [actions.transfer(nearToYocto(String(amount)))],
-            secretKey,
-            rpcUrl: NEAR_RPC_URL,
-          });
-          txHash = result?.transaction?.hash || result?.transaction_outcome?.id || null;
-        } finally {
-          closeWalletActionPrompt();
-        }
+      const amount = String(customAvatarRequestConfig.priceNear);
+      const receiver = customAvatarRequestConfig.receivingAccountId;
+      const { wallet, accountId } = await getPayWallet();
+      if (loggedInPlayer.playPassPayerWallet !== accountId) {
+        const proof = await verifyWalletWithBackend(accountId, wallet);
+        const link = await fetch(`${BACKEND_URL}/play-pass/link-wallet`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken, ...proof }) });
+        const linked = await link.json().catch(() => ({}));
+        if (!link.ok) throw new Error(linked.message || 'Could not confirm your wallet.');
+        setLoggedInPlayer((prev) => prev ? { ...prev, playPassPayerWallet: accountId } : prev);
       }
-      if (!txHash) throw new Error('Could not read the transaction hash. Please try again.');
-      await authFetch('/custom-avatar-request/submit', {
-        sessionToken, telegramUsername, description: customAvatarDescription.trim(),
-        imageBase64: customAvatarImageFile.base64, imageMimeType: customAvatarImageFile.mimeType, txHash,
-      });
+      const outcome = await wallet.signAndSendTransaction({ receiverId: receiver, actions: [wsTransfer(nearToYocto(amount).toString())] });
+      const txHash = outcome?.transaction?.hash || outcome?.transaction_outcome?.id || null;
+      if (!txHash) throw new Error('Your wallet did not return the transaction. If NEAR left your wallet, contact us from the Inbox with your wallet name.');
+      let lastErr = null;
+      for (let i = 0; i < 5; i++) {
+        try {
+          await authFetch('/custom-avatar-request/submit', {
+            sessionToken, telegramUsername, description: customAvatarDescription.trim(),
+            imageBase64: customAvatarImageFile.base64, imageMimeType: customAvatarImageFile.mimeType, txHash, payerAccountId: accountId,
+          });
+          lastErr = null; break;
+        } catch (e) { lastErr = e; if (!/yet|wait|read|reach|502/i.test(e.message || '')) break; await new Promise((r) => setTimeout(r, 3000)); }
+      }
+      if (lastErr) throw new Error(`${lastErr.message} (payment ${txHash.slice(0, 10)}… is safe — contact us from the Inbox if this keeps happening)`);
       setCustomAvatarRequestSubmitted(true);
     } catch (e) {
       setCustomAvatarRequestError(e.message || 'Could not submit your request. Please try again.');
@@ -11000,7 +11003,7 @@ function MovementDemo() {
   async function handleSignup() {
     setAuthError(''); setAuthInfo(''); setAuthLoading(true);
     try {
-      const data = await authFetch('/auth/signup', { email: authEmail, password: authPassword });
+      const data = await authFetch('/auth/signup', { email: authEmail, password: authPassword, ref: readReferral() });
       setAuthInfo(data.message);
       setAuthMode('verifyOtp');
     } catch (err) { setAuthError(err.message); }
@@ -11383,7 +11386,7 @@ function MovementDemo() {
           setLoggedInPlayer(data.player);
           setShowLinkWalletFlow(false);
         } else {
-          const data = await authFetch('/auth/wallet-verify', sig);
+          const data = await authFetch('/auth/wallet-verify', { ...sig, ref: readReferral() });
           setLoggedInPlayer(data.player);
           if (data.sessionToken) saveSession(data.player.email || '', data.sessionToken);
           if (data.player.name) setPlayerName(data.player.name);
@@ -13522,6 +13525,12 @@ function MovementDemo() {
     // from the Lobby via the new Kick control - same home-navigation as
     // roomClosedByHost (the whole room closing), but only for this one
     // player, and with a popup naming who did it first.
+    socket.on('watchEnded', (data) => {
+      try { localStorage.removeItem('nearSaboteurRoomCode'); localStorage.removeItem('nearSaboteurPlayerToken'); } catch (e) { /* no storage */ }
+      setRoomInfo(null);
+      setWatchEndedNotice((data && data.message) || 'The match you were watching has ended.');
+      setScreen('home');
+    });
     socket.on('kickedByHost', (data) => {
       try {
         localStorage.removeItem('nearSaboteurRoomCode');
@@ -14954,6 +14963,35 @@ function MovementDemo() {
 
   // [ONBOARDING REDESIGN] "PLAY FIRST MATCH": a private Free Play room
   // with 4 AI bots, then the Lobby (the player presses Start).
+  // [WATCH LIVE] Watch a public FREE/POOL match as a silent spectator.
+  const [watchEnabled, setWatchEnabled] = useState(false);
+  const [showWatchList, setShowWatchList] = useState(false);
+  const [watchRooms, setWatchRooms] = useState(null);
+  const [watchError, setWatchError] = useState('');
+  const [watchEndedNotice, setWatchEndedNotice] = useState('');
+  const pendingWatchRef = useRef(PENDING_WATCH_CODE);
+  useEffect(() => { fetch(`${BACKEND_URL}/watch/config`).then((r) => r.json()).then((d) => setWatchEnabled(!!d.enabled)).catch(() => {}); }, []);
+  async function loadWatchRooms() {
+    setWatchError('');
+    try { const d = await (await fetch(`${BACKEND_URL}/watch/rooms`)).json(); setWatchEnabled(!!d.enabled); setWatchRooms(d.rooms || []); } catch (e) { setWatchRooms([]); setWatchError('Could not load live matches.'); }
+  }
+  function openWatchList() { setShowWatchList(true); setWatchRooms(null); loadWatchRooms(); }
+  function startWatching(code) {
+    const s = socketRef.current || getSocket();
+    if (!s) return;
+    if (!s.connected) s.connect();
+    setWatchError('');
+    s.emit('watchRoom', { code, name: (loggedInPlayer && (loggedInPlayer.name || loggedInPlayer.username)) || playerName || 'Guest' }, (res) => {
+      if (!res || !res.ok) { setWatchError((res && res.message) || 'Could not open that match.'); setShowWatchList(true); if (!watchRooms) loadWatchRooms(); return; }
+      setShowWatchList(false); setShowLiveRoomsWindow(false);
+    });
+  }
+  useEffect(() => {
+    if (!pendingWatchRef.current || screen !== 'home') return;
+    const code = pendingWatchRef.current; pendingWatchRef.current = null;
+    startWatching(code);
+  }, [screen]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function startFirstMatchWithBots() {
     if (firstMatchBusy) return;
     setFirstMatchBusy(true); setFirstMatchError('');
@@ -18698,7 +18736,7 @@ function MovementDemo() {
         </button>
         <DeskTopButton label="Guide" onClick={openHowToPlay}><DeskIcon d={DESK_ICON.HELP} /></DeskTopButton>
         <DeskTopButton label="Inbox" active={active === 'inbox'} onClick={go('inbox')} badge={inboxUnreadCount}><img src={INBOX_ICON_IMG} alt="" /></DeskTopButton>
-        <DeskTopButton label="Friends" active={active === 'friends'} onClick={go('friends')}><img src={REFERRAL_ICON_IMG} alt="" /></DeskTopButton>
+        <DeskTopButton label="Referrals" active={active === 'friends'} onClick={go('friends')}><img src={REFERRAL_ICON_IMG} alt="" /></DeskTopButton>
         <DeskTopButton label="Wallet" active={active === 'wallet'} onClick={go('wallet')}><DeskIcon d={DESK_ICON.WALLET} /></DeskTopButton>
         <DeskTopButton label="Ranks" active={active === 'ranks'} onClick={go('ranks')}><DeskIcon d={DESK_ICON.RANKS} /></DeskTopButton>
         <DeskTopButton label="Activity" active={active === 'activity'} onClick={go('activity')}><DeskIcon d={DESK_ICON.ACTIVITY} /></DeskTopButton>
@@ -20146,6 +20184,40 @@ function MovementDemo() {
             list (Free+Pool+Paid together, with host username / entry
             fee / pool size) + Enter Room Code, all in one floating
             window opened from the Home "LIVE ROOMS" button. */}
+        {showWatchList && (
+          <div onClick={(e) => { if (e.target === e.currentTarget) setShowWatchList(false); }} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ width: '100%', maxWidth: 460, maxHeight: '86vh', overflow: 'auto', background: '#0b1312', border: '1px solid rgba(255,215,94,.35)', borderRadius: 16, padding: 18, color: '#dfe9e4', fontFamily: 'inherit' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <b style={{ fontSize: 16, letterSpacing: 1.5, color: '#ffd75e' }}>👀 WATCH LIVE</b>
+                <button type="button" onClick={() => setShowWatchList(false)} style={{ background: 'none', border: '1px solid #333', color: '#9aa0ad', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>✕</button>
+              </div>
+              <p style={{ fontSize: 11.5, color: '#8a9a94', margin: '0 0 12px', lineHeight: 1.5 }}>Watch any public Free or Pool match. You see what the crew sees — no roles — and you can't chat or vote. Paid games can't be watched.</p>
+              {watchError && <div style={{ fontSize: 12, color: '#ff8a9c', marginBottom: 10 }}>{watchError}</div>}
+              {!watchRooms ? <div style={{ fontSize: 12, color: '#8a9a94', padding: '20px 0', textAlign: 'center' }}>Loading…</div> : watchRooms.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: '#8a9a94', padding: '24px 0', textAlign: 'center' }}>No public matches right now.<br />Check back soon — or start one!</div>
+              ) : watchRooms.map((r) => (
+                <div key={r.code} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, padding: '4px 7px', borderRadius: 6, background: r.mode === 'pool' ? 'rgba(255,215,94,.15)' : 'rgba(110,255,192,.12)', color: r.mode === 'pool' ? '#ffd75e' : '#6effc0' }}>{r.mode === 'pool' ? 'POOL' : 'FREE'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.poolName || (r.host ? `${r.host}'s room` : r.code)} <span style={{ color: '#8fe3ff', fontFamily: 'monospace' }}>{r.code}</span></div>
+                    <div style={{ fontSize: 11, color: '#8a9a94' }}>{r.live ? `🔴 Match ${r.match}${r.maxMatches ? `/${r.maxMatches}` : ''} · ${r.alive} alive` : '🟢 In the lobby'} · {r.players}/10{r.bots ? ` (${r.bots} bots)` : ''}{r.mode === 'pool' && r.prizeNear ? ` · ${r.prizeNear} ${r.realNear ? 'NEAR' : 'tNEAR'}` : ''}{r.watchers ? ` · 👀 ${r.watchers}` : ''}</div>
+                  </div>
+                  <button type="button" onClick={() => startWatching(r.code)} style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: '#ffd75e', color: '#1c1203', fontWeight: 800, fontSize: 11.5, cursor: 'pointer' }}>WATCH</button>
+                </div>
+              ))}
+              <button type="button" onClick={loadWatchRooms} style={{ marginTop: 12, width: '100%', padding: 9, borderRadius: 8, border: '1px solid rgba(110,255,192,.25)', background: 'none', color: '#6effc0', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>↻ Refresh</button>
+            </div>
+          </div>
+        )}
+        {watchEndedNotice && (
+          <div onClick={() => setWatchEndedNotice('')} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div style={{ maxWidth: 360, background: '#0b1312', border: '1px solid rgba(255,215,94,.35)', borderRadius: 14, padding: 20, textAlign: 'center', color: '#dfe9e4' }}>
+              <div style={{ fontSize: 26 }}>👀</div>
+              <div style={{ fontSize: 14, margin: '8px 0 14px', lineHeight: 1.5 }}>{watchEndedNotice}</div>
+              <button type="button" onClick={() => setWatchEndedNotice('')} style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: '#6effc0', color: '#04130c', fontWeight: 800, cursor: 'pointer' }}>OK</button>
+            </div>
+          </div>
+        )}
         {showLiveRoomsWindow && (
           <div
             onClick={(e) => { if (e.target === e.currentTarget) setShowLiveRoomsWindow(false); }}
@@ -20164,6 +20236,9 @@ function MovementDemo() {
                 }}>✕</button>
               </div>
 
+              {watchEnabled && (
+                <button type="button" onClick={openWatchList} style={{ width: '100%', marginBottom: 14, padding: '11px 12px', borderRadius: 10, border: '1px solid rgba(255,215,94,.55)', background: 'rgba(255,215,94,.08)', color: '#ffd75e', fontWeight: 800, fontSize: 12.5, letterSpacing: 0.4, cursor: 'pointer' }}>👀 WATCH LIVE MATCHES</button>
+              )}
               {/* Enter Room Code - works for public (joins/pays right
                   away) and private (sends the host a request) rooms. */}
               <div style={{ marginBottom: 16 }}>
@@ -20426,6 +20501,7 @@ function MovementDemo() {
                         </form>
                         <button type="button" className="dh-bots hm-btn" disabled={firstMatchBusy} onClick={startFirstMatchWithBots}>{firstMatchBusy ? 'Starting…' : '▶ Play with AI bots'}</button>
                       </div>
+                      {watchEnabled && <button type="button" className="dh-bots hm-btn" style={{ width: '100%', marginTop: '.5em', borderColor: '#ffd75e', color: '#ffd75e', background: 'rgba(255,215,94,.08)' }} onClick={openWatchList}>👀 Watch live matches</button>}
                     </DeskWallScreen>
 
                     <DeskWallScreen q={DL.rightQ} w={360} h={340}>
@@ -20618,7 +20694,7 @@ function MovementDemo() {
                           <span style={{ position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, padding: '0 3px', borderRadius: 999, background: '#ff5c5c', border: '2px solid #040706', fontFamily: mono, fontSize: 9, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>{inboxUnreadCount > 9 ? '9+' : inboxUnreadCount}</span>
                         )}
                       </button>
-                      <button type="button" className="hm-btn" aria-label="Invite friends" onClick={() => setShowReferrals(true)}
+                      <button type="button" className="hm-btn" aria-label="Referrals" onClick={() => setShowReferrals(true)}
                         style={{ position: 'absolute', top: 224, left: 12, width: 50, height: 50, padding: 0, border: 'none', background: 'none', pointerEvents: 'auto' }}>
                         <img src={REFERRAL_ICON_IMG} alt="" style={{ width: 50, height: 50, display: 'block', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.6))' }} />
                       </button>
@@ -21713,6 +21789,7 @@ function MovementDemo() {
                           <span style={{ fontSize: 11, color: '#9aa0ad', fontWeight: 700 }}>Request cost</span>
                           <span style={{ fontSize: 15, fontWeight: 900, color: '#ffd75e' }}>{customAvatarRequestConfig.priceNear} NEAR</span>
                         </div>
+                        <p style={{ fontSize: 10, color: '#9aa0ad', margin: '-6px 0 12px', textAlign: 'center', lineHeight: 1.5 }}>Paid in real NEAR from your own wallet (HOT, Meteor or Intear) to saboteur.near. Checked on-chain.</p>
 
                         {/* Support Telegram link */}
                         {customAvatarRequestConfig.telegramLink && (
@@ -21886,7 +21963,7 @@ function MovementDemo() {
               Om7eth specs out the details. */}
           {showReferrals && (
             <HomeConsole {...consoleShell('friends')}>
-              <FriendsScreen mobile={consoleMobile} onClose={closeConsole} img={REFERRAL_ICON_IMG} />
+              <FriendsScreen mobile={consoleMobile} onClose={closeConsole} img={REFERRAL_ICON_IMG} sessionToken={sessionToken} backendUrl={BACKEND_URL} guest={isGuestPlayer || !sessionToken} />
             </HomeConsole>
           )}
 
