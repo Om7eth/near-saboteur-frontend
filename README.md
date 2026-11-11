@@ -4,9 +4,9 @@ A social deduction game with a real economy on NEAR. 4–10 players are on a spa
 
 **Hackathon track:** Games With Real Economies
 
-- **Play:** `<PASTE YOUR LIVE GAME LINK HERE>`
+- **Play:** https://nearsaboteur.com
 - **Demo video:** `<PASTE YOUR VIDEO LINK HERE>`
-- **How to play (with screenshots):** `<YOUR LIVE LINK>/how-to-play`
+- **How to play (with screenshots):** https://nearsaboteur.com/how-to-play
 - **Backend + smart contract:** https://github.com/Om7eth/near-saboteur-backend (contract guide: [`contract/README.md`](https://github.com/Om7eth/near-saboteur-backend/tree/dev/contract))
 
 ## What uses NEAR
@@ -37,6 +37,15 @@ npm run dev        # http://localhost:5173 (expects the backend on :3000)
 
 To run the backend, see the backend repo's README.
 
+## Hackathon diff (what to judge)
+
+This game existed before the hackathon. Only the work inside the window (19 Oct – 14 Nov 2026) should be judged. The last commit before the window is the baseline, tagged `pre-hackathon`. The submitted state is tagged `hackathon-submission`.
+
+| Repo | Baseline (6 Oct 2026) | Everything built during the hackathon |
+|---|---|---|
+| Frontend (this repo) | [`ec86165`](https://github.com/Om7eth/near-saboteur-frontend/commit/ec86165) | [compare `pre-hackathon...hackathon-submission`](https://github.com/Om7eth/near-saboteur-frontend/compare/pre-hackathon...hackathon-submission) |
+| Backend + contract | [`25b6b99`](https://github.com/Om7eth/near-saboteur-backend/commit/25b6b99) | [compare `pre-hackathon...hackathon-submission`](https://github.com/Om7eth/near-saboteur-backend/compare/pre-hackathon...hackathon-submission) |
+
 ## Prior work (disclosure)
 
 **Built before the hackathon:**
@@ -65,6 +74,16 @@ To run the backend, see the backend repo's README.
 - **NEAR AI:** a mission that asks players questions (with backup answers), and AI bots that talk in meetings.
 - **Game features:** stickers in chat, station map v2 (location card and floating map), and watch mode for hosts (spectator seats).
 - **Guides and fixes:** a How to Play page with screenshots, performance (lag) fixes, and many bug fixes.
+
+## Libraries and AI tools (disclosure)
+
+- **Main libraries:** React, Vite, Socket.io, Express, MongoDB / Mongoose, near-api-js, NEAR Wallet Selector, NEAR Connect (`@hot-labs/near-connect`), near-sdk (Rust).
+- **NEAR services:** NEAR Intents Agent API (Weekly Rewards Agent), NEAR AI Cloud (bot meeting chat and the NEAR AI mission), fastnear RPC.
+- **AI coding tools:** much of the code was written with the help of Claude (Claude Code), directed, reviewed and tested by the founder.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ## Team
 
