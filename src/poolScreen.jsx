@@ -545,7 +545,7 @@ export function LobbyPoolPanel({ pool, isPoolHost, code, link, myWallet, onSaveW
   useEffect(() => { if (open && isPoolHost && real) fetchWallets().then(setList).catch(() => {}); }, [open, isPoolHost, real, pool]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setW(myWallet || ''); }, [myWallet]);
   const copy = (t, k) => { try { navigator.clipboard.writeText(t); setCopied(k); setTimeout(() => setCopied(''), 1500); } catch (e) { /* no clipboard */ } };
-  const text = `Join my ${fmt(amt)} ${real ? 'NEAR' : 'test NEAR'} pool on NEAR Saboteur — ${pool.maxMatches} matches, top ${split.length} win.`;
+  const text = `Join my ${fmt(amt)} ${real ? 'NEAR' : 'test NEAR'} pool on NEAR Saboteur — ${pool.maxMatches} matches, top ${split.length} win. Telegram group: t.me/nearsaboteur`;
   return (
     <div className="pg">
       <style>{CSS + LCSS}</style>

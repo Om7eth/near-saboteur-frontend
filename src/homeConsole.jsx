@@ -1137,7 +1137,7 @@ export function FriendsScreen({ mobile, onClose, img, sessionToken, backendUrl, 
   const site = (typeof window !== 'undefined' ? window.location.origin : 'https://nearsaboteur.com').replace(/\/$/, '');
   const link = d ? `${site}/?ref=${encodeURIComponent(d.code)}` : '';
   const R = (d && d.rules) || { matches: 3, tokens: 1000, points: 30, weeklyCap: 5, minHumans: 2 };
-  const shareText = `Play NEAR Saboteur with me — a social deduction game on NEAR. Join with my link:`;
+  const shareText = `Play NEAR Saboteur with me — a social deduction game on NEAR. Our Telegram group: t.me/nearsaboteur · Join with my link:`;
   const copy = () => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch (e) {} };
   const fmt = (t) => { try { return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }); } catch { return ''; } };
   const COL = { purple: '#9b6bd6', green: '#6fcf5a', red: '#e0484f', black: '#3a3d40', darkgreen: '#4d7a3a', magenta: '#d454b0', yellow: '#e8c13a', brown: '#9a6a43', orange: '#ec8b34', cyan: '#3fbfd0' };
