@@ -10200,7 +10200,8 @@ const DESK_HOME_CSS = `
 .dh-pts.on{border-color:rgba(255,215,94,.7);color:#ffd75e}
 .dh-backb{display:flex;align-items:center;gap:.45em;height:2.9em;padding:0 1.1em 0 .8em;border:1px solid rgba(110,255,192,.4);background:rgba(5,10,9,.85);color:#6effc0;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:.82em;letter-spacing:.14em;cursor:pointer;clip-path:polygon(.6em 0,100% 0,100% calc(100% - .6em),calc(100% - .6em) 100%,0 100%,0 .6em)}
 .dh-backb:hover{background:rgba(110,255,192,.12)}.dh-backb svg{width:1.3em;height:1.3em}
-.dh-badge{position:absolute;top:-.2em;right:.6em;min-width:1.7em;height:1.7em;border-radius:999px;background:#ff5c5c;color:#fff;font-size:.95em;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:2}
+.dh-badge{position:absolute;top:-.55em;right:.35em;min-width:2.3em;height:2.3em;padding:0 .45em;box-sizing:border-box;border-radius:999px;background:#ff3b3b;color:#fff;border:.18em solid #040706;font-family:'IBM Plex Mono',monospace;font-size:1.3em;font-weight:800;letter-spacing:0;display:flex;align-items:center;justify-content:center;z-index:2;box-shadow:0 0 .9em rgba(255,59,59,.85);animation:dhBadge 1.6s ease-in-out infinite}
+@keyframes dhBadge{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
 .dh-crew{position:absolute;transform:translate(-50%,-100%);pointer-events:none}
 .dh-crew>div{width:100%;height:100%;animation:dhBob 3.4s ease-in-out infinite;will-change:transform}
 .dh-crew img{display:block;width:100%;height:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 14px 18px rgba(0,0,0,.6))}
@@ -10593,6 +10594,10 @@ function MovementDemo() {
   // feels roughly live without a dedicated websocket subscription just
   // for this one list).
   const [announcements, setAnnouncements] = useState([]);
+  // [NEWS BADGE] posts newer than the last time News was opened (per browser)
+  const [newsSeenAt, setNewsSeenAt] = useState(() => { try { return Number(localStorage.getItem('ns_news_seen') || 0); } catch (e) { return 0; } });
+  const newsUnreadCount = announcements.filter((a) => a.createdAt && new Date(a.createdAt).getTime() > Math.max(newsSeenAt, Date.now() - 7 * 864e5)).length; // only the last 7 days, so a new player isn't greeted with 9+
+  const markNewsSeen = () => { const t = Date.now(); setNewsSeenAt(t); try { localStorage.setItem('ns_news_seen', String(t)); } catch (e) { /* storage off */ } };
   // [NEW FEATURE - TAP TO EXPAND] A long announcement/inbox message
   // felt cramped in the small list card - tapping any card now opens
   // it full-size in this shared overlay instead. { nameTag, title,
@@ -10717,6 +10722,7 @@ function MovementDemo() {
   // modal instead, which is what keeps everything reachable without the
   // hub screen itself ever needing to scroll or cut content off.
   const [homeModal, setHomeModal] = useState(null);
+  useEffect(() => { if (homeModal === 'announcements') markNewsSeen(); }, [homeModal]); // [NEWS BADGE]
   useEffect(() => {
     if (homeModal !== 'wallet') return;
     refreshWalletBalance(); fetchWalletHistory(); fetchWalletPortfolio();
@@ -18765,7 +18771,7 @@ function MovementDemo() {
         <DeskTopButton label="Wallet" active={active === 'wallet'} onClick={go('wallet')}><DeskIcon d={DESK_ICON.WALLET} /></DeskTopButton>
         <DeskTopButton label="Ranks" active={active === 'ranks'} onClick={go('ranks')}><DeskIcon d={DESK_ICON.RANKS} /></DeskTopButton>
         <DeskTopButton label="Activity" active={active === 'activity'} onClick={go('activity')}><DeskIcon d={DESK_ICON.ACTIVITY} /></DeskTopButton>
-        <DeskTopButton label="News" active={active === 'news'} onClick={go('news')}><DeskIcon d={DESK_ICON.NEWS} /></DeskTopButton>
+        <DeskTopButton label="News" active={active === 'news'} onClick={go('news')} badge={active === 'news' ? 0 : newsUnreadCount}><DeskIcon d={DESK_ICON.NEWS} /></DeskTopButton>
         <DeskTopButton label="Music" onClick={toggleMusic}><DeskIcon d={musicActive ? DESK_ICON.MUSIC : DESK_ICON.MUSIC_OFF} /></DeskTopButton>
         <DeskTopButton label="Sound" onClick={() => setSoundOn((v) => !v)}><DeskIcon d={soundOn ? DESK_ICON.SOUND : DESK_ICON.MUTED} /></DeskTopButton>
         <DeskTopButton label="Settings" active={active === 'settings'} onClick={go('settings')}><DeskIcon d={DESK_ICON.SETTINGS} /></DeskTopButton>
@@ -18788,7 +18794,7 @@ function MovementDemo() {
       guestGuard(() => openConsole(k))();
     },
     bgImg: consoleMobile ? HOME_STAGE_BG_IMG : DESKTOP_HOME_ART_IMG,
-    badges: { inbox: inboxUnreadCount },
+    badges: { inbox: inboxUnreadCount, news: active === 'news' ? 0 : newsUnreadCount },
     escBlocked: !!(selectedWalletTx || showWalletSettingsPanel || showSendModal || showReceiveModal || showSwapSheet || showViewSeedModal || showSabWallet),
     me: {
       avatar: resolveAvatarImg(playerAvatarId, loggedInPlayer?.hasPlayPass, loggedInPlayer?.activePremiumAvatarVariant),
@@ -20689,7 +20695,7 @@ function MovementDemo() {
                         <button type="button" className="hm-btn" aria-label="Announcements" onClick={guestGuard(() => setHomeModal('announcements'))}
                           style={{ position: 'relative', width: 36, height: 36, padding: 0, border: 'none', clipPath: cutSm, background: 'rgba(4,8,7,0.8)', outline: '1px solid rgba(110,255,192,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M4 10v4a1 1 0 001 1h2l6 4V5L7 9H5a1 1 0 00-1 1zM16.5 8.5a5 5 0 010 7" stroke={M} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                          {announcements.length > 0 && <span style={{ position: 'absolute', top: 6, right: 6, width: 7, height: 7, borderRadius: 999, background: '#ff5c5c', boxShadow: '0 0 6px #ff5c5c' }} />}
+                          {newsUnreadCount > 0 && <span style={{ position: 'absolute', top: 6, right: 6, width: 7, height: 7, borderRadius: 999, background: '#ff5c5c', boxShadow: '0 0 6px #ff5c5c' }} />}
                         </button>
                       </div>
 
