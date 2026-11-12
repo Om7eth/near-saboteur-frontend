@@ -10,6 +10,16 @@ A social deduction game with a real economy on NEAR. 4–10 players are on a spa
 - **$SABOTEUR token page (live from the contract):** https://nearsaboteur.com/token
 - **Backend + smart contract:** https://github.com/Om7eth/near-saboteur-backend (pool contract: [`contract/README.md`](https://github.com/Om7eth/near-saboteur-backend/tree/main/contract) · token contract: [`token-v2/README.md`](https://github.com/Om7eth/near-saboteur-backend/tree/main/token-v2))
 
+## Try it in 5 minutes (for judges)
+
+No wallet or crypto is needed for steps 1–3.
+
+1. **Play a match.** Open https://nearsaboteur.com → *or jump in as a guest* → *Play with AI bots* → START. You get a secret role. Walk around (WASD), do missions, or press the red button to call a meeting. **You'll see** AI bots move, do missions, and in the meeting chat they accuse, defend and vote with a reason ("I saw X standing right next to the body").
+2. **See the token mechanic.** Open https://nearsaboteur.com/token. **You'll see** live numbers read from the `sabo.saboteur.testnet` contract: burned supply, saboteurs caught, the Wall of Shame, the latest burns with explorer links, and the rules the contract enforces.
+3. **See the contract refuse cheating.** On the token page, scroll to *Try to cheat $SABOTEUR* and open any *Failed tx on explorer* link. **You'll see** a real failed testnet transaction whose error names the rule, e.g. `Smart contract panicked: Already recorded`.
+4. **See the weekly NEAR payout.** Sign in (email) → RANKS → WEEKLY. **You'll see** this week's prize in USD and NEAR, the top 3 who would win, and the founder account marked DEV and excluded. Payouts are sent on mainnet by the agent account on NEAR Intents after the Saturday 00:00 IST reset.
+5. **Run the tests.** In the [backend repo](https://github.com/Om7eth/near-saboteur-backend#run-locally-and-test): `npm install && npm test` (bot rules), `cd contract && cargo test` (28), `cd token-v2 && cargo test` (20). **You'll see** all tests pass, with no database, keys or network needed.
+
 ## What uses NEAR
 
 | Feature | How it works | Network |
@@ -90,12 +100,12 @@ Set `VITE_BACKEND_URL` to point at another backend. To run the backend and the t
 
 ## Hackathon diff (what to judge)
 
-This game existed before the hackathon. Only the work inside the window (19 Oct – 14 Nov 2026) should be judged. The last commit before the window is the baseline below; everything after it on `main` was built during the hackathon.
+This game existed before the hackathon. Only the work inside the window (19 Oct – 14 Nov 2026) should be judged. Both repos have the tags **`pre-hackathon`** (the last commit before the window) and **`hackathon-submission`** (the submitted state). Everything between them was built during the hackathon.
 
 | Repo | Baseline (6 Oct 2026) | Everything built during the hackathon |
 |---|---|---|
-| Frontend (this repo) | [`ec86165`](https://github.com/Om7eth/near-saboteur-frontend/commit/ec86165) | [compare `ec86165...main`](https://github.com/Om7eth/near-saboteur-frontend/compare/ec86165...main) |
-| Backend + contract | [`25b6b99`](https://github.com/Om7eth/near-saboteur-backend/commit/25b6b99) | [compare `25b6b99...main`](https://github.com/Om7eth/near-saboteur-backend/compare/25b6b99...main) |
+| Frontend (this repo) | [`ec86165`](https://github.com/Om7eth/near-saboteur-frontend/commit/ec86165) · tag `pre-hackathon` | [compare `pre-hackathon...hackathon-submission`](https://github.com/Om7eth/near-saboteur-frontend/compare/pre-hackathon...hackathon-submission) (or [`ec86165...main`](https://github.com/Om7eth/near-saboteur-frontend/compare/ec86165...main)) |
+| Backend + contract | [`25b6b99`](https://github.com/Om7eth/near-saboteur-backend/commit/25b6b99) · tag `pre-hackathon` | [compare `pre-hackathon...hackathon-submission`](https://github.com/Om7eth/near-saboteur-backend/compare/pre-hackathon...hackathon-submission) (or [`25b6b99...main`](https://github.com/Om7eth/near-saboteur-backend/compare/25b6b99...main)) |
 
 ## Prior work (disclosure)
 
