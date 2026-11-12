@@ -57,6 +57,21 @@ Weekly Rewards Agent (mainnet) · real-NEAR pools · Play Pass · contract v4 ·
 
 > $SABOTEUR is a testnet token you earn by playing. You can burn it for in-game items like Play Pass, but it has no cash value: it can't be bought, sold, transferred or cashed out, and nothing is promised about its future.
 
+## Code map (where to look)
+
+The game files are big (one React file for the game, one server file), so here is where each hackathon feature lives. Search for the function name inside the file.
+
+| Feature | Where | Look for |
+|---|---|---|
+| **Weekly Rewards Agent** (NEAR Intents, mainnet) | [`economy/weeklyAgent.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/economy/weeklyAgent.js) | `leaders` (top 3, staff excluded), `tick` (30-min batch), `sendWinner` (idempotent payout) |
+| **$SABOTEUR v2 token contract** | [`token-v2/src/lib.rs`](https://github.com/Om7eth/near-saboteur-backend/blob/main/token-v2/src/lib.rs) | `Rules::launch`, `reward_match`, `catch_ritual`, `buy_play_pass`, `propose_rules` (7-day timelock), 20 tests at the bottom |
+| Game ↔ token (reports only, contract decides) | [`economy/saboteurToken.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/economy/saboteurToken.js), [`economy/match.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/economy/match.js) | `reportMatch`, `catchRitual`, `buyPlayPass`, `catchBurn`, `payPendingV2`, `wallOfShame` |
+| Catch = burn trigger (saboteur voted out) | [`index.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/index.js) | `finalizeVoting` → `economy.catchBurn` |
+| Public token page | [`token/index.html`](https://github.com/Om7eth/near-saboteur-frontend/blob/main/token/index.html) | live stats, Wall of Shame, "Try to cheat" proofs |
+| **Pool escrow contract v4** | [`contract/src/lib.rs`](https://github.com/Om7eth/near-saboteur-backend/blob/main/contract/src/lib.rs) | `create_pool`, `distribute_shares` (ties), `claim_unclaimed`, 28 tests |
+| **AI bots** (NEAR AI) | [`bots/meetingBrain.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/bots/meetingBrain.js), [`bots/brain.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/bots/brain.js) | `evidenceLines` (detective rules), `skipLoses` (endgame), `think`, `perceive` (what a bot sees); tests in [`tests/bots.test.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/tests/bots.test.js) |
+| Game UI | [`src/game.jsx`](https://github.com/Om7eth/near-saboteur-frontend/blob/main/src/game.jsx), [`src/homeConsole.jsx`](https://github.com/Om7eth/near-saboteur-frontend/blob/main/src/homeConsole.jsx) | `RanksScreen` (prize + DEV tag), `SabBurnBox` (Play Pass burn), `SabLivePanel` |
+
 ## Stack
 
 - **Frontend:** React + Vite. NEAR Wallet Selector and NEAR Connect for wallets.
