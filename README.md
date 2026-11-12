@@ -54,7 +54,7 @@ Weekly Rewards Agent (mainnet) · real-NEAR pools · Play Pass · contract v4 ·
 - A creator economy: players design skins and earn when others use them.
 - Mainnet $SABOTEUR and entry-fee games only after legal review.
 
-> $SABOTEUR is a testnet token with no value. Nothing here is a promise about its future.
+> $SABOTEUR is a testnet token you earn by playing. You can burn it for in-game items like Play Pass, but it has no cash value: it can't be bought, sold, transferred or cashed out, and nothing is promised about its future.
 
 ## Stack
 

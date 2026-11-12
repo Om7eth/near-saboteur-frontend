@@ -68,7 +68,7 @@ const readReferral = () => { try { return localStorage.getItem('ns_ref') || unde
 // [SHARE LINKS] Always the public domain: inside Telegram the game runs on the hosting URL, not nearsaboteur.com.
 const SITE_URL = ((import.meta.env && import.meta.env.VITE_SITE_URL) || 'https://nearsaboteur.com').replace(/\/$/, '');
 const poolInviteLink = (code) => `${SITE_URL}/?join=${code}`;
-import { HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen, PointsScreen, PaidGamesScreen } from './homeConsole';
+import { SabInfo, HomeConsole, ActivityScreen, WalletScreen, RanksScreen, InboxScreen, NewsScreen, FriendsScreen, SettingsScreen, PlayPassScreen, FreePlayScreen, PointsScreen, PaidGamesScreen } from './homeConsole';
 
 // [BGM] one shared music + UI-click engine for the whole app (all synthesised, no audio files)
 const BGM = createBgm();
@@ -9657,15 +9657,11 @@ function fmtSab(n) {
   const v = Number(n) || 0;
   return v >= 100 ? Math.round(v).toLocaleString() : (Math.round(v * 100) / 100).toLocaleString();
 }
-// Shown wherever $SABOTEUR amounts appear.
-const SAB_DISCLAIMER = "Testnet token with no real value. Any future conversion (e.g. to a mainnet token) can be at a different rate. $SABOTEUR can't be sent or transferred - it only comes from match rewards.";
+// Shown wherever $SABOTEUR amounts appear: a small line, the full note sits behind the "i".
 function SabDisclaimer({ compact }) {
   return (
-    <div style={{
-      display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: compact ? 10 : 11, lineHeight: 1.4, color: '#ffdc9a',
-      background: 'rgba(255,193,76,0.07)', border: '1px solid rgba(255,193,76,0.3)', borderRadius: 9, padding: compact ? '5px 8px' : '7px 10px',
-    }}>
-      <span style={{ fontWeight: 900 }}>⚠</span><span>{SAB_DISCLAIMER}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: compact ? 10 : 11, color: '#9aa8a2' }}>
+      <span>Testnet token · earned by playing · no cash value</span><SabInfo />
     </div>
   );
 }

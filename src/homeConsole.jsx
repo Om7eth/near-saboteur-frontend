@@ -4,7 +4,7 @@
 // Mobile: each one is a full-screen page with a back button. Pure presentation -
 // all data and actions come in as props from game.jsx (approved mockup:
 // mockups/console-activity-mockup.html).
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { STICKERS } from './stickers';
 
 const P = {
@@ -804,6 +804,34 @@ function Countdown({ to }) {
   return <b className="hc-cd">{mmss(new Date(to) - Date.now())}</b>;
 }
 const MEDAL = ['🥇', '🥈', '🥉'];
+// [$SABOTEUR] The full token note lives behind a small "i" button, not as a big text block.
+export const SAB_NOTE = "$SABOTEUR is a testnet token you earn by playing. You can burn it for in-game items like Play Pass, but it has no cash value: it can't be bought, sold, transferred or cashed out, and nothing is promised about its future.";
+export function SabInfo({ color = '#9aa8a2' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+  return (
+    <span ref={ref} style={{ position: 'relative', display: 'inline-flex', verticalAlign: 'middle', marginLeft: 4 }}>
+      <button type="button" aria-label="About $SABOTEUR" onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} style={{
+        width: 15, height: 15, borderRadius: '50%', border: `1px solid ${color}`, background: 'transparent', color, padding: 0, cursor: 'pointer',
+        font: "italic 700 9.5px/13px Georgia, serif", display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>i</button>
+      {open && (
+        <span role="tooltip" style={{
+          position: 'absolute', zIndex: 50, top: 20, right: -8, width: 250, padding: '9px 11px', borderRadius: 9,
+          background: '#0d1513', border: '1px solid rgba(255,215,94,.35)', boxShadow: '0 8px 24px rgba(0,0,0,.6)',
+          font: "400 11px/1.5 system-ui, sans-serif", color: '#d8dfdb', textAlign: 'left', whiteSpace: 'normal', letterSpacing: 0, textTransform: 'none',
+        }}>{SAB_NOTE}</span>
+      )}
+    </span>
+  );
+}
+
 // [$SABOTEUR v2] Play Pass by burning $SABOTEUR (testnet). The contract burns it.
 const SB_CSS = `.sb-or{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:#7d8d86;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.2em}.sb-or:before,.sb-or:after{content:"";flex:1;height:1px;background:rgba(255,255,255,.1)}
 .sb-card{border-radius:12px;padding:12px 13px;border:1px solid rgba(255,138,61,.55);background:linear-gradient(180deg,rgba(255,120,40,.12),rgba(255,60,30,.04))}
@@ -822,13 +850,12 @@ function SabBurnBox({ sb }) {
       <style>{SB_CSS}</style>
       <div className="sb-or">OR</div>
       <div className="sb-card">
-        <div className="sb-top"><span className="sb-ic">S</span><div><b>Burn $SABOTEUR</b><small>earned by playing · testnet</small></div><div className="sb-pr">{f(price)}<small>🔥 burned forever</small></div></div>
+        <div className="sb-top"><span className="sb-ic">S</span><div><b>Burn $SABOTEUR</b><small>earned by playing · testnet<SabInfo /></small></div><div className="sb-pr">{f(price)}<small>🔥 burned forever</small></div></div>
         {enough
           ? <div className="sb-bal">Your balance: <b>{f(bal)} $SABOTEUR</b> → {f(bal - price)} after</div>
           : <><div className="sb-bar"><i style={{ width: `${Math.min(100, (bal / price) * 100)}%` }} /></div><div className="sb-bal">You have <b>{f(bal)}</b> · <b>{f(price - bal)}</b> to go</div></>}
         <button type="button" className="sb-btn" disabled={!enough || sb.busy} onClick={sb.onBurn}>{sb.busy ? 'BURNING ON-CHAIN…' : enough ? `🔥 BURN ${f(price)} & UNLOCK` : 'PLAY TO EARN MORE'}</button>
         {sb.error && <div className="sb-err">{sb.error}</div>}
-        <div className="sb-fine">$SABOTEUR is a testnet token. It can't be bought or cashed out, only earned in matches. The token contract burns it; burning is final.</div>
       </div>
     </div>
   );
@@ -1189,7 +1216,7 @@ export function FriendsScreen({ mobile, onClose, img, sessionToken, backendUrl, 
         <div className="rf-st"><i>1</i><div>Share your link. Your friend <b>signs up</b> with it.</div></div>
         <div className="rf-st"><i>2</i><div>They finish <b>{R.matches} matches</b> with other real players (any mode).</div></div>
         <div className="rf-st"><i>3</i><div>🔒 → 🔓 Your reward <b>unlocks</b>: <b className="g">{R.tokens.toLocaleString()} $SABOTEUR</b> + <b className="m">{R.points} points</b>.</div></div>
-        <div className="rf-fine">$SABOTEUR is a testnet token. It has no value and nothing is promised about the future. Up to {R.weeklyCap} friends a week add points to the weekly Ranks; more friends still give $SABOTEUR. Self-referrals and duplicate accounts don't count.</div>
+        <div className="rf-fine">$SABOTEUR is a testnet token<SabInfo />. Up to {R.weeklyCap} friends a week add points to the weekly Ranks; more friends still give $SABOTEUR. Self-referrals and duplicate accounts don't count.</div>
       </div>
     </div>
   );
@@ -1548,7 +1575,7 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
       </div>
       <div className="hc-feat wide">
         <h3>2× $SABOTEUR EVERY MATCH</h3>
-        <p>Every match reward in $SABOTEUR testnet tokens is doubled for Play Pass holders. These are testnet tokens: they have no value today, and nothing is promised about the future.</p>
+        <p>Every match reward in $SABOTEUR (testnet)<SabInfo /> is doubled for Play Pass holders.</p>
         <div className="hc-demo" style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <span className="hc-bub">#2 finish · +600 $SABOTEUR</span>
           <span className="hc-bub gold">WITH PLAY PASS · +1,200 $SABOTEUR</span>
