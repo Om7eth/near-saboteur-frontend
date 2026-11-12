@@ -18280,7 +18280,8 @@ function MovementDemo() {
         // well within reasonable bandwidth for a handful of players.
         if (socketRef.current && socketRef.current.connected && nowMs - lastPosEmitRef.current > 50) {
           lastPosEmitRef.current = nowMs;
-          socketRef.current.emit('playerMove', { x: next.x, y: next.y });
+          // [LAG FIX] 0.1px is plenty - long float decimals only made every packet bigger
+          socketRef.current.emit('playerMove', { x: Math.round(next.x * 10) / 10, y: Math.round(next.y * 10) / 10 });
         }
         if (dx > 0 && facingRef.current !== 'right') { facingRef.current = 'right'; setFacing('right'); }
         else if (dx < 0 && facingRef.current !== 'left') { facingRef.current = 'left'; setFacing('left'); }
