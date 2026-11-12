@@ -131,6 +131,16 @@ h2{font:800 clamp(26px,3.2vw,36px)/1.1 var(--disp);margin:10px 0 0;text-transfor
 .lock{display:flex;gap:16px;align-items:flex-start;margin-top:14px;padding:20px 22px;background:linear-gradient(90deg,rgba(110,255,192,.07),transparent);box-shadow:inset 0 0 0 1px rgba(110,255,192,.22)}
 .lock svg{color:var(--g);width:24px;height:24px;margin-top:2px}.lock b{color:var(--g);font-weight:600}.lock p{margin:0;color:#c3cfc9;font-size:14.5px}
 .verify{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+/* try to cheat */
+.cheat{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.ct{position:relative;background:linear-gradient(180deg,rgba(255,77,94,.08),var(--panel) 60%);box-shadow:inset 0 0 0 1px rgba(255,77,94,.3);padding:20px 18px 18px;display:flex;flex-direction:column}
+.ct .bt{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;font:700 10.5px var(--mono);letter-spacing:.18em;color:#ffb3bc;background:rgba(255,77,94,.14);box-shadow:inset 0 0 0 1px rgba(255,77,94,.45);padding:4px 9px}
+.ct .bt svg{width:12px;height:12px}
+.ct b{display:block;font:700 15px var(--disp);letter-spacing:.04em;text-transform:uppercase;margin:14px 0 6px}
+.ct p{margin:0 0 12px;font-size:13.5px;color:#aab8b2}
+.ct code{display:block;margin-top:auto;font:500 12px/1.45 var(--mono);color:#ff8f9b;background:rgba(0,0,0,.35);padding:9px 10px;box-shadow:inset 0 0 0 1px rgba(255,77,94,.2)}
+.ct a{margin-top:10px;font:500 11.5px var(--mono);letter-spacing:.08em;display:inline-flex;align-items:center;gap:5px}.ct a svg{width:12px;height:12px}
+@media(max-width:960px){.cheat{grid-template-columns:1fr 1fr}}@media(max-width:560px){.cheat{grid-template-columns:1fr}}
 /* footer */
 footer{margin-top:90px;border-top:1px solid var(--line2);background:#040706}
 footer .in{max-width:1180px;margin:0 auto;padding:34px 22px;display:flex;gap:24px;align-items:center;flex-wrap:wrap;justify-content:space-between}
@@ -153,6 +163,7 @@ footer .fine{width:100%;font-size:12.5px;color:#5f706a;border-top:1px solid var(
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3M12 14.5v2.5"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/></symbol>
   <symbol id="i-code" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></symbol>
 </svg>
 
@@ -246,6 +257,12 @@ footer .fine{width:100%;font-size:12.5px;color:#5f706a;border-top:1px solid var(
     <div class="sh"><div><div class="k">Verifiable</div><h2>Rules in the contract</h2></div><p>Fixed at launch and readable by anyone with <code>get_rules</code>.</p></div>
     <div class="rules" id="rules"></div>
     <div class="lock cut"><svg class="i"><use href="#i-lock"/></svg><p><b>No one can change these rules quietly</b>, not the game and not the owner. A change is proposed in public and applies only after <b id="tl">7</b> days, inside hard limits written in the contract. Each match id is accepted once, so nothing is ever paid or burned twice.</p></div>
+    <div class="verify" style="margin-bottom:0"></div>
+  </section>
+
+  <section class="s">
+    <div class="sh"><div><div class="k" style="color:var(--red)">Proof</div><h2>Try to cheat $SABOTEUR</h2></div><p>Real attempts on NEAR testnet. The contract refused every one, and the error names the rule.</p></div>
+    <div class="cheat"><div class="ct cut"><span class="bt"><svg class="i"><use href="#i-x"/></svg>BLOCKED</span><b>Pay a match twice</b><p>The game reports the same match again to mint a second reward.</p><code>Smart contract panicked: Already recorded</code><a href="https://testnet.nearblocks.io/txns/DgHkB93F8cu77qgfnAH6kDLw1Yyiiy61p4d4vYjDiyd8" target="_blank" rel="noopener">Failed tx on explorer <svg class="i"><use href="#i-ext"/></svg></a></div><div class="ct cut"><span class="bt"><svg class="i"><use href="#i-x"/></svg>BLOCKED</span><b>Fake a match report</b><p>An account that isn't the game tries to pay itself a 1st place.</p><code>Smart contract panicked: Only the game account can report matches</code><a href="https://testnet.nearblocks.io/txns/D5y5Kh8CRUzb3BReei7pUKUBZKEXagqY2XDmvnfKDpoL" target="_blank" rel="noopener">Failed tx on explorer <svg class="i"><use href="#i-ext"/></svg></a></div><div class="ct cut"><span class="bt"><svg class="i"><use href="#i-x"/></svg>BLOCKED</span><b>Rewrite the rules</b><p>Someone other than the owner tries to make Play Pass cost 1 token.</p><code>Smart contract panicked: Only the owner</code><a href="https://testnet.nearblocks.io/txns/97Pp28rUe4v9AoE51LgqwFVh8vW8CfqZknxinGRhnMJh" target="_blank" rel="noopener">Failed tx on explorer <svg class="i"><use href="#i-ext"/></svg></a></div><div class="ct cut"><span class="bt"><svg class="i"><use href="#i-x"/></svg>BLOCKED</span><b>Play Pass for free</b><p>A player without 15,000 $SABOTEUR tries to unlock Play Pass.</p><code>Smart contract panicked: Not enough $SABOTEUR for Play Pass</code><a href="https://testnet.nearblocks.io/txns/CqGYgWg9z3TukWhYxZxmtrDUbN4hj27JmYPDg4ztoZMw" target="_blank" rel="noopener">Failed tx on explorer <svg class="i"><use href="#i-ext"/></svg></a></div></div>
     <div class="verify"><a class="btn gh" id="vC" href="#" target="_blank" rel="noopener">Contract on explorer <svg class="i"><use href="#i-ext"/></svg></a><a class="btn gh" href="https://github.com/Om7eth/near-saboteur-backend/tree/main/token-v2" target="_blank" rel="noopener">Contract source <svg class="i"><use href="#i-code"/></svg></a></div>
   </section>
 </main>
