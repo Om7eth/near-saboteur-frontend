@@ -145,6 +145,7 @@ const CSS = `
 .hc-pl .nm b{font:600 13px var(--disp)}.hc-pl .nm span{font:10.5px var(--mono);color:var(--dim)}
 .hc-pl .pz{text-align:right;font:600 12px var(--mono);color:var(--m);white-space:nowrap}.hc-pl .pz small{display:block;color:var(--g);font-weight:500}
 .hc-you{font:600 9.5px var(--mono);color:var(--m);margin-left:4px;letter-spacing:.08em}
+.hc-dev{font:700 8.5px var(--mono);color:#04130c;background:#ffd166;border-radius:3px;padding:1px 4px;margin-left:5px;letter-spacing:.1em;vertical-align:1px}
 /* buttons */
 .hc-gear{display:flex !important;align-items:center;gap:8px;padding:8px 13px !important;border:1px solid var(--line) !important;border-radius:6px;font:500 11px var(--mono) !important;letter-spacing:.1em;color:#9fb0a8 !important;white-space:nowrap}
 .hc-gear svg{width:15px;height:15px}.hc-gear:hover{border-color:rgba(255,255,255,.2) !important}
@@ -779,15 +780,15 @@ export function WalletScreen({ mobile, onClose, w }) {
 }
 
 /* ---------------- RANKS ---------------- */
-function RankRow({ p, me, kit, prize }) {
+function RankRow({ p, me, kit, prize, staff, prizeOn }) {
   const NameTag = kit.NameTag, Badge = kit.LegionBadge;
   return (
     <div className={`hc-lr ${me ? 'me' : ''}`}>
       <span className="rk">{p.rank}</span>
       <img src={kit.avatarImg(p.avatarId, p.avatarVariantId)} alt="" />
       <div className="nm">
-        <b><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{NameTag ? <NameTag name={p.name} premium={p.hasPlayPass} /> : p.name}</span>{p.hasLegionBadge && Badge ? <Badge size={11} /> : null}{me ? <span className="hc-you">YOU</span> : null}</b>
-        <span>@{p.username}{prize ? <em className={`hc-wl ${prize.hasWallet ? '' : 'no'}`}>{prize.hasWallet ? ' · ✓ wallet linked' : ' · link a wallet to receive'}</em> : null}</span>
+        <b><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{NameTag ? <NameTag name={p.name} premium={p.hasPlayPass} /> : p.name}</span>{p.hasLegionBadge && Badge ? <Badge size={11} /> : null}{staff ? <span className="hc-dev" title="Game developer">DEV</span> : null}{me ? <span className="hc-you">YOU</span> : null}</b>
+        <span>@{p.username}{staff && prizeOn ? <em className="hc-wl no"> · not in the prize</em> : null}{prize ? <em className={`hc-wl ${prize.hasWallet ? '' : 'no'}`}>{prize.hasWallet ? ' · ✓ wallet linked' : ' · link a wallet to receive'}</em> : null}</span>
       </div>
       <span className="pt">{prize ? <i className="hc-pz" title="This week's prize if the week ended now">${fmtUsd(prize.usd)}{prize.near ? ` · ${fmtNear(prize.near)} N` : ''}</i> : null}{Number(p.points || 0).toLocaleString()}</span>
     </div>
@@ -803,6 +804,8 @@ function Countdown({ to }) {
   return <b className="hc-cd">{mmss(new Date(to) - Date.now())}</b>;
 }
 const MEDAL = ['🥇', '🥈', '🥉'];
+// The game's own founder / test accounts (from /weekly-rewards): DEV tag, never win the prize.
+const isStaff = (prize, p) => !!(prize && p && (prize.staff || []).includes(String(p.username || '').toLowerCase()));
 const shortWho = (w) => w.username || w.name || 'player';
 const fmtNear = (n) => (n >= 10 ? n.toFixed(1) : n.toFixed(2));
 // Which prize (if any) a leaderboard row gets this week.
@@ -903,7 +906,7 @@ export function RanksScreen({ mobile, onClose, kit, tab, onTab, data, loading, e
         <div key={i} className={`hc-pc r${i + 1}`}>
           <span className="hc-crown">#{i + 1}</span>
           <img src={kit.avatarImg(p.avatarId, p.avatarVariantId)} alt="" />
-          <b>{p.name}</b><span>@{p.username}</span>
+          <b>{p.name}{isStaff(prize, p) ? <span className="hc-dev">DEV</span> : null}</b><span>@{p.username}</span>
           {(() => { const z = prizeForRow(pz, p); return z ? <em className="hc-podz">WINS ${fmtUsd(z.usd)}{z.near ? ` · ≈${fmtNear(z.near)} NEAR` : ''}</em> : null; })()}
           <div className="hc-ped"><em>{Number(p.points || 0).toLocaleString()}</em><small>PTS</small></div>
         </div>
@@ -917,16 +920,17 @@ export function RanksScreen({ mobile, onClose, kit, tab, onTab, data, loading, e
       {data && list.length === 0 && <div className="hc-empty">{tab === 'weekly' ? 'Nobody has scored any points this week yet.' : 'Nobody has scored any points this month yet.'}</div>}
     </>
   );
-  const rows = rest.map((p) => <RankRow key={p.rank} p={p} kit={kit} me={my && my.rank === p.rank} />);
-  const topRows = top.map((p) => <RankRow key={`t${p.rank}`} p={p} kit={kit} me={my && my.rank === p.rank} prize={prizeForRow(pz, p)} />);
-  const meRow = my && !myInList ? <><div className="hc-gap">···</div><RankRow p={my} kit={kit} me /></> : null;
+  const prizeOn = !!(pz && pz.active);
+  const rows = rest.map((p) => <RankRow key={p.rank} p={p} kit={kit} me={my && my.rank === p.rank} prize={prizeForRow(pz, p)} staff={isStaff(prize, p)} prizeOn={prizeOn} />);
+  const topRows = top.map((p) => <RankRow key={`t${p.rank}`} p={p} kit={kit} me={my && my.rank === p.rank} prize={prizeForRow(pz, p)} staff={isStaff(prize, p)} prizeOn={prizeOn} />);
+  const meRow = my && !myInList ? <><div className="hc-gap">···</div><RankRow p={my} kit={kit} me staff={isStaff(prize, my)} prizeOn={prizeOn} /></> : null;
   if (mobile) {
     return (
       <div className="hc-page">
         <MobileHead title="RANKS" sub={resetText} onBack={onClose} />
         <div className="hc-mbody">
           {seg}{banner}{states}{pod}
-          {pz && pz.active ? topRows : top.map((p) => (my && my.rank === p.rank ? <RankRow key={`t${p.rank}`} p={p} kit={kit} me /> : null))}
+          {pz && pz.active ? topRows : top.map((p) => (my && my.rank === p.rank ? <RankRow key={`t${p.rank}`} p={p} kit={kit} me staff={isStaff(prize, p)} /> : null))}
           {rows}
           {data && !my && list.length > 0 && <div className="hc-note" style={{ textAlign: 'center' }}>Play a match to get on the board.</div>}
         </div>
