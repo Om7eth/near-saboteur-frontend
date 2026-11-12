@@ -1,20 +1,20 @@
 # NEAR Saboteur
 
-A social deduction game with a real economy on NEAR. 4–10 players are on a space station: the crew do missions, and secret saboteurs try to stop them. Players meet, discuss and vote people out. You can play for free, put up a prize pool, or play paid games for real NEAR. Every week the top players on the Ranks are paid in NEAR by an AI agent.
+A social deduction game with a real economy on NEAR. 4–10 players are on a space station: the crew do missions, and secret saboteurs try to stop them. Players meet, discuss and vote people out. You can play for free, put up a prize pool, or play paid games for real NEAR. Every week the top players on the Ranks are paid in NEAR by an agent account on NEAR Intents. The game token, $SABOTEUR, keeps its rules in its own contract: every caught saboteur burns supply.
 
-**Hackathon track:** Games With Real Economies
+**Hackathon tracks:** Games With Real Economies (main) · Memecoins With Mechanics ($SABOTEUR v2) · Agent Economy (Weekly Rewards Agent)
 
 - **Play:** https://nearsaboteur.com
 - **Demo video:** `<PASTE YOUR VIDEO LINK HERE>`
 - **How to play (with screenshots):** https://nearsaboteur.com/how-to-play
 - **$SABOTEUR token page (live from the contract):** https://nearsaboteur.com/token
-- **Backend + smart contract:** https://github.com/Om7eth/near-saboteur-backend (contract guide: [`contract/README.md`](https://github.com/Om7eth/near-saboteur-backend/tree/dev/contract))
+- **Backend + smart contract:** https://github.com/Om7eth/near-saboteur-backend (pool contract: [`contract/README.md`](https://github.com/Om7eth/near-saboteur-backend/tree/main/contract) · token contract: [`token-v2/README.md`](https://github.com/Om7eth/near-saboteur-backend/tree/main/token-v2))
 
 ## What uses NEAR
 
 | Feature | How it works | Network |
 |---|---|---|
-| **Weekly Rewards Agent** | The weekly top 3 are paid automatically by an agent account on **NEAR Intents** (Agent API). `saboteur.near` signs the agent's rules once: withdraw-only, wNEAR only, a weekly $ cap and a per-payment cap. All 3 are queued with a 30-minute timer the admin can cancel, then paid together. Every payment has an idempotency key, so nobody is ever paid twice. | Mainnet |
+| **Weekly Rewards Agent** | The weekly top 3 are paid automatically by an agent account on **NEAR Intents** (Agent API). `saboteur.near` signs the agent's rules once: withdraw-only, wNEAR only, a weekly $ cap and a per-payment cap. All 3 are queued with a 30-minute timer the admin can cancel, then paid together. Every payment has an idempotency key, so nobody is ever paid twice. The game's own founder and test accounts (shown with a DEV tag) can't win. | Mainnet |
 | **Pool games** | The host funds a prize. 1–5 matches are played, then the top 3 by total points are paid by our escrow contract (v4, with tie support and failed-transfer claims). | Testnet |
 | **Paid games** | Every player pays an entry fee into the contract. The pot (minus a 5% fee) goes to the top 3. | Testnet |
 | **Real-NEAR pools** | The host pays the winners straight from their own wallet in one click (one approval, every winner), or pays manually. Every payment is checked on-chain. The home page reminds the host until everyone is paid. | Mainnet |
