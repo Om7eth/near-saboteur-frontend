@@ -804,6 +804,35 @@ function Countdown({ to }) {
   return <b className="hc-cd">{mmss(new Date(to) - Date.now())}</b>;
 }
 const MEDAL = ['🥇', '🥈', '🥉'];
+// [$SABOTEUR v2] Play Pass by burning $SABOTEUR (testnet). The contract burns it.
+const SB_CSS = `.sb-or{display:flex;align-items:center;gap:10px;margin:14px 0 10px;color:#7d8d86;font:600 10px 'IBM Plex Mono',monospace;letter-spacing:.2em}.sb-or:before,.sb-or:after{content:"";flex:1;height:1px;background:rgba(255,255,255,.1)}
+.sb-card{border-radius:12px;padding:12px 13px;border:1px solid rgba(255,138,61,.55);background:linear-gradient(180deg,rgba(255,120,40,.12),rgba(255,60,30,.04))}
+.sb-top{display:flex;align-items:center;gap:11px}.sb-ic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;background:radial-gradient(#3a2a05,#120d02);border:2px solid #ffd75e;color:#6effc0;font:800 15px Orbitron,sans-serif}
+.sb-top b{display:block;font-size:14px;color:#fff}.sb-top small{font-size:11px;color:#a89a8c}.sb-pr{margin-left:auto;text-align:right;font:700 15px 'IBM Plex Mono',monospace;color:#ffd0a8}.sb-pr small{display:block;font-size:10px;color:#ff8a3d;font-weight:400}
+.sb-bar{height:6px;border-radius:9px;background:#2a1a10;margin:10px 0 6px;overflow:hidden}.sb-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffb066,#ff6a2b)}
+.sb-bal{font:600 11px 'IBM Plex Mono',monospace;color:#a89a8c;margin:6px 0 10px}.sb-bal b{color:#ffd75e}
+.sb-btn{width:100%;border:none;border-radius:10px;padding:12px;font:800 13px Orbitron,sans-serif;letter-spacing:.08em;cursor:pointer;background:linear-gradient(180deg,#ffb066,#ff6a2b);color:#200800}.sb-btn:disabled{background:#2a2f2d;color:#8a9790;cursor:default}
+.sb-fine{font-size:10.5px;color:#7d8d86;margin-top:8px;line-height:1.5}.sb-err{font-size:11.5px;color:#ff8a8a;margin-top:8px}`;
+function SabBurnBox({ sb }) {
+  if (!sb || !sb.price) return null;
+  const bal = Number(sb.balance || 0), price = Number(sb.price), enough = bal >= price;
+  const f = (n) => Math.floor(n).toLocaleString();
+  return (
+    <div>
+      <style>{SB_CSS}</style>
+      <div className="sb-or">OR</div>
+      <div className="sb-card">
+        <div className="sb-top"><span className="sb-ic">S</span><div><b>Burn $SABOTEUR</b><small>earned by playing · testnet</small></div><div className="sb-pr">{f(price)}<small>🔥 burned forever</small></div></div>
+        {enough
+          ? <div className="sb-bal">Your balance: <b>{f(bal)} $SABOTEUR</b> → {f(bal - price)} after</div>
+          : <><div className="sb-bar"><i style={{ width: `${Math.min(100, (bal / price) * 100)}%` }} /></div><div className="sb-bal">You have <b>{f(bal)}</b> · <b>{f(price - bal)}</b> to go</div></>}
+        <button type="button" className="sb-btn" disabled={!enough || sb.busy} onClick={sb.onBurn}>{sb.busy ? 'BURNING ON-CHAIN…' : enough ? `🔥 BURN ${f(price)} & UNLOCK` : 'PLAY TO EARN MORE'}</button>
+        {sb.error && <div className="sb-err">{sb.error}</div>}
+        <div className="sb-fine">$SABOTEUR is a testnet token. It can't be bought or cashed out, only earned in matches. The token contract burns it; burning is final.</div>
+      </div>
+    </div>
+  );
+}
 // The game's own founder / test accounts (from /weekly-rewards): DEV tag, never win the prize.
 const isStaff = (prize, p) => !!(prize && p && (prize.staff || []).includes(String(p.username || '').toLowerCase()));
 const shortWho = (w) => w.username || w.name || 'player';
@@ -1465,6 +1494,7 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
         {pp.busy && pp.step && <div className="hc-note" style={{ textAlign: 'center', color: '#ffcf6e' }}>{pp.step}</div>}
         <button type="button" className="hc-buy" disabled={pp.busy || !pp.payReady} onClick={pp.onBuy}>{pp.busy ? 'WAITING FOR YOUR WALLET…' : !pp.payReady ? 'PAYMENTS UPDATING…' : `PAY ${cfg.effectivePriceNear} NEAR WITH YOUR WALLET`}</button>
         <PayNote cfg={cfg} ready={pp.payReady} />
+        <SabBurnBox sb={pp.sab} />
       </>
     );
   const lockIco = <svg viewBox="0 0 24 24" fill="none"><path d={LOCK_P} stroke="#9aa0ad" strokeWidth="2.2" strokeLinejoin="round" /></svg>;
@@ -1568,6 +1598,7 @@ export function PlayPassScreen({ mobile, onClose, pp }) {
         {!owned && cfg && cfg.enabled && <div style={{ padding: '0 16px 10px' }}>{pp.busy && pp.step && <div className="hc-note" style={{ textAlign: 'center', color: '#ffcf6e', marginBottom: 6 }}>{pp.step}</div>}<PayNote cfg={cfg} ready={pp.payReady} compact /></div>}
         {!owned && pp.error && <div className="hc-note hc-err" style={{ textAlign: 'center', padding: '0 16px 10px' }}>{pp.error}</div>}
         {!owned && cfg && !cfg.enabled && <div className="hc-note" style={{ textAlign: 'center', padding: '0 16px 16px' }}>Play Pass purchases are unavailable right now.</div>}
+        {!owned && <div style={{ padding: '0 16px 16px' }}><SabBurnBox sb={pp.sab} /></div>}
       </div>
     );
   }

@@ -9823,6 +9823,63 @@ function SabHistoryList({ summary, loading, signedIn }) {
   );
 }
 
+// [$SABOTEUR v2] Live token panel - every number is read from the token
+// contract (rules included), plus the latest on-chain catch / pass burns.
+function SabLivePanel() {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    let on = true;
+    const load = () => fetch(`${BACKEND_URL}/saboteur/live`).then((r) => r.json()).then((x) => { if (on) setD(x); }).catch(() => {});
+    load(); const t = setInterval(load, 20000);
+    return () => { on = false; clearInterval(t); };
+  }, []);
+  if (!d || !d.active) return null;
+  const f = (n) => Math.round(Number(n || 0)).toLocaleString();
+  const R = d.rules;
+  const box = { border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '9px 10px', background: 'rgba(0,0,0,0.25)' };
+  const lab = { fontSize: 9, fontWeight: 800, letterSpacing: '.12em', color: '#7d8a92' };
+  const stat = (k, v, c) => <div style={box}><div style={lab}>{k}</div><div style={{ fontSize: 16, fontWeight: 900, color: c, marginTop: 3 }}>{v}</div></div>;
+  const pct = d.weekBudget ? Math.min(100, (d.weekMinted / d.weekBudget) * 100) : 0;
+  const ico = { catch: '🔥', pass: '🎟' };
+  return (
+    <div style={{ margin: '0 14px 12px', padding: 12, borderRadius: 14, border: '1px solid rgba(110,255,192,0.18)', background: '#0b1311' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <b style={{ fontSize: 13, color: '#e8eaf0' }}>Live from the token contract</b>
+        <a href={d.contractUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 'auto', fontSize: 10.5, color: '#6effc0' }}>● {d.contract} ↗</a>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 6, marginBottom: 8 }}>
+        {stat('EARNED BY PLAY', f(d.mintedByPlay + d.migrated), '#6effc0')}
+        {stat('🔥 BURNED', f(d.burned), '#ff8a3d')}
+        {stat('SABOTEURS CAUGHT', f(d.caught), '#e8eaf0')}
+        {stat('PASSES BURNED', f(d.passes), SAB_GOLD)}
+      </div>
+      <div style={{ ...box, marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', ...lab }}><span>THIS WEEK'S REWARD BUDGET</span><span style={{ color: '#cdd8d2' }}>{f(d.weekMinted)} / {f(d.weekBudget)}</span></div>
+        <div style={{ height: 6, borderRadius: 9, background: '#13201b', margin: '7px 0 5px', overflow: 'hidden' }}><div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg,#6effc0,#2bb88a)' }} /></div>
+        <div style={{ fontSize: 10.5, color: '#7d8a92' }}>Budget = {f(R.weeklyBase)} + <b style={{ color: '#ff8a3d' }}>{R.burnToBudget}% of last week's burns</b>. More burning → more rewards next week.</div>
+      </div>
+      <div style={{ ...box, marginBottom: 8, fontSize: 11, color: '#cfd4dc', lineHeight: 1.6 }}>
+        <div style={{ ...lab, marginBottom: 4 }}>RULES IN THE CONTRACT</div>
+        Match: {R.rankRewards.map(f).join(' / ')} for 1st/2nd/3rd, {f(R.finished)} for finishing · real players 4+ / 2–3 / 1: {R.tiers.join('% / ')}%<br />
+        🔥 Saboteur caught: burn {f(R.catchBurn)} (× the same tier) · 🎟 Play Pass: burn {f(R.playPassPrice)}<br />
+        Supply {f(d.supply)} · Ritual Pool {f(d.ritualPool)} · rule changes wait {d.timelockDays} days in public
+      </div>
+      {(d.events || []).length > 0 && (
+        <div style={box}>
+          <div style={{ ...lab, marginBottom: 4 }}>LATEST ON-CHAIN BURNS</div>
+          {d.events.map((e, i) => (
+            <div key={i} style={{ display: 'flex', gap: 7, fontSize: 11, padding: '3px 0', color: '#cfd4dc' }}>
+              <span>{ico[e.kind] || '•'}</span>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.kind === 'pass' ? `@${e.name} burned ${f(e.amount)} for Play Pass` : `${e.name} caught${e.roomCode ? ` · ${e.roomCode}` : ''} · −${f(e.amount)}`}</span>
+              {e.txUrl && <a href={e.txUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#6effc0', fontSize: 10 }}>tx ↗</a>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Public list of every bot's wallet and track record (for players + judges).
 function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'bots' }) {
   const [tab, setTab] = useState('bots');
@@ -9857,8 +9914,10 @@ function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'bots' }) {
           <button type="button" onClick={onClose} title="Close" style={{ marginLeft: 'auto', width: 30, height: 30, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.08)', color: '#cfd2da', cursor: 'pointer' }}>✕</button>
         </div>
         <div style={{ padding: '0 14px 10px' }}><SabDisclaimer /></div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', color: '#e8eaf0' }}>
+        <SabLivePanel />
         <div style={{ padding: '0 14px 8px', fontSize: 13, fontWeight: 900, color: '#e8eaf0' }}>Bot wallets</div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 14px 14px', color: '#e8eaf0' }}>
+        <div style={{ padding: '0 14px 14px', color: '#e8eaf0' }}>
           {err && <p style={{ fontSize: 12, color: '#ff8a8a' }}>{err}</p>}
           {tab === 'mine' && !sessionToken && <p style={{ fontSize: 12.5, color: '#aab0bb' }}>Sign in to earn $SABOTEUR. Your wallet is made for you automatically - no seed phrase, no popups.</p>}
           {tab === 'mine' && mine && (
@@ -9909,6 +9968,7 @@ function SaboteurWalletModal({ sessionToken, onClose, initialTab = 'bots' }) {
             </>
           )}
           {((tab === 'mine' && sessionToken && !mine) || (tab === 'bots' && !bots)) && !err && <p style={{ fontSize: 12, color: '#7d8a92' }}>Loading…</p>}
+        </div>
         </div>
       </div>
     </div>,
@@ -10393,6 +10453,8 @@ function MovementDemo() {
     return () => clearTimeout(t);
   }, [authLoading]);
   const [loggedInPlayer, setLoggedInPlayer] = useState(null);
+  const [sabBurn, setSabBurn] = useState(null); // [$SABOTEUR v2] "catch = burn" toast
+  const sabBurnTimerRef = useRef(null);
   // [POINTS SYSTEM STEP 0] The current session token, kept in React
   // state (not just localStorage) so createRoom/joinRoom can read it
   // synchronously when creating/joining a room - this is what lets the
@@ -12006,6 +12068,24 @@ function MovementDemo() {
     if (res.status === 402 || data.status === 'needs_refund') { try { localStorage.removeItem('nearSaboteurPlayPassPending'); } catch (e) { /* ignore */ } }
     return data.message || 'We could not confirm the payment yet. It is safe - we will check again.';
   }
+  // [$SABOTEUR v2] Play Pass by burning $SABOTEUR (the token contract burns it)
+  const [sabPass, setSabPass] = useState({ price: 0, balance: 0, busy: false, error: '' });
+  useEffect(() => {
+    if (!showPlayPassModal || !sessionToken || loggedInPlayer?.hasPlayPass) return;
+    Promise.all([
+      fetch(`${BACKEND_URL}/saboteur/live`).then((r) => r.json()).catch(() => null),
+      fetch(`${BACKEND_URL}/saboteur/me?sessionToken=${encodeURIComponent(sessionToken)}`).then((r) => r.json()).catch(() => null),
+    ]).then(([live, me]) => setSabPass((s) => ({ ...s, error: '', price: live && live.active ? live.rules.playPassPrice : 0, balance: (me && me.balance) || 0 })));
+  }, [showPlayPassModal, sessionToken, loggedInPlayer?.hasPlayPass]);
+  async function burnSabForPlayPass() {
+    setSabPass((s) => ({ ...s, busy: true, error: '' }));
+    try {
+      const res = await fetch(`${BACKEND_URL}/play-pass/burn-saboteur`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionToken }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) { setLoggedInPlayer((prev) => prev ? { ...prev, hasPlayPass: true } : prev); setSabPass((s) => ({ ...s, busy: false })); return; }
+      setSabPass((s) => ({ ...s, busy: false, error: data.message || 'The burn did not go through. Try again.' }));
+    } catch (e) { setSabPass((s) => ({ ...s, busy: false, error: 'Network problem. Your $SABOTEUR is safe - try again.' })); }
+  }
   async function handleBuyPlayPass() {
     setPlayPassError('');
     if (!loggedInPlayer || !sessionToken) { setPlayPassError('Please log in first.'); return; }
@@ -13286,6 +13366,7 @@ function MovementDemo() {
     socket.off('ghostChatMessageReceived');
     socket.off('ghostChatBacklog');
     socket.off('lobbyChatMessageReceived');
+    socket.off('saboteurBurn');
     socket.off('skipDiscussionUpdate');
     socket.off('voteUpdate');
     socket.off('meetingStageChanged');
@@ -14608,6 +14689,14 @@ function MovementDemo() {
       if (!showLobbyChatRef.current && data.senderId !== socket.id) {
         setLobbyChatUnread((n) => n + 1);
       }
+    });
+
+    // [$SABOTEUR v2] the crew caught the saboteur -> the contract burned supply
+    socket.on('saboteurBurn', (d) => {
+      if (!d || !d.amount) return;
+      setSabBurn({ ...d, key: Date.now() });
+      clearTimeout(sabBurnTimerRef.current);
+      sabBurnTimerRef.current = setTimeout(() => setSabBurn(null), 7000);
     });
 
     socket.on('chatError', (data) => {
@@ -21747,6 +21836,7 @@ function MovementDemo() {
                 <PlayPassScreen mobile={consoleMobile} onClose={closePass} pp={{
                   owned: !!loggedInPlayer?.hasPlayPass, config: playPassConfig, status: playPassStatus,
                   error: playPassError, busy: playPassBusy, step: playPassStep, payReady: playPassPayReady, onBuy: handleBuyPlayPass,
+                  sab: sessionToken && !isGuestPlayer ? { ...sabPass, onBurn: burnSabForPlayPass } : null,
                   skins: PREMIUM_AVATARS, passImg: PLAY_PASS_IMG, NameTag: PlayerNameTag,
                   name: loggedInPlayer?.name || playerName,
                   onRequestCustom: () => { setShowCustomAvatarRequestModal(true); loadCustomAvatarRequestConfig(); },
@@ -22196,6 +22286,21 @@ function MovementDemo() {
             side prediction) even while every other player already saw
             them frozen/reconnecting server-side. Now unmissable, top
             center, the entire time the connection isn't healthy. */}
+        {sabBurn && (screen === 'game' || screen === 'lobby') && (
+          <div key={sabBurn.key} style={{
+            position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: 900, width: 'min(380px, calc(100vw - 32px))',
+            borderRadius: 12, background: 'rgba(11,19,17,0.96)', border: '1px solid rgba(255,138,61,0.6)', boxShadow: '0 0 28px rgba(255,100,30,0.3)',
+            padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 11, fontFamily: "'Space Grotesk', system-ui, sans-serif", animation: 'sabBurnIn .35s ease-out',
+          }}>
+            <style>{'@keyframes sabBurnIn{from{opacity:0;transform:translate(-50%,-10px)}to{opacity:1;transform:translate(-50%,0)}}'}</style>
+            <span style={{ fontSize: 24 }}>🔥</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ font: "600 9.5px 'IBM Plex Mono', monospace", letterSpacing: '.18em', color: '#ff8a3d' }}>SABOTEUR CAUGHT · BURNED FOREVER</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#ffd0a8' }}>{Math.round(sabBurn.amount).toLocaleString()} $SABOTEUR</div>
+              <div style={{ fontSize: 11, color: '#a89a8c' }}>{sabBurn.name} was the saboteur{sabBurn.txUrl ? <> · <a href={sabBurn.txUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#ffd0a8' }}>view tx ↗</a></> : null}</div>
+            </div>
+          </div>
+        )}
         {screen === 'game' && connStatus !== 'connected' && connLong && (
           <div style={{
             position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 400,

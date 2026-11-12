@@ -20,7 +20,7 @@ A social deduction game with a real economy on NEAR. 4–10 players are on a spa
 | **Play Pass** | Premium skins and 2× rewards. Paid in NEAR from the player's own wallet, then verified on-chain. | Mainnet |
 | **Custom character requests** | Play Pass players can order their own character. Paid in real NEAR from their own wallet to `saboteur.near`, verified on-chain like Play Pass. | Mainnet |
 | **Referrals** | Invite link `?ref=username`. When a friend finishes 3 matches with other real players, the inviter unlocks 1,000 $SABOTEUR + 30 points (max 5 friends a week for Ranks). | Testnet token |
-| **$SABOTEUR token** | Every finished match pays a reward token by rank (NEP-141). | Testnet |
+| **$SABOTEUR v2 token: "catch = burn"** | NEP-141 token with its mechanic **in the contract** ([`token-v2`](https://github.com/Om7eth/near-saboteur-backend/tree/main/token-v2)). The game only reports a match; the contract computes every reward and accepts each match only once. When the crew catches the saboteur, the contract burns supply from its Ritual Pool. Play Pass can be bought by burning 15,000. The weekly reward budget is 150k plus 50% of last week's burns. Rule changes wait in public for 7 days. A live panel in the game reads every number from the chain. | Testnet |
 | **Wallet identity** | Players sign in with HOT / Meteor / Intear. The NEAR Legion SBT gives a badge. | Mainnet |
 | **NEAR AI** | AI bots talk in meetings, and a NEAR AI mission asks players questions (with offline fallbacks). | NEAR AI Cloud |
 
@@ -36,10 +36,10 @@ A social deduction game with a real economy on NEAR. 4–10 players are on a spa
 ### Roadmap
 
 **✅ Now (live at [nearsaboteur.com](https://nearsaboteur.com))**
-Weekly Rewards Agent (mainnet) · real-NEAR pools · Play Pass · contract v4 · $SABOTEUR rewards · NEAR AI bots · Watch Live · Telegram bot
+Weekly Rewards Agent (mainnet) · real-NEAR pools · Play Pass · contract v4 · $SABOTEUR v2 (catch = burn) · NEAR AI bots · Watch Live · Telegram bot
 
 **🔜 Next: the $SABOTEUR loop (testnet)**
-- Earn → spend: a cosmetic shop (skins, name colours, emotes) and "Sponsor a Room" prizes.
+- More ways to spend: a cosmetic shop (skins, name colours, emotes) and "Sponsor a Room" prizes, all burning $SABOTEUR.
 - One wallet: $SABOTEUR in the in-game wallet, and gasless pools on $SABOTEUR (contract v5).
 - Monthly ranked seasons with badges.
 
@@ -105,6 +105,7 @@ This game existed before the hackathon. Only the work inside the window (19 Oct 
   - Play Pass paid in mainnet NEAR.
   - A pay wallet tied to each account.
   - $SABOTEUR match rewards.
+- **$SABOTEUR v2 "catch = burn":** a new NEP-141 contract (20 unit tests) where the rules live on-chain. It has match rewards by real players, an on-chain burn when the saboteur is caught, Play Pass by burning 15,000, a weekly budget that grows with burns, and a 7-day public timelock on rule changes. Every v1 balance was migrated, and a live panel shows it all in the game.
 - **NEAR AI:** a mission that asks players questions (with backup answers), and AI bots that talk in meetings.
 - **Game features:** stickers in chat, station map v2 (location card and floating map), and watch mode for hosts (spectator seats).
 - **Watch Live:** anyone can watch public Free and Pool matches (from the home page or Telegram) as a silent spectator: no roles, no chat, no votes. Paid games can't be watched. Switched on/off from the admin page.
