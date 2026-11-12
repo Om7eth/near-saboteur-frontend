@@ -20,6 +20,15 @@ No wallet or crypto is needed for steps 1–3.
 4. **See the weekly NEAR payout.** Sign in (email) → RANKS → WEEKLY. **You'll see** this week's prize in USD and NEAR, the top 3 who would win, and the founder account marked DEV and excluded. Payouts are sent on mainnet by the agent account on NEAR Intents after the Saturday 00:00 IST reset.
 5. **Run the tests.** In the [backend repo](https://github.com/Om7eth/near-saboteur-backend#run-locally-and-test): `npm install && npm test` (bot rules), `cd contract && cargo test` (28), `cd token-v2 && cargo test` (20). **You'll see** all tests pass, with no database, keys or network needed.
 
+## Track hints → how we use them
+
+| Hint | In NEAR Saboteur |
+|---|---|
+| **Agent NPCs** (games) | AI bots play as crew or saboteur, talk and vote in meetings (NEAR AI), and each bot has **its own NEAR account** (`bot-<name>.saboteur.testnet`) that earns $SABOTEUR by rank. A bot past 50,000 sends its earnings to the Bot Treasury (`bots.saboteur.testnet`). |
+| **Social login** (games) | Email login with an in-game wallet made for you, or play as a guest. No seed phrase, no gas. |
+| **NEAR Intents** (games, agents) | The Weekly Rewards Agent pays the top 3 in NEAR on mainnet through the NEAR Intents Agent API. |
+| **Mechanic in the contract** (memecoins) | $SABOTEUR v2: catch = burn, Play Pass by burning, a weekly budget that grows with burns. Rules are fixed in the contract, and the contract account has **0 access keys**. |
+
 ## What uses NEAR
 
 | Feature | How it works | Network |
@@ -31,7 +40,7 @@ No wallet or crypto is needed for steps 1–3.
 | **Play Pass** | Premium skins and 2× rewards. Paid in NEAR from the player's own wallet, then verified on-chain. | Mainnet |
 | **Custom character requests** | Play Pass players can order their own character. Paid in real NEAR from their own wallet to `saboteur.near`, verified on-chain like Play Pass. | Mainnet |
 | **Referrals** | Invite link `?ref=username`. When a friend finishes 3 matches with other real players, the inviter unlocks 1,000 $SABOTEUR + 30 points (max 5 friends a week for Ranks). | Testnet token |
-| **$SABOTEUR v2 token: "catch = burn"** | NEP-141 token with its mechanic **in the contract** ([`token-v2`](https://github.com/Om7eth/near-saboteur-backend/tree/main/token-v2)). The game only reports a match; the contract computes every reward and accepts each match only once. When the crew catches the saboteur, the contract burns supply from its Ritual Pool. Play Pass can be bought by burning 15,000. The weekly reward budget is 150k plus 50% of last week's burns. Rule changes wait in public for 7 days. The public [token page](https://nearsaboteur.com/token) reads every number from the chain and shows a Wall of Shame of the most-caught saboteurs, plus **"Try to cheat $SABOTEUR"**: real failed testnet transactions where the contract refused a double payout, a fake match report, a non-owner rule change and a free Play Pass. | Testnet |
+| **$SABOTEUR v2 token: "catch = burn"** | NEP-141 token with its mechanic **in the contract** ([`token-v2`](https://github.com/Om7eth/near-saboteur-backend/tree/main/token-v2)). The game only reports a match; the contract computes every reward and accepts each match only once. When the crew catches the saboteur, the contract burns supply from its Ritual Pool. Play Pass can be bought by burning 15,000. The weekly reward budget is 150k plus 50% of last week's burns. Rule changes wait in public for 7 days, and the contract account has 0 access keys, so nobody can redeploy it. The public [token page](https://nearsaboteur.com/token) reads every number from the chain and shows a Wall of Shame of the most-caught saboteurs, plus **"Try to cheat $SABOTEUR"**: real failed testnet transactions where the contract refused a double payout, a fake match report, a non-owner rule change and a free Play Pass. | Testnet |
 | **Wallet identity** | Players sign in with HOT / Meteor / Intear. The NEAR Legion SBT gives a badge. | Mainnet |
 | **NEAR AI** | AI bots talk in meetings, and a NEAR AI mission asks players questions (with offline fallbacks). | NEAR AI Cloud |
 
@@ -74,7 +83,7 @@ The game files are big (one React file for the game, one server file), so here i
 | Feature | Where | Look for |
 |---|---|---|
 | **Weekly Rewards Agent** (NEAR Intents, mainnet) | [`economy/weeklyAgent.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/economy/weeklyAgent.js) | `leaders` (top 3, staff excluded), `tick` (30-min batch), `sendWinner` (idempotent payout) |
-| **$SABOTEUR v2 token contract** | [`token-v2/src/lib.rs`](https://github.com/Om7eth/near-saboteur-backend/blob/main/token-v2/src/lib.rs) | `Rules::launch`, `reward_match`, `catch_ritual`, `buy_play_pass`, `propose_rules` (7-day timelock), 20 tests at the bottom |
+| **$SABOTEUR v2 token contract** | [`token-v2/src/lib.rs`](https://github.com/Om7eth/near-saboteur-backend/blob/main/token-v2/src/lib.rs) | `Rules::launch`, `reward_match`, `catch_ritual`, `buy_play_pass`, `propose_rules` (7-day timelock), 20 tests at the bottom; 60-day supply simulation in [`token-v2/simulate.py`](https://github.com/Om7eth/near-saboteur-backend/blob/main/token-v2/simulate.py) |
 | Game ↔ token (reports only, contract decides) | [`economy/saboteurToken.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/economy/saboteurToken.js), [`economy/match.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/economy/match.js) | `reportMatch`, `catchRitual`, `buyPlayPass`, `catchBurn`, `payPendingV2`, `wallOfShame` |
 | Catch = burn trigger (saboteur voted out) | [`index.js`](https://github.com/Om7eth/near-saboteur-backend/blob/main/index.js) | `finalizeVoting` → `economy.catchBurn` |
 | Public token page | [`token/index.html`](https://github.com/Om7eth/near-saboteur-frontend/blob/main/token/index.html) | live stats, Wall of Shame, "Try to cheat" proofs |
