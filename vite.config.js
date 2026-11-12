@@ -27,6 +27,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         howToPlay: resolve(__dirname, 'how-to-play/index.html'),
+        token: resolve(__dirname, 'token/index.html'), // [$SABOTEUR v2] public token page
       },
     },
   },

@@ -9841,7 +9841,8 @@ function SabLivePanel() {
     <div style={{ margin: '0 14px 12px', padding: 12, borderRadius: 14, border: '1px solid rgba(110,255,192,0.18)', background: '#0b1311' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <b style={{ fontSize: 13, color: '#e8eaf0' }}>Live from the token contract</b>
-        <a href={d.contractUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 'auto', fontSize: 10.5, color: '#6effc0' }}>● {d.contract} ↗</a>
+        <a href="/token/" target="_blank" rel="noopener noreferrer" style={{ marginLeft: 'auto', fontSize: 10.5, color: '#6effc0', fontWeight: 800 }}>Token page ↗</a>
+        <a href={d.contractUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10.5, color: '#7d8a92' }}>{d.contract} ↗</a>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 6, marginBottom: 8 }}>
         {stat('EARNED BY PLAY', f(d.mintedByPlay + d.migrated), '#6effc0')}
