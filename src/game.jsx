@@ -10042,6 +10042,14 @@ const AUTH_STAGE_CSS = `
 .nsa-cta small{font-family:var(--sans);font-weight:600;font-size:.6em;letter-spacing:0;opacity:.8;margin-top:.1em}
 .nsa-sec{display:block;width:100%;padding:.75em .6em;border-radius:.55em;border:1px solid var(--cyan);background:rgba(143,227,255,.07);color:var(--cyan);font-family:var(--sans);font-weight:700;font-size:.95em;cursor:pointer}
 .nsa-link{background:none;border:none;padding:0;color:var(--mint);font-size:.8em;text-decoration:underline;cursor:pointer;font-family:var(--sans)}
+.nsa-nav{position:absolute;left:0;right:0;top:0;z-index:5;display:flex;align-items:center;gap:26px;padding:10px 26px;background:linear-gradient(180deg,rgba(3,6,5,.92),rgba(3,6,5,.55) 70%,rgba(3,6,5,0));font-family:'IBM Plex Mono',monospace}
+.nsa-nav-logo img{height:34px;width:auto;display:block}
+.nsa-nav nav{display:flex;gap:22px}.nsa-nav nav a{position:relative;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#93a39c;text-decoration:none;transition:color .15s}
+.nsa-nav nav a:hover{color:#fff}.nsa-nav nav a.on{color:#e6efe9}.nsa-nav nav a.on:after{content:"";position:absolute;left:0;right:0;bottom:-8px;height:2px;background:#6effc0;box-shadow:0 0 10px #6effc0}
+.nsa-nav .sp{flex:1}
+.nsa-nav-btn{height:36px;padding:0 18px;border:none;cursor:pointer;font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.16em;text-transform:uppercase;color:#6effc0;background:rgba(110,255,192,.08);box-shadow:inset 0 0 0 1px rgba(110,255,192,.4);clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
+.nsa-nav-btn:hover{background:rgba(110,255,192,.16)}
+@media(max-width:640px){.nsa-nav{gap:14px;padding:9px 14px}.nsa-nav-logo img{height:26px}.nsa-nav nav{gap:14px}.nsa-nav nav a{font-size:10px;letter-spacing:.1em}.nsa-nav nav a.on:after{bottom:-6px}.nsa-nav-btn{display:none}}
 .nsa-htp{align-self:center;margin-top:.7em;padding:.45em 1em;border:1px solid rgba(110,255,192,.28);border-radius:999px;font-size:.78em;color:#b9c7c1;text-decoration:none;font-family:var(--sans);transition:border-color .15s,color .15s}.nsa-htp b{color:var(--mint)}.nsa-htp:hover{border-color:var(--mint);color:#fff}
 .nsa-muted{color:#aab4af}
 .nsa-steps{display:grid;grid-template-columns:repeat(5,1fr);gap:.2em;margin-bottom:.6em}
@@ -10086,7 +10094,19 @@ const AUTH_STAGE_CSS = `
 `;
 // The whole sign-in / onboarding screen. `children` is what goes inside the
 // art's panel.
-function AuthStage({ children, glow }) {
+// [LOGIN NAV] Same top bar as the token page: Game · How to play · $SABOTEUR.
+const TOKEN_PAGE_URL = `${import.meta.env.BASE_URL || '/'}token/`;
+function AuthTopNav({ onSignIn }) {
+  return (
+    <div className="nsa-nav">
+      <a className="nsa-nav-logo" href={import.meta.env.BASE_URL || '/'} aria-label="NEAR Saboteur"><img src={SABOTEUR_BRAND_LOGO_IMG} alt="NEAR Saboteur" draggable={false} /></a>
+      <nav><a className="on" href={import.meta.env.BASE_URL || '/'}>Game</a><a href={HOW_TO_PLAY_URL}>How to play</a><a href={TOKEN_PAGE_URL}>$SABOTEUR</a></nav>
+      <span className="sp" />
+      {onSignIn && <button type="button" className="nsa-nav-btn" onClick={onSignIn}>Sign in</button>}
+    </div>
+  );
+}
+function AuthStage({ children, glow, nav }) {
   const size = useAuthStageSize();
   const L = authStageLayout(size.w, size.h);
   const fs = L.isPhone ? Math.max(13, Math.min(16.5, L.panel.w / 20)) : Math.max(12, L.panel.w / 28);
@@ -10098,6 +10118,7 @@ function AuthStage({ children, glow }) {
       <style>{AUTH_STAGE_CSS}</style>
       <div style={{ position: 'absolute', inset: '-8%', backgroundImage: `url(${L.A.src})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(22px) brightness(0.55)' }} />
       <img src={L.A.src} alt="" draggable={false} style={{ position: 'absolute', left: L.ox, top: L.oy, width: L.dw, height: L.dh, userSelect: 'none', pointerEvents: 'none' }} />
+      {nav}
       <div className={glow ? 'nsa-glow' : ''} style={{
         position: 'absolute', left: L.panel.x, top: L.panel.y, width: L.panel.w, height: L.panel.h,
         fontSize: fs, padding: L.panel.w * 0.045, display: 'flex', flexDirection: 'column',
@@ -10290,7 +10311,9 @@ const DESK_HOME_CSS = `
 // BASE_URL keeps it right on any domain or sub-path.
 const HOW_TO_PLAY_URL = `${import.meta.env.BASE_URL || '/'}how-to-play/`;
 const openHowToPlay = () => { window.location.href = HOW_TO_PLAY_URL; };
+const openTokenPage = () => { window.location.href = `${import.meta.env.BASE_URL || '/'}token/`; }; // [$SABOTEUR v2] public token page
 const DESK_ICON = {
+  FLAME: 'M12 3c1 3.5 5 5.5 5 10a5 5 0 01-10 0c0-2.4 1.2-3.8 2.2-4.9.2 1.6 1 2.6 2 3 0-3 .3-5.6.8-8.1z',
   HELP: 'M12 21a9 9 0 100-18 9 9 0 000 18zM9.6 9.2a2.5 2.5 0 014.8 1c0 1.7-2.4 2.2-2.4 3.6M12 17.2v.1',
   WALLET: 'M4 7.5V18a2 2 0 002 2h13a1 1 0 001-1v-3M4 7.5A2 2 0 016 5.5h10.5M4 7.5h15a1 1 0 011 1V11M20 11h-4a2.5 2.5 0 000 5h4a1 1 0 001-1v-3a1 1 0 00-1-1z',
   RANKS: 'M9 20V11h6v9M3 20v-5h6M15 20v-7h6v7M2 20h20M12 3.5l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z',
@@ -18856,6 +18879,7 @@ function MovementDemo() {
         <DeskTopButton label="Referrals" active={active === 'friends'} onClick={go('friends')}><img src={REFERRAL_ICON_IMG} alt="" /></DeskTopButton>
         <DeskTopButton label="Wallet" active={active === 'wallet'} onClick={go('wallet')}><DeskIcon d={DESK_ICON.WALLET} /></DeskTopButton>
         <DeskTopButton label="Ranks" active={active === 'ranks'} onClick={go('ranks')}><DeskIcon d={DESK_ICON.RANKS} /></DeskTopButton>
+        <DeskTopButton label="$Saboteur" onClick={openTokenPage}><DeskIcon d={DESK_ICON.FLAME} /></DeskTopButton>
         <DeskTopButton label="Activity" active={active === 'activity'} onClick={go('activity')}><DeskIcon d={DESK_ICON.ACTIVITY} /></DeskTopButton>
         <DeskTopButton label="News" active={active === 'news'} onClick={go('news')} badge={active === 'news' ? 0 : newsUnreadCount}><DeskIcon d={DESK_ICON.NEWS} /></DeskTopButton>
         <DeskTopButton label="Music" onClick={toggleMusic}><DeskIcon d={musicActive ? DESK_ICON.MUSIC : DESK_ICON.MUSIC_OFF} /></DeskTopButton>
@@ -19270,7 +19294,7 @@ function MovementDemo() {
           Create account shows 5 named steps (Account, Code, Crewmate,
           Wallet, Play). See AuthStage for how any screen size is handled. */}
       {!sessionRestoring && !sessionRestoreFailed && screen === 'auth' && (
-        <AuthStage glow={authView === 'welcome' && authMode === 'login'}>
+        <AuthStage glow={authView === 'welcome' && authMode === 'login'} nav={<AuthTopNav onSignIn={authView === 'welcome' && authMode === 'login' ? () => { setAuthTab('email'); setAuthMode('login'); setAuthView('form'); setAuthError(''); setAuthInfo(''); } : null} />}>
           {authView === 'welcome' && authMode === 'login' ? (
             <div className="nsa-view" key="welcome">
               <div className="nsa-center">
@@ -19284,7 +19308,6 @@ function MovementDemo() {
                   I have an account · Sign in
                 </button>
                 <button className="nsa-link nsa-muted" style={{ alignSelf: 'center' }} onClick={handlePlayAsGuest}>or jump in as a guest</button>
-                <a className="nsa-htp" href={HOW_TO_PLAY_URL}>New here? <b>How to play →</b></a>
               </div>
             </div>
           ) : (() => {
@@ -20558,6 +20581,7 @@ function MovementDemo() {
                 { label: 'WALLET', icon: 'M4 7.5V18a2 2 0 002 2h13a1 1 0 001-1v-3M4 7.5A2 2 0 016 5.5h10.5M4 7.5h15a1 1 0 011 1V11M20 11h-4a2.5 2.5 0 000 5h4a1 1 0 001-1v-3a1 1 0 00-1-1z', go: guestGuard(() => setHomeModal('wallet')) },
                 { label: 'RANKS', icon: 'M9 20V11h6v9M3 20v-5h6M15 20v-7h6v7M2 20h20M12 3.5l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z', go: guestGuard(() => setHomeModal('leaderboard')) },
                 { label: 'ACTIVITY', icon: 'M3 12h4l2.5-6 4 12 2.5-6H21', go: guestGuard(() => setHomeModal('activity')) },
+                { label: '$SABOTEUR', icon: DESK_ICON.FLAME, go: openTokenPage },
                 { label: 'HOW TO PLAY', icon: DESK_ICON.HELP, go: openHowToPlay },
               ];
               // Name plate sits on the platform's front lip; on very short screens it's
