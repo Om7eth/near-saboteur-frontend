@@ -68,9 +68,10 @@ Weekly Rewards Agent (mainnet) · real-NEAR pools · Play Pass · contract v4 ·
 ```bash
 npm install
 npm run dev        # http://localhost:5173 (expects the backend on :3000)
+npm run build      # production build (main game + /how-to-play + /token)
 ```
 
-To run the backend, see the backend repo's README.
+Set `VITE_BACKEND_URL` to point at another backend. To run the backend and the tests (bot rules, both contracts), see the [backend README](https://github.com/Om7eth/near-saboteur-backend#run-locally-and-test).
 
 ## Hackathon diff (what to judge)
 
