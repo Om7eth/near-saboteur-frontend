@@ -13805,7 +13805,10 @@ function MovementDemo() {
         // starting. This flag tells the loading->roleReveal chain effect
         // (below) to skip straight to 'game' instead.
         skipRoleRevealRef.current = true;
-        setScreen('loading');
+        // [RECONNECT FIX] Already in the match (a quick resync after switching
+        // tabs / apps, or a short network blip): restore silently, never show
+        // "Boarding the station" again. Only a real fresh load goes via loading.
+        if (screenRef.current !== 'game') setScreen('loading');
         // [NEW FEATURE] Restore the shared crew-progress meter too, so a
         // reconnecting player sees the correct live % immediately instead
         // of it sitting at 0% until someone else's next mission update.
