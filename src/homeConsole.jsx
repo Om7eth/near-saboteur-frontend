@@ -807,10 +807,12 @@ const shortWho = (w) => w.username || w.name || 'player';
 const fmtNear = (n) => (n >= 10 ? n.toFixed(1) : n.toFixed(2));
 // Which prize (if any) a leaderboard row gets this week.
 function prizeForRow(prize, p) {
-  if (!prize || !prize.active || !p || p.rank > 3) return null;
-  const t = (prize.top || []).find((x) => x.rank === p.rank && (x.username ? x.username === p.username : x.name === p.name));
+  if (!prize || !prize.active || !p) return null;
+  // match by player, not by rank: staff accounts are skipped, so the prize
+  // rank can be lower than the leaderboard rank
+  const t = (prize.top || []).find((x) => (x.username ? x.username === p.username : x.name === p.name));
   if (!t) return null;
-  const usd = prize.prizesUsd[p.rank - 1];
+  const usd = prize.prizesUsd[t.rank - 1];
   return { usd, near: prize.nearPrice ? usd / prize.nearPrice : null, hasWallet: t.hasWallet };
 }
 function PrizeWallet({ prize, onSave }) {
