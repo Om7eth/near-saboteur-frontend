@@ -5,7 +5,7 @@ A social deduction game with a real economy on NEAR. 4–10 players are on a spa
 **Hackathon tracks:** Games With Real Economies (main) · Memecoins With Mechanics ($SABOTEUR v2) · Agent Economy (Weekly Rewards Agent)
 
 - **Play:** https://nearsaboteur.com
-- **Demo video:** `<PASTE YOUR VIDEO LINK HERE>`
+- **Demo video (5:24, with timestamps):** https://x.com/NearSaboteur/status/2120862694026940559
 - **How to play (with screenshots):** https://nearsaboteur.com/how-to-play
 - **$SABOTEUR token page (live from the contract):** https://nearsaboteur.com/token
 - **Backend + smart contract:** https://github.com/Om7eth/near-saboteur-backend (pool contract: [`contract/README.md`](https://github.com/Om7eth/near-saboteur-backend/tree/main/contract) · token contract: [`token-v2/README.md`](https://github.com/Om7eth/near-saboteur-backend/tree/main/token-v2))
