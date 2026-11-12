@@ -20863,6 +20863,16 @@ function MovementDemo() {
                       {/* launch console: mode switch + one big play button */}
                       <div style={{ position: 'absolute', left: 14, right: 14, bottom: 'max(18px, env(safe-area-inset-bottom))', pointerEvents: 'auto' }}>
                         {!isGuestPlayer && hostUnpaid && <div style={{ marginBottom: 10 }}><UnpaidPoolPill info={hostUnpaid} mobile onOpen={openUnpaidPools} /></div>}
+                        {/* [MOBILE] one tap into a match with AI bots (desktop has this in the Live Rooms panel) */}
+                        {cur.id === 'free' && (
+                          <>
+                            <button type="button" className="hm-btn" disabled={firstMatchBusy} onClick={startFirstMatchWithBots}
+                              style={{ width: '100%', height: 38, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', clipPath: cutSm, background: 'linear-gradient(90deg, rgba(110,255,192,0.10), rgba(4,8,7,0.88))', boxShadow: 'inset 0 0 0 1px rgba(110,255,192,0.5)', color: M, fontFamily: mono, fontSize: 11, fontWeight: 700, letterSpacing: 1.6, cursor: 'pointer' }}>
+                              {firstMatchBusy ? 'STARTING…' : <>▶ PLAY WITH AI BOTS <span style={{ color: '#7d8d86', fontWeight: 500, letterSpacing: 1 }}>· START NOW</span></>}
+                            </button>
+                            {firstMatchError && <p style={{ margin: '-4px 0 8px', fontSize: 11, color: '#ff8a8a', textAlign: 'center' }}>{firstMatchError}</p>}
+                          </>
+                        )}
                         <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${MODES.length}, 1fr)`, height: 40, marginBottom: 10, borderRadius: 8, background: 'rgba(4,8,7,0.82)', border: '1px solid rgba(255,255,255,0.08)', padding: 3, boxSizing: 'border-box' }}>
                           <span style={{ position: 'absolute', top: 3, bottom: 3, left: `calc(3px + ${mIdx} * (100% - 6px) / ${MODES.length})`, width: `calc((100% - 6px) / ${MODES.length})`, borderRadius: 6, background: `rgba(${cur.rgb},0.14)`, border: `1px solid rgba(${cur.rgb},0.45)`, boxSizing: 'border-box', transition: 'left 0.28s cubic-bezier(.3,.7,.2,1), background-color 0.28s ease, border-color 0.28s ease' }} />
                           {MODES.map((m) => {
