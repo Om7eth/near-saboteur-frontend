@@ -74,12 +74,12 @@ To run the backend, see the backend repo's README.
 
 ## Hackathon diff (what to judge)
 
-This game existed before the hackathon. Only the work inside the window (19 Oct – 14 Nov 2026) should be judged. The last commit before the window is the baseline, tagged `pre-hackathon`. The submitted state is tagged `hackathon-submission`.
+This game existed before the hackathon. Only the work inside the window (19 Oct – 14 Nov 2026) should be judged. The last commit before the window is the baseline below; everything after it on `main` was built during the hackathon.
 
 | Repo | Baseline (6 Oct 2026) | Everything built during the hackathon |
 |---|---|---|
-| Frontend (this repo) | [`ec86165`](https://github.com/Om7eth/near-saboteur-frontend/commit/ec86165) | [compare `pre-hackathon...hackathon-submission`](https://github.com/Om7eth/near-saboteur-frontend/compare/pre-hackathon...hackathon-submission) |
-| Backend + contract | [`25b6b99`](https://github.com/Om7eth/near-saboteur-backend/commit/25b6b99) | [compare `pre-hackathon...hackathon-submission`](https://github.com/Om7eth/near-saboteur-backend/compare/pre-hackathon...hackathon-submission) |
+| Frontend (this repo) | [`ec86165`](https://github.com/Om7eth/near-saboteur-frontend/commit/ec86165) | [compare `ec86165...main`](https://github.com/Om7eth/near-saboteur-frontend/compare/ec86165...main) |
+| Backend + contract | [`25b6b99`](https://github.com/Om7eth/near-saboteur-backend/commit/25b6b99) | [compare `25b6b99...main`](https://github.com/Om7eth/near-saboteur-backend/compare/25b6b99...main) |
 
 ## Prior work (disclosure)
 
