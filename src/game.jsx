@@ -20823,8 +20823,16 @@ function MovementDemo() {
                         <span style={{ flex: 1, minWidth: 0, textAlign: 'left', fontSize: 11.5, color: '#c7d4ce', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {liveTotal > 0 ? `${liveTotal} room${liveTotal > 1 ? 's' : ''} open — tap to jump in` : 'No rooms open right now'}
                         </span>
-                        <span style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: 1.2, color: M, flexShrink: 0 }}>ENTER CODE ›</span>
+                        {liveTotal > 0 ? <span style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: 1.2, color: M, flexShrink: 0 }}>ENTER CODE ›</span> : <span style={{ width: 120, flexShrink: 0 }} />}
                       </button>
+                      {/* [MOBILE] nothing live: the bar's right end starts a match with AI bots (desktop has this in its Live Rooms panel) */}
+                      {liveTotal === 0 && (
+                        <button type="button" className="hm-btn" aria-label="Play with AI bots" disabled={firstMatchBusy} onClick={startFirstMatchWithBots}
+                          style={{ position: 'absolute', top: 72, right: 14, height: 30, padding: '0 10px 0 12px', border: 'none', borderLeft: '1px solid rgba(110,255,192,0.18)', borderRadius: '0 4px 4px 0', background: 'rgba(110,255,192,0.08)', color: M, fontFamily: mono, fontSize: 9.5, fontWeight: 600, letterSpacing: 1.2, display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'auto', cursor: 'pointer' }}>
+                          {firstMatchBusy ? 'STARTING…' : <>▶ PLAY WITH BOTS</>}
+                        </button>
+                      )}
+                      {firstMatchError && <p style={{ position: 'absolute', top: 106, left: 14, right: 14, margin: 0, fontSize: 11, color: '#ff8a8a', textAlign: 'center' }}>{firstMatchError}</p>}
                       {homeJoinError && <p style={{ position: 'absolute', top: 106, left: 14, right: 14, margin: 0, fontSize: 11, color: '#ff8a8a', textAlign: 'center' }}>{homeJoinError}</p>}
 
                       {/* left rail: Om7eth's image buttons */}
@@ -20845,11 +20853,11 @@ function MovementDemo() {
                       </button>
 
                       {/* right rail: hex utilities */}
-                      <div style={{ position: 'absolute', top: 118, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, pointerEvents: 'auto' }}>
+                      <div style={{ position: 'absolute', top: 118, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: hs.h < 720 ? 6 : 12, pointerEvents: 'auto' }}>
                         {RAIL.map((r) => (
                           <button key={r.label} type="button" className="hm-btn" aria-label={r.label} onClick={r.go}
-                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: 0, border: 'none', background: 'none' }}>
-                            <span style={{ position: 'relative', width: 52, height: 46 }}>
+                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: hs.h < 720 ? 2 : 4, padding: 0, border: 'none', background: 'none' }}>
+                            <span style={{ position: 'relative', width: hs.h < 720 ? 46 : 52, height: hs.h < 720 ? 40 : 46 }}>
                               <span style={{ position: 'absolute', inset: 0, clipPath: hex, background: 'linear-gradient(180deg, rgba(110,255,192,0.55), rgba(110,255,192,0.12))' }} />
                               <span style={{ position: 'absolute', inset: 1.5, clipPath: hex, background: 'radial-gradient(circle at 50% 30%, #0f2620, #050b09 80%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d={r.icon} stroke="#7dffc8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -20863,16 +20871,6 @@ function MovementDemo() {
                       {/* launch console: mode switch + one big play button */}
                       <div style={{ position: 'absolute', left: 14, right: 14, bottom: 'max(18px, env(safe-area-inset-bottom))', pointerEvents: 'auto' }}>
                         {!isGuestPlayer && hostUnpaid && <div style={{ marginBottom: 10 }}><UnpaidPoolPill info={hostUnpaid} mobile onOpen={openUnpaidPools} /></div>}
-                        {/* [MOBILE] one tap into a match with AI bots (desktop has this in the Live Rooms panel) */}
-                        {cur.id === 'free' && (
-                          <>
-                            <button type="button" className="hm-btn" disabled={firstMatchBusy} onClick={startFirstMatchWithBots}
-                              style={{ width: '100%', height: 38, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: 'none', clipPath: cutSm, background: 'linear-gradient(90deg, rgba(110,255,192,0.10), rgba(4,8,7,0.88))', boxShadow: 'inset 0 0 0 1px rgba(110,255,192,0.5)', color: M, fontFamily: mono, fontSize: 11, fontWeight: 700, letterSpacing: 1.6, cursor: 'pointer' }}>
-                              {firstMatchBusy ? 'STARTING…' : <>▶ PLAY WITH AI BOTS <span style={{ color: '#7d8d86', fontWeight: 500, letterSpacing: 1 }}>· START NOW</span></>}
-                            </button>
-                            {firstMatchError && <p style={{ margin: '-4px 0 8px', fontSize: 11, color: '#ff8a8a', textAlign: 'center' }}>{firstMatchError}</p>}
-                          </>
-                        )}
                         <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${MODES.length}, 1fr)`, height: 40, marginBottom: 10, borderRadius: 8, background: 'rgba(4,8,7,0.82)', border: '1px solid rgba(255,255,255,0.08)', padding: 3, boxSizing: 'border-box' }}>
                           <span style={{ position: 'absolute', top: 3, bottom: 3, left: `calc(3px + ${mIdx} * (100% - 6px) / ${MODES.length})`, width: `calc((100% - 6px) / ${MODES.length})`, borderRadius: 6, background: `rgba(${cur.rgb},0.14)`, border: `1px solid rgba(${cur.rgb},0.45)`, boxSizing: 'border-box', transition: 'left 0.28s cubic-bezier(.3,.7,.2,1), background-color 0.28s ease, border-color 0.28s ease' }} />
                           {MODES.map((m) => {
