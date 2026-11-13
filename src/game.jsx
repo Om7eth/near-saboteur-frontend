@@ -13804,11 +13804,12 @@ function MovementDemo() {
         // role-reveal screen again - that's only for a brand new game
         // starting. This flag tells the loading->roleReveal chain effect
         // (below) to skip straight to 'game' instead.
-        skipRoleRevealRef.current = true;
         // [RECONNECT FIX] Already in the match (a quick resync after switching
         // tabs / apps, or a short network blip): restore silently, never show
         // "Boarding the station" again. Only a real fresh load goes via loading.
-        if (screenRef.current !== 'game') setScreen('loading');
+        // The skip flag is set ONLY when we really go via loading - otherwise
+        // it lingered and the NEXT match skipped its role reveal.
+        if (screenRef.current !== 'game') { skipRoleRevealRef.current = true; setScreen('loading'); }
         // [NEW FEATURE] Restore the shared crew-progress meter too, so a
         // reconnecting player sees the correct live % immediately instead
         // of it sitting at 0% until someone else's next mission update.
@@ -14153,6 +14154,9 @@ function MovementDemo() {
       // this is what lets OTHER players see us right away on their
       // screen, rather than only after we first move.
       socket.emit('playerMove', { x: spawnPos.x, y: spawnPos.y });
+      // A brand new match ALWAYS shows the role reveal: clear any skip flag
+      // left behind by a mid-match resync in the previous game.
+      skipRoleRevealRef.current = false;
       setScreen('loading');
     });
     socket.on('startGameError', (data) => {
@@ -14927,6 +14931,11 @@ function MovementDemo() {
         const players = roomInfoRef.current?.players || [];
         const myIndex = players.findIndex((p) => p.id === socket.id);
         const returnPos = spawnPointPx(myIndex >= 0 ? myIndex : 0);
+        // [HALL RETURN FIX] Update the position ref right away (the server
+        // already moved us), so nothing in the next 4 s can send our OLD
+        // pre-meeting spot back to the server.
+        posRef.current = returnPos;
+        preMeetingPosRef.current = null;
         setTimeout(() => {
           setPos(returnPos);
           posRef.current = returnPos;
