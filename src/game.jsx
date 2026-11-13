@@ -14792,7 +14792,12 @@ function MovementDemo() {
     // [CHAT REDESIGN] Bots: Auto / @ only - anyone can flip it.
     socket.on('botChatModeChanged', (data) => {
       setRoomInfo((prev) => prev ? { ...prev, botChatMode: data.mode } : prev);
-      if (meetingRef.current) setMatchChat((prev) => [...prev, { kind: 'sys', id: `mode-${Date.now()}`, text: data.text }]);
+      // One line only: a new mode change replaces the previous one if it is the last line.
+      if (meetingRef.current && data.text && !data.silent) setMatchChat((prev) => {
+        const last = prev[prev.length - 1];
+        const base = last && last.kind === 'sys' && (last.botMode || String(last.id || '').startsWith('mode-')) ? prev.slice(0, -1) : prev;
+        return [...base, { kind: 'sys', id: `mode-${Date.now()}`, botMode: true, text: data.text }];
+      });
     });
     // "Nova is typing…" while a bot's reply is on its way.
     socket.on('botTyping', (data) => {
