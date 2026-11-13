@@ -14110,7 +14110,7 @@ function MovementDemo() {
       // for every new match, never carrying a previous round's total.
       setMatchPointsEarned(0);
       setPointPopups([]);
-      setPointsBreakdownLog([]);
+      (pointCountsRef.current = {}, setPointsBreakdownLog([]));
       // [NEW FEATURE] Multi-Saboteur awareness: if there's 2+ Saboteurs,
       // the server includes our fellow Saboteurs' name/avatarId here -
       // ONLY ever present for Saboteur sockets, crewmates never get this
@@ -16826,8 +16826,17 @@ function MovementDemo() {
   // PREVIEW; the server independently computes and caps the real,
   // authoritative total at game-end (see computeMatchPoints on the
   // backend) - this queue never feeds anything back to the server.
+  // [POINTS FIX] same caps as the server's POINTS table, so the preview never
+  // shows points the final total won't count (e.g. venting again and again).
+  const POINT_CAPS = { 'Kill': 4, 'Survived Meeting': 4, 'Sabotage Used': 3, 'Used Vent': 2, 'Mission Complete': 5 };
+  const pointCountsRef = useRef({});
   const spawnPointPopup = useCallback((amount, label) => {
     if (!amount) return;
+    if (POINT_CAPS[label]) {
+      const n = pointCountsRef.current[label] || 0;
+      if (n >= POINT_CAPS[label]) return; // already at the cap: no popup, no preview points
+      pointCountsRef.current[label] = n + 1;
+    }
     playPointCollectSound();
     const id = ++pointPopupIdRef.current;
     setPointPopups((prev) => [...prev, { id, amount, label }]);
