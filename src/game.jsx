@@ -17584,6 +17584,25 @@ function MovementDemo() {
   // [PER-PLAYER] (all three)
   const [sbtMinted, setSbtMinted] = useState(false);
   const [legionDone, setLegionDone] = useState({ stake: false, swap: false, confidential: false, nearAi: false });
+  // [MAP - NEXT STEP] Multi-step missions point the map at the NEXT step,
+  // not the room where the mission started:
+  //  - Confidential Swap: once Confidential Mode is on, go swap at the Exchange Hub.
+  //  - NEAR Legion: after minting the SBT, go to the next unfinished activity's room.
+  const mapMissions = useMemo(() => {
+    if (playerRole !== 'crewmate') return [];
+    const LEGION_ROOM = { stake: 'upper_eng', swap: 'shields', confidential: 'reactor', nearAi: 'storage' };
+    return (myMissions || []).map((m) => {
+      if (m.done) return m;
+      if (m.room === 'reactor' && (confidentialMode.active || confidentialMode.activating)) {
+        return { ...m, room: 'shields', label: 'Confidential Swap · now swap at the Exchange Hub' };
+      }
+      if (m.room === 'admin' && sbtMinted) {
+        const next = LEGION_ACTIVITIES.find((a) => !legionDone[a.key]);
+        if (next && LEGION_ROOM[next.key]) return { ...m, room: LEGION_ROOM[next.key], label: `NEAR Legion · ${next.label}` };
+      }
+      return m;
+    });
+  }, [playerRole, myMissions, confidentialMode.active, confidentialMode.activating, sbtMinted, legionDone]);
   const [legionClaimed, setLegionClaimed] = useState({ stake: false, swap: false, confidential: false, nearAi: false });
 
   // Marks a room's mission as done in this player's task list and grants the
@@ -23381,7 +23400,7 @@ function MovementDemo() {
           Tasks. Click it or press M for the floating station map. */}
       {playerRole !== 'spectator' && (
         <LocationCard geo={MAP_GEO} posPx={{ x: pos.x + PLAYER_SIZE / 2, y: pos.y + PLAYER_SIZE / 2 }}
-          missions={playerRole === 'crewmate' ? myMissions : []} targetRoomId={mapTarget}
+          missions={mapMissions} targetRoomId={mapTarget}
           crew={crewProgress.percent} showTasks={crewProgress.total > 0} lockedVault={!vaultUnlocked}
           desktop={isDesktopPointer} hudK={hudK} onOpen={() => setShowMap(true)} />
       )}
@@ -23542,7 +23561,7 @@ function MovementDemo() {
           your missions and the walking route; drag it by the title bar, ✕ closes */}
       {showMap && (
         <StationMapWindow geo={MAP_GEO} posPx={{ x: pos.x + PLAYER_SIZE / 2, y: pos.y + PLAYER_SIZE / 2 }}
-          missions={playerRole === 'crewmate' ? myMissions : []} targetRoomId={mapTarget} onTarget={setMapTarget}
+          missions={mapMissions} targetRoomId={mapTarget} onTarget={setMapTarget}
           lockedVault={!vaultUnlocked} desktop={isDesktopPointer} hudK={Math.min(hudK, 1.4)} onClose={() => setShowMap(false)} />
       )}
 
